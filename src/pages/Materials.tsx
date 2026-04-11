@@ -41,6 +41,7 @@ interface Material {
 
 const Materials = () => {
   const { profile } = useAuth();
+  const [studentId, setStudentId] = useState<string | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [filter, setFilter] = useState("before");
   const [loading, setLoading] = useState(true);
@@ -53,8 +54,14 @@ const Materials = () => {
 
   const loadMaterials = async () => {
     if (!profile) return;
-    const { data: student } = await supabase.from("students").select("id").eq("user_id", profile.id).single();
+    const { data: student } = await supabase
+      .from("students")
+      .select("id")
+      .eq("user_id", profile.id)
+      .single();
+
     if (!student) { setLoading(false); return; }
+    setStudentId(student.id);
 
     const { data: sm } = await supabase
       .from("student_materials")
@@ -75,13 +82,26 @@ const Materials = () => {
 
   const filtered = materials.filter(m => m.delivery === filter);
 
-  const openMaterial = (m: Material) => {
-    if (m.file_url) {
-      if (m.type === "audio") {
-        setViewingUrl(m.file_url);
-      } else {
-        window.open(m.file_url, "_blank");
-      }
+  const openMaterial = async (m: Material) => {
+    if (!m.file_url) return;
+
+    if (m.type === "audio") {
+      setViewingUrl(m.file_url);
+    } else {
+      window.open(m.file_url, "_blank");
+    }
+
+    // Registrar acesso se ainda não foi acessado
+    if (studentId && !m.accessed) {
+      await supabase
+        .from("student_materials")
+        .update({ accessed_at: new Date().toISOString() })
+        .eq("student_id", studentId)
+        .eq("material_id", m.id);
+
+      setMaterials(prev =>
+        prev.map(mat => mat.id === m.id ? { ...mat, accessed: true } : mat)
+      );
     }
   };
 
@@ -119,7 +139,11 @@ const Materials = () => {
         ) : (
           <div className="space-y-2">
             {filtered.map(m => (
-              <Card key={m.id} className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => openMaterial(m)}>
+              <Card
+                key={m.id}
+                className="cursor-pointer hover:border-primary/30 transition-colors"
+                onClick={() => openMaterial(m)}
+              >
                 <CardContent className="flex items-center gap-3 py-3 px-4">
                   <div className="text-primary">{typeIcons[m.type] || <FileText className="h-5 w-5" />}</div>
                   <div className="flex-1 min-w-0">
@@ -128,9 +152,13 @@ const Materials = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     {m.accessed ? (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="h-3 w-3" /> Visto</span>
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Eye className="h-3 w-3" /> Visto
+                      </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-xs text-primary font-bold"><EyeOff className="h-3 w-3" /> Novo</span>
+                      <span className="flex items-center gap-1 text-xs text-primary font-bold">
+                        <EyeOff className="h-3 w-3" /> Novo
+                      </span>
                     )}
                   </div>
                 </CardContent>
@@ -146,7 +174,14 @@ const Materials = () => {
               <audio controls className="w-full" src={viewingUrl}>
                 Seu navegador não suporta áudio.
               </audio>
-              <Button variant="ghost" size="sm" className="mt-2 text-xs" onClick={() => setViewingUrl(null)}>Fechar player</Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-xs"
+                onClick={() => setViewingUrl(null)}
+              >
+                Fechar player
+              </Button>
             </CardContent>
           </Card>
         )}

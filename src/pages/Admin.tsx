@@ -4,12 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Upload, LogOut, Users } from "lucide-react";
+import { Plus, Upload, LogOut, Users, Copy } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
 interface StudentRow {
@@ -40,6 +40,7 @@ const Admin = () => {
   const [newLevelId, setNewLevelId] = useState("");
   const [creatingStudent, setCreatingStudent] = useState(false);
   const [showNewStudent, setShowNewStudent] = useState(false);
+  const [resetLink, setResetLink] = useState<string | null>(null);
 
   // Upload material form
   const [matTitle, setMatTitle] = useState("");
@@ -56,63 +57,51 @@ const Admin = () => {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
+
+    // 3 queries paralelas — idiomas, níveis e alunos com joins
     const [{ data: langs }, { data: lvls }, { data: studs }] = await Promise.all([
       supabase.from("languages").select("id, name").eq("active", true),
       supabase.from("levels").select("id, name, code, language_id"),
-      supabase.from("students").select("id, status, current_step_id, user_id, language_id, level_id"),
+      supabase.from("students").select(`
+        id, status, user_id, language_id, level_id, current_step_id,
+        profiles!students_user_id_fkey(name),
+        steps!students_current_step_id_fkey(number),
+        teacher_students(
+          teachers(
+            profiles!teachers_user_id_fkey(name)
+          )
+        )
+      `),
     ]);
 
     setLanguages(langs || []);
     setLevels(lvls || []);
 
     if (studs) {
-      const rows: StudentRow[] = [];
-      for (const s of studs) {
-        let profileData = null;
-        let langData = null;
-        let levelData = null;
-        let teacherName: string | null = null;
-        let stepNum = 0;
+      const rows: StudentRow[] = (studs as any[]).map(s => {
+        const teacherEntry = s.teacher_students?.[0];
+        const teacherProfile = teacherEntry?.teachers?.profiles;
+        const teacherName = Array.isArray(teacherProfile)
+          ? teacherProfile[0]?.name || null
+          : teacherProfile?.name || null;
 
-        if (s.user_id) {
-          const { data: p } = await supabase.from("profiles").select("name").eq("id", s.user_id).single();
-          profileData = p;
-        }
-        if (s.language_id) {
-          langData = (langs || []).find(l => l.id === s.language_id) || null;
-        }
-        if (s.level_id) {
-          levelData = (lvls || []).find(l => l.id === s.level_id) || null;
-        }
-        if (s.current_step_id) {
-          const { data: step } = await supabase.from("steps").select("number").eq("id", s.current_step_id).single();
-          stepNum = step?.number || 0;
-        }
+        const langData = (langs || []).find(l => l.id === s.language_id);
+        const levelData = (lvls || []).find(l => l.id === s.level_id);
 
-        const { data: ts } = await supabase
-          .from("teacher_students")
-          .select("teacher_id, teachers(user_id)")
-          .eq("student_id", s.id)
-          .limit(1)
-          .single();
-
-        if (ts?.teachers) {
-          const { data: tp } = await supabase.from("profiles").select("name").eq("id", (ts.teachers as any).user_id).single();
-          teacherName = tp?.name || null;
-        }
-
-        rows.push({
+        return {
           id: s.id,
           status: s.status,
-          currentStepNumber: stepNum,
-          profile: profileData,
+          currentStepNumber: s.steps?.number || 0,
+          profile: s.profiles ? { name: s.profiles.name } : null,
           language: langData ? { name: langData.name } : null,
           level: levelData ? { name: levelData.name, code: levelData.code } : null,
           teacherName,
-        });
-      }
+        };
+      });
       setStudents(rows);
     }
+
     setLoading(false);
   };
 
@@ -122,35 +111,31 @@ const Admin = () => {
       return;
     }
     setCreatingStudent(true);
+    setResetLink(null);
 
-    // Create auth user via admin (would need edge function in production)
-    // For now, invite user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: newEmail,
-      password: crypto.randomUUID().slice(0, 12),
-      options: { data: { name: newName, role: "student" } },
+    const { data, error } = await supabase.functions.invoke("create-student", {
+      body: {
+        name: newName,
+        email: newEmail,
+        phone: newPhone || null,
+        language_id: newLangId,
+        level_id: newLevelId,
+      },
     });
 
-    if (authError || !authData.user) {
-      toast({ title: "Erro ao criar usuário", description: authError?.message || "Tente novamente.", variant: "destructive" });
+    if (error || !data?.success) {
+      toast({
+        title: "Erro ao criar aluno",
+        description: data?.error || error?.message || "Tente novamente.",
+        variant: "destructive",
+      });
       setCreatingStudent(false);
       return;
     }
 
-    // Update profile phone
-    if (newPhone) {
-      await supabase.from("profiles").update({ phone: newPhone }).eq("id", authData.user.id);
-    }
-
-    // Create student record
-    await supabase.from("students").insert({
-      user_id: authData.user.id,
-      language_id: newLangId,
-      level_id: newLevelId,
-    });
+    if (data.reset_link) setResetLink(data.reset_link);
 
     toast({ title: "Aluno criado com sucesso!" });
-    setShowNewStudent(false);
     setNewName(""); setNewEmail(""); setNewPhone(""); setNewLangId(""); setNewLevelId("");
     setCreatingStudent(false);
     loadData();
@@ -209,7 +194,8 @@ const Admin = () => {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold flex items-center gap-2"><Users className="h-5 w-5" /> Alunos</h2>
           <div className="flex gap-2">
-            <Dialog open={showNewStudent} onOpenChange={setShowNewStudent}>
+            {/* Novo aluno */}
+            <Dialog open={showNewStudent} onOpenChange={open => { setShowNewStudent(open); if (!open) setResetLink(null); }}>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo aluno</Button>
               </DialogTrigger>
@@ -236,10 +222,27 @@ const Admin = () => {
                   <Button className="w-full" onClick={handleCreateStudent} disabled={creatingStudent}>
                     {creatingStudent ? "Criando..." : "Criar aluno"}
                   </Button>
+
+                  {/* Link de definição de senha */}
+                  {resetLink && (
+                    <div className="mt-3 p-3 bg-muted rounded-lg space-y-2">
+                      <p className="text-xs font-bold text-muted-foreground">Link para o aluno definir a senha:</p>
+                      <p className="text-xs break-all text-primary">{resetLink}</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs"
+                        onClick={() => { navigator.clipboard.writeText(resetLink); toast({ title: "Link copiado!" }); }}
+                      >
+                        <Copy className="h-3 w-3 mr-1" /> Copiar link
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
 
+            {/* Upload de material */}
             <Dialog open={showUpload} onOpenChange={setShowUpload}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline"><Upload className="h-4 w-4 mr-1" /> Upload</Button>

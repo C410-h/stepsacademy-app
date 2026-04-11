@@ -18,9 +18,10 @@ import { Navigate } from "react-router-dom";
 const queryClient = new QueryClient();
 
 const HomeRedirect = () => {
-  const { profile, loading } = useAuth();
+  const { profile, loading, session } = useAuth();
   if (loading) return null;
-  if (!profile) return <Navigate to="/login" replace />;
+  if (!session) return <Navigate to="/login" replace />;
+  if (!profile) return null; // sessão existe mas profile ainda carregando — aguarda
   if (profile.role === "admin") return <Navigate to="/admin" replace />;
   return <Dashboard />;
 };

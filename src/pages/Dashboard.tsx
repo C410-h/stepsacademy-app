@@ -59,47 +59,44 @@ const Dashboard = () => {
   const loadStudentData = async () => {
     if (!profile) return;
 
+    // Query única com joins — substitui 4 queries sequenciais
     const { data: student } = await supabase
       .from("students")
-      .select("id, current_step_id, onboarding_completed, level_id, language_id")
+      .select(`
+        id, current_step_id, onboarding_completed,
+        levels!students_level_id_fkey(name, code, total_steps),
+        languages!students_language_id_fkey(name),
+        steps!students_current_step_id_fkey(number)
+      `)
       .eq("user_id", profile.id)
       .single();
 
     if (!student) { setLoading(false); return; }
 
-    let level = null;
-    let language = null;
-    let currentStepNumber = 0;
+    const s = student as any;
+
+    // Meet link: tenta aula individual, depois grupo (2 queries, inevitável)
     let meetLink: string | null = null;
 
-    if (student.level_id) {
-      const { data: l } = await supabase.from("levels").select("name, code, total_steps").eq("id", student.level_id).single();
-      level = l;
-    }
-    if (student.language_id) {
-      const { data: la } = await supabase.from("languages").select("name").eq("id", student.language_id).single();
-      language = la;
-    }
-    if (student.current_step_id) {
-      const { data: step } = await supabase.from("steps").select("number").eq("id", student.current_step_id).single();
-      currentStepNumber = step?.number || 0;
-    }
-
-    // Get meet link from next scheduled class
     const { data: nextClass } = await supabase
       .from("classes")
       .select("meet_link")
-      .eq("student_id", student.id)
+      .eq("student_id", s.id)
       .eq("status", "scheduled")
       .order("scheduled_at", { ascending: true })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     meetLink = nextClass?.meet_link || null;
 
-    // If no individual class, try group
     if (!meetLink) {
-      const { data: gs } = await supabase.from("group_students").select("group_id").eq("student_id", student.id).limit(1).single();
+      const { data: gs } = await supabase
+        .from("group_students")
+        .select("group_id")
+        .eq("student_id", s.id)
+        .limit(1)
+        .maybeSingle();
+
       if (gs) {
         const { data: groupClass } = await supabase
           .from("classes")
@@ -108,31 +105,29 @@ const Dashboard = () => {
           .eq("status", "scheduled")
           .order("scheduled_at", { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle();
         meetLink = groupClass?.meet_link || null;
       }
     }
 
     setStudentData({
-      id: student.id,
-      current_step_id: student.current_step_id,
-      onboarding_completed: student.onboarding_completed,
-      level,
-      language,
-      currentStepNumber,
+      id: s.id,
+      current_step_id: s.current_step_id,
+      onboarding_completed: s.onboarding_completed,
+      level: s.levels || null,
+      language: s.languages || null,
+      currentStepNumber: s.steps?.number || 0,
       meetLink,
     });
 
-    if (student.onboarding_completed === false) {
-      setShowOnboarding(true);
-    }
+    if (s.onboarding_completed === false) setShowOnboarding(true);
 
-    // Load materials for current step
-    if (student.current_step_id) {
+    // Materiais do aluno
+    if (s.current_step_id) {
       const { data: mats } = await supabase
         .from("student_materials")
         .select("material_id, materials(id, title, type, delivery, file_url)")
-        .eq("student_id", student.id);
+        .eq("student_id", s.id);
 
       if (mats) {
         const flatMats = mats
@@ -180,7 +175,6 @@ const Dashboard = () => {
 
   const totalSteps = studentData.level?.total_steps || 40;
   const progressPercent = (studentData.currentStepNumber / totalSteps) * 100;
-
   const beforeClass = materials.filter(m => m.delivery === "before");
   const afterClass = materials.filter(m => m.delivery === "after");
 
@@ -252,7 +246,12 @@ const Dashboard = () => {
                     <p className="text-sm font-bold truncate">{m.title}</p>
                     <p className="text-xs text-muted-foreground font-light">{typeLabels[m.type] || m.type}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-primary text-xs" onClick={() => m.file_url && window.open(m.file_url, "_blank")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-primary text-xs"
+                    onClick={() => m.file_url && window.open(m.file_url, "_blank")}
+                  >
                     Abrir
                   </Button>
                 </CardContent>
@@ -272,7 +271,12 @@ const Dashboard = () => {
                     <p className="text-sm font-bold truncate">{m.title}</p>
                     <p className="text-xs text-muted-foreground font-light">{typeLabels[m.type] || m.type}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-primary text-xs" onClick={() => m.file_url && window.open(m.file_url, "_blank")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-primary text-xs"
+                    onClick={() => m.file_url && window.open(m.file_url, "_blank")}
+                  >
                     Abrir
                   </Button>
                 </CardContent>
