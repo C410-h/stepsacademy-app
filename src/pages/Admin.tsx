@@ -176,15 +176,14 @@ const Admin = () => {
 
     const { data: urlData } = supabase.storage.from("materials").getPublicUrl(filePath);
 
-    await supabase.from("materials").insert({
+    await supabase.from("materials").insert([{
       title: matTitle,
       type: matType,
       delivery: matDelivery,
-      language_id: matLangId,
       level_id: matLevelId,
       file_url: urlData.publicUrl,
       filename: matFile.name,
-    });
+    }]);
 
     toast({ title: "Material enviado com sucesso!" });
     setShowUpload(false);
