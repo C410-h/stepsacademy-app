@@ -33,44 +33,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Busca o perfil — sempre finaliza o loading no finally
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, name, role, phone, avatar_url")
-      .eq("id", userId)
-      .single();
-    setProfile(data);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, name, role, phone, avatar_url")
+        .eq("id", userId)
+        .single();
+      setProfile(data);
+    } catch {
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Inicialização: lê sessão do storage e escuta mudanças de auth
+  // O callback NÃO é async para não bloquear signInWithPassword
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        if (session?.user) {
-          if (event === "SIGNED_IN") setLoading(true);
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (!session) setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) {
+        setProfile(null);
         setLoading(false);
       }
-    );
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Busca o perfil sempre que o userId mudar (login, troca de conta)
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    setLoading(true);
+    fetchProfile(session.user.id);
+  }, [session?.user?.id]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
-    setSession(null);
-    setProfile(null);
   };
 
   return (
