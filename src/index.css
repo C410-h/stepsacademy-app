@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 93%;
+    --foreground: 60 5% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 60 5% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 60 5% 11%;
+
+    --primary: 278 84% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 278 84% 24% / 0.08;
+    --secondary-foreground: 278 84% 24%;
+
+    --muted: 36 33% 88%;
+    --muted-foreground: 60 5% 40%;
+
+    --accent: 78 99% 50%;
+    --accent-foreground: 60 5% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 278 84% 24% / 0.12;
+    --input: 278 84% 24% / 0.15;
+    --ring: 278 84% 24%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 278 84% 24%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 278 84% 24% / 0.08;
+    --sidebar-accent-foreground: 278 84% 24%;
+    --sidebar-border: 278 84% 24% / 0.12;
+    --sidebar-ring: 278 84% 24%;
+  }
+
+  .dark {
+    --background: 60 5% 11%;
+    --foreground: 36 33% 93%;
+    --card: 60 5% 15%;
+    --card-foreground: 36 33% 93%;
+    --popover: 60 5% 15%;
+    --popover-foreground: 36 33% 93%;
+    --primary: 78 99% 50%;
+    --primary-foreground: 60 5% 11%;
+    --secondary: 278 84% 24% / 0.2;
+    --secondary-foreground: 36 33% 93%;
+    --muted: 60 5% 20%;
+    --muted-foreground: 36 33% 70%;
+    --accent: 78 99% 50%;
+    --accent-foreground: 60 5% 11%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 278 84% 24% / 0.3;
+    --input: 278 84% 24% / 0.3;
+    --ring: 78 99% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold;
+  }
+}
