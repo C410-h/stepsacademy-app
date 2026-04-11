@@ -40,7 +40,7 @@ const Admin = () => {
   const [newLevelId, setNewLevelId] = useState("");
   const [creatingStudent, setCreatingStudent] = useState(false);
   const [showNewStudent, setShowNewStudent] = useState(false);
-  const [resetLink, setResetLink] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   // Upload material form
   const [matTitle, setMatTitle] = useState("");
@@ -111,7 +111,7 @@ const Admin = () => {
       return;
     }
     setCreatingStudent(true);
-    setResetLink(null);
+    setTempPassword(null);
 
     const { data, error } = await supabase.functions.invoke("create-student", {
       body: {
@@ -133,12 +133,13 @@ const Admin = () => {
       return;
     }
 
-    if (data.reset_link) setResetLink(data.reset_link);
+    if (data.temp_password) setTempPassword(data.temp_password);
 
     toast({ title: "Aluno criado com sucesso!" });
     setNewName(""); setNewEmail(""); setNewPhone(""); setNewLangId(""); setNewLevelId("");
     setCreatingStudent(false);
     loadData();
+    // Mantém o dialog aberto para mostrar a senha temp
   };
 
   const handleUploadMaterial = async () => {
@@ -195,7 +196,7 @@ const Admin = () => {
           <h2 className="text-xl font-bold flex items-center gap-2"><Users className="h-5 w-5" /> Alunos</h2>
           <div className="flex gap-2">
             {/* Novo aluno */}
-            <Dialog open={showNewStudent} onOpenChange={open => { setShowNewStudent(open); if (!open) setResetLink(null); }}>
+            <Dialog open={showNewStudent} onOpenChange={open => { setShowNewStudent(open); if (!open) setTempPassword(null); }}>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo aluno</Button>
               </DialogTrigger>
@@ -223,18 +224,19 @@ const Admin = () => {
                     {creatingStudent ? "Criando..." : "Criar aluno"}
                   </Button>
 
-                  {/* Link de definição de senha */}
-                  {resetLink && (
+                  {/* Senha temporária */}
+                  {tempPassword && (
                     <div className="mt-3 p-3 bg-muted rounded-lg space-y-2">
-                      <p className="text-xs font-bold text-muted-foreground">Link para o aluno definir a senha:</p>
-                      <p className="text-xs break-all text-primary">{resetLink}</p>
+                      <p className="text-xs font-bold text-muted-foreground">Senha temporária do aluno:</p>
+                      <p className="text-sm font-mono font-bold text-primary tracking-widest">{tempPassword}</p>
+                      <p className="text-xs text-muted-foreground font-light">O aluno será solicitado a criar uma nova senha no primeiro acesso.</p>
                       <Button
                         size="sm"
                         variant="outline"
                         className="w-full text-xs"
-                        onClick={() => { navigator.clipboard.writeText(resetLink); toast({ title: "Link copiado!" }); }}
+                        onClick={() => { navigator.clipboard.writeText(tempPassword); toast({ title: "Senha copiada!" }); }}
                       >
-                        <Copy className="h-3 w-3 mr-1" /> Copiar link
+                        <Copy className="h-3 w-3 mr-1" /> Copiar senha
                       </Button>
                     </div>
                   )}

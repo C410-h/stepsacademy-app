@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,26 +7,18 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 
-const ResetPassword = () => {
+const ChangePassword = () => {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [ready, setReady] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes("type=recovery")) {
-      setReady(true);
-    }
-  }, []);
-
-  const handleReset = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
-      toast({ title: "Senha muito curta", description: "A senha precisa ter pelo menos 6 caracteres.", variant: "destructive" });
+      toast({ title: "Senha muito curta", description: "Use pelo menos 6 caracteres.", variant: "destructive" });
       return;
     }
     if (password !== confirm) {
@@ -34,36 +26,28 @@ const ResetPassword = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { must_change_password: false },
+    });
     setLoading(false);
     if (error) {
-      toast({ title: "Erro", description: "Não foi possível redefinir a senha.", variant: "destructive" });
+      toast({ title: "Erro", description: "Não foi possível salvar a senha.", variant: "destructive" });
     } else {
-      toast({ title: "Senha atualizada!", description: "Sua senha foi redefinida com sucesso." });
+      toast({ title: "Senha criada!", description: "Bem-vindo à steps academy." });
       navigate("/");
     }
   };
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background px-6">
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-primary">steps academy</h1>
-          <p className="text-muted-foreground">Link inválido ou expirado.</p>
-          <Button onClick={() => navigate("/login")}>Voltar ao login</Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-primary">steps academy</h1>
-          <p className="mt-2 text-sm text-muted-foreground font-light">Defina sua nova senha</p>
+          <p className="mt-2 text-sm text-muted-foreground font-light">Crie sua senha de acesso</p>
         </div>
-        <form onSubmit={handleReset} className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="password">Nova senha</Label>
             <div className="relative">
@@ -87,8 +71,9 @@ const ResetPassword = () => {
               </button>
             </div>
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="confirm">Confirmar nova senha</Label>
+            <Label htmlFor="confirm">Confirmar senha</Label>
             <div className="relative">
               <Input
                 id="confirm"
@@ -110,8 +95,9 @@ const ResetPassword = () => {
               </button>
             </div>
           </div>
+
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Aguarde..." : "Redefinir senha"}
+            {loading ? "Salvando..." : "Salvar senha"}
           </Button>
         </form>
       </div>
@@ -119,4 +105,4 @@ const ResetPassword = () => {
   );
 };
 
-export default ResetPassword;
+export default ChangePassword;
