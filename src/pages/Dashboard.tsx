@@ -122,19 +122,17 @@ const Dashboard = () => {
 
     if (s.onboarding_completed === false) setShowOnboarding(true);
 
-    // Materiais do aluno
-    if (s.current_step_id) {
-      const { data: mats } = await supabase
-        .from("student_materials")
-        .select("material_id, materials(id, title, type, delivery, file_url)")
-        .eq("student_id", s.id);
+    // Materiais liberados do aluno (todos, sem filtrar por step)
+    const { data: mats } = await supabase
+      .from("student_materials")
+      .select("material_id, materials(id, title, type, delivery, file_url)")
+      .eq("student_id", s.id);
 
-      if (mats) {
-        const flatMats = mats
-          .map((m: any) => m.materials)
-          .filter(Boolean) as MaterialItem[];
-        setMaterials(flatMats);
-      }
+    if (mats) {
+      const flatMats = mats
+        .map((m: any) => m.materials)
+        .filter(Boolean) as MaterialItem[];
+      setMaterials(flatMats);
     }
 
     setLoading(false);

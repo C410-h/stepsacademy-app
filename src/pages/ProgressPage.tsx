@@ -27,38 +27,41 @@ const ProgressPage = () => {
     if (!profile) return;
     const { data: student } = await supabase
       .from("students")
-      .select("id, level_id, current_step_id")
+      .select("id, level_id, current_step_id, steps!students_current_step_id_fkey(number)")
       .eq("user_id", profile.id)
       .single();
 
     if (!student || !student.level_id) { setLoading(false); return; }
 
-    const { data: level } = await supabase.from("levels").select("name, code, total_steps").eq("id", student.level_id).single();
+    const { data: level } = await supabase
+      .from("levels")
+      .select("name, code, total_steps")
+      .eq("id", student.level_id)
+      .single();
+
     if (level) setLevelName(`${level.name} · ${level.code}`);
 
     const totalSteps = level?.total_steps || 40;
+    const s = student as any;
+    const currentStepNumber: number = s.steps?.number ?? 1;
 
-    // Get progress records
     const { data: progressRecords } = await supabase
       .from("student_progress")
       .select("step_id, status, steps(number)")
       .eq("student_id", student.id);
 
-    const progressMap: Record<number, string> = {};
+    const doneSet = new Set<number>();
     if (progressRecords) {
       progressRecords.forEach((p: any) => {
-        if (p.steps?.number) {
-          progressMap[p.steps.number] = p.status;
-        }
+        if (p.status === "done" && p.steps?.number) doneSet.add(p.steps.number);
       });
     }
 
     const stepsArray: StepProgress[] = [];
     for (let i = 1; i <= totalSteps; i++) {
-      const status = progressMap[i];
-      if (status === "done") {
+      if (doneSet.has(i)) {
         stepsArray.push({ number: i, status: "done" });
-      } else if (status === "available" || status === "in_progress") {
+      } else if (i === currentStepNumber) {
         stepsArray.push({ number: i, status: "available" });
       } else {
         stepsArray.push({ number: i, status: "locked" });
@@ -105,33 +108,55 @@ const ProgressPage = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-5 gap-2">
-            {steps.map(step => (
-              <div
-                key={step.number}
-                className={cn(
-                  "aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-colors",
-                  step.status === "done" && "bg-primary text-primary-foreground",
-                  step.status === "available" && "border-2 border-primary text-primary bg-card",
-                  step.status === "locked" && "bg-muted text-muted-foreground"
-                )}
-              >
-                {step.status === "done" ? (
-                  <>
-                    <Check className="h-4 w-4 text-lime" />
-                    <span className="text-xs font-bold mt-0.5">{step.number}</span>
-                  </>
-                ) : step.status === "locked" ? (
-                  <>
-                    <Lock className="h-3 w-3" />
-                    <span className="text-xs mt-0.5">{step.number}</span>
-                  </>
-                ) : (
-                  <span className="text-base font-bold">{step.number}</span>
-                )}
+          <>
+            <div className="grid grid-cols-5 gap-2">
+              {steps.map(step => (
+                <div
+                  key={step.number}
+                  className={cn(
+                    "aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-colors",
+                    step.status === "done" && "bg-primary text-primary-foreground",
+                    step.status === "available" && "border-2 border-primary text-primary bg-card",
+                    step.status === "locked" && "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {step.status === "done" ? (
+                    <>
+                      <Check className="h-4 w-4 text-lime" />
+                      <span className="text-xs font-bold mt-0.5">{step.number}</span>
+                    </>
+                  ) : step.status === "locked" ? (
+                    <>
+                      <Lock className="h-3 w-3" />
+                      <span className="text-xs mt-0.5">{step.number}</span>
+                    </>
+                  ) : (
+                    <span className="text-base font-bold">{step.number}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Legenda */}
+            <div className="flex items-center justify-center gap-5 pt-2 pb-1">
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+                  <Check className="h-2.5 w-2.5 text-lime" />
+                </div>
+                <span className="text-xs text-muted-foreground font-light">Concluído</span>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded border-2 border-primary bg-card" />
+                <span className="text-xs text-muted-foreground font-light">Atual</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded bg-muted flex items-center justify-center">
+                  <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+                </div>
+                <span className="text-xs text-muted-foreground font-light">Bloqueado</span>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </StudentLayout>
