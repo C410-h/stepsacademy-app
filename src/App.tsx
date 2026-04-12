@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { GamificationProvider } from "@/contexts/GamificationContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
@@ -25,8 +26,8 @@ const queryClient = new QueryClient();
 const HomeRedirect = () => {
   const { profile, loading, session } = useAuth();
   if (loading) return null;
-  if (!session) return <Navigate to="/login" replace />;
-  if (!profile) return null; // sessão existe mas profile ainda carregando — aguarda
+  if (!session) return <LandingPage />;
+  if (!profile) return null;
   if (profile.role === "admin") return <Navigate to="/admin" replace />;
   if (profile.role === "teacher") return <Navigate to="/teacher" replace />;
   return <Dashboard />;
@@ -44,7 +45,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
-              <Route path="/" element={<ProtectedRoute><HomeRedirect /></ProtectedRoute>} />
+              <Route path="/" element={<HomeRedirect />} />
               <Route path="/materiais" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
               <Route path="/progresso" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
               <Route path="/ajuda" element={<ProtectedRoute><Help /></ProtectedRoute>} />
