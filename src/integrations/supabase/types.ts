@@ -82,6 +82,50 @@ export type Database = {
           },
         ]
       }
+      daily_missions: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          date: string
+          exercises_done: number
+          exercises_total: number
+          id: string
+          student_id: string
+          xp_earned: number
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          date?: string
+          exercises_done?: number
+          exercises_total?: number
+          id?: string
+          student_id: string
+          xp_earned?: number
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          date?: string
+          exercises_done?: number
+          exercises_total?: number
+          id?: string
+          student_id?: string
+          xp_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_missions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_students: {
         Row: {
           group_id: string
@@ -186,6 +230,53 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      lesson_exercises: {
+        Row: {
+          active: boolean | null
+          answer: string
+          created_at: string | null
+          explanation: string | null
+          id: string
+          options: Json | null
+          order_index: number
+          question: string
+          step_id: string
+          type: string
+        }
+        Insert: {
+          active?: boolean | null
+          answer: string
+          created_at?: string | null
+          explanation?: string | null
+          id?: string
+          options?: Json | null
+          order_index?: number
+          question: string
+          step_id: string
+          type: string
+        }
+        Update: {
+          active?: boolean | null
+          answer?: string
+          created_at?: string | null
+          explanation?: string | null
+          id?: string
+          options?: Json | null
+          order_index?: number
+          question?: string
+          step_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_exercises_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "steps"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       levels: {
         Row: {
@@ -319,6 +410,61 @@ export type Database = {
         }
         Relationships: []
       }
+      stepbystep_attempts: {
+        Row: {
+          correct: boolean
+          created_at: string | null
+          exercise_type: string
+          id: string
+          mission_id: string | null
+          student_id: string
+          vocabulary_id: string | null
+          xp_earned: number
+        }
+        Insert: {
+          correct: boolean
+          created_at?: string | null
+          exercise_type: string
+          id?: string
+          mission_id?: string | null
+          student_id: string
+          vocabulary_id?: string | null
+          xp_earned?: number
+        }
+        Update: {
+          correct?: boolean
+          created_at?: string | null
+          exercise_type?: string
+          id?: string
+          mission_id?: string | null
+          student_id?: string
+          vocabulary_id?: string | null
+          xp_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stepbystep_attempts_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "daily_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stepbystep_attempts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stepbystep_attempts_vocabulary_id_fkey"
+            columns: ["vocabulary_id"]
+            isOneToOne: false
+            referencedRelation: "vocabulary"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       steps: {
         Row: {
           created_at: string | null
@@ -350,6 +496,50 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_gamification: {
+        Row: {
+          coins: number
+          created_at: string | null
+          id: string
+          last_activity_date: string | null
+          streak_best: number
+          streak_current: number
+          student_id: string
+          updated_at: string | null
+          xp_total: number
+        }
+        Insert: {
+          coins?: number
+          created_at?: string | null
+          id?: string
+          last_activity_date?: string | null
+          streak_best?: number
+          streak_current?: number
+          student_id: string
+          updated_at?: string | null
+          xp_total?: number
+        }
+        Update: {
+          coins?: number
+          created_at?: string | null
+          id?: string
+          last_activity_date?: string | null
+          streak_best?: number
+          streak_current?: number
+          student_id?: string
+          updated_at?: string | null
+          xp_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_gamification_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: true
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
         ]
@@ -633,12 +823,104 @@ export type Database = {
           },
         ]
       }
+      vocabulary: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          difficulty: number | null
+          example_sentence: string | null
+          id: string
+          level_id: string
+          part_of_speech: string | null
+          translation: string | null
+          unit_id: string | null
+          word: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          difficulty?: number | null
+          example_sentence?: string | null
+          id?: string
+          level_id: string
+          part_of_speech?: string | null
+          translation?: string | null
+          unit_id?: string | null
+          word: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          difficulty?: number | null
+          example_sentence?: string | null
+          id?: string
+          level_id?: string
+          part_of_speech?: string | null
+          translation?: string | null
+          unit_id?: string | null
+          word?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vocabulary_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vocabulary_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_events: {
+        Row: {
+          coins: number
+          created_at: string | null
+          description: string | null
+          event_type: string
+          id: string
+          student_id: string
+          xp: number
+        }
+        Insert: {
+          coins?: number
+          created_at?: string | null
+          description?: string | null
+          event_type: string
+          id?: string
+          student_id: string
+          xp: number
+        }
+        Update: {
+          coins?: number
+          created_at?: string | null
+          description?: string | null
+          event_type?: string
+          id?: string
+          student_id?: string
+          xp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_events_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
