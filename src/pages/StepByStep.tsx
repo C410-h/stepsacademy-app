@@ -127,7 +127,7 @@ const StepByStep = () => {
     setLevelId(student.level_id);
     setLoading(false);
     await loadOrCreateMission(student.id);
-    await loadNewWord(student.level_id, student.id);
+    await loadNewWord(student.level_id);
   };
 
   const loadOrCreateMission = async (sid: string) => {
