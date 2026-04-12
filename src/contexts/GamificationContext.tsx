@@ -48,7 +48,7 @@ export const GamificationProvider = ({ children }: { children: ReactNode }) => {
 
     if (!student) return;
 
-    const { data: gami } = await supabase
+    const { data: gami } = await (supabase as any)
       .from("student_gamification")
       .select("xp_total, coins, streak_current, streak_best, last_activity_date")
       .eq("student_id", student.id)

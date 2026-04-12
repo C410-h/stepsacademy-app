@@ -54,6 +54,16 @@ export default {
         lime: {
           DEFAULT: "#C1FE00",
         },
+        magenta: {
+          DEFAULT: "#FF1F9F",
+        },
+        pink: {
+          DEFAULT: "#FF97CB",
+        },
+        coral: {
+          DEFAULT: "#FF6B35",
+        },
+        "steps-dark": "#15012A",
         "steps-black": "#1D1D1B",
         "steps-offwhite": "#F5F0E6",
         "steps-purple": "#520A70",
