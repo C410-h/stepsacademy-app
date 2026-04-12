@@ -346,7 +346,7 @@ const ExercisesPage = () => {
     }
     setStudentId(student.id);
 
-    const { data: exs } = await supabase
+    const { data: exs } = await (supabase as any)
       .from("lesson_exercises")
       .select("id, type, question, options, answer, explanation")
       .eq("step_id", student.current_step_id)
@@ -379,7 +379,7 @@ const ExercisesPage = () => {
       const currentXp = gamification.xp_total;
       const currentCoins = gamification.coins;
 
-      await supabase
+      await (supabase as any)
         .from("student_gamification")
         .update({
           xp_total: currentXp + xpAmount,
@@ -389,7 +389,7 @@ const ExercisesPage = () => {
         .eq("student_id", sid);
 
       const ex = exercises[currentIndex];
-      await supabase.from("xp_events").insert({
+      await (supabase as any).from("xp_events").insert({
         student_id: sid,
         event_type: "lesson_exercise",
         xp: xpAmount,
