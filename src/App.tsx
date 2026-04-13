@@ -18,6 +18,8 @@ import Admin from "./pages/Admin";
 import Teacher from "./pages/Teacher";
 import ExercisesPage from "./pages/ExercisesPage";
 import StepByStep from "./pages/StepByStep";
+import Perfil from "./pages/Perfil";
+import Nivelamento from "./pages/Nivelamento";
 import NotFound from "./pages/NotFound";
 import { Navigate } from "react-router-dom";
 
@@ -51,8 +53,10 @@ const App = () => (
               <Route path="/ajuda" element={<ProtectedRoute><Help /></ProtectedRoute>} />
               <Route path="/exercicios-da-aula" element={<ProtectedRoute><ExercisesPage /></ProtectedRoute>} />
               <Route path="/step-by-step" element={<ProtectedRoute><StepByStep /></ProtectedRoute>} />
+              <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><Teacher /></ProtectedRoute>} />
+              <Route path="/nivelamento" element={<ProtectedRoute><Nivelamento /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </GamificationProvider>

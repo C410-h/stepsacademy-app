@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Zap } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const StudentLayout = ({ children }: { children: ReactNode }) => {
   const { profile } = useAuth();
@@ -21,10 +22,12 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
               <span className="text-xs font-bold text-primary">{gamification.xp_total} XP</span>
             </div>
           )}
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={profile?.avatar_url || undefined} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs">{initials}</AvatarFallback>
-          </Avatar>
+          <Link to="/perfil">
+            <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">{initials}</AvatarFallback>
+            </Avatar>
+          </Link>
         </div>
       </header>
       <main className="px-4 py-4 max-w-lg mx-auto">{children}</main>
