@@ -1,8 +1,25 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { Link } from "react-router-dom";
+
+// ─── SCROLL FADE-IN HOOK ─────────────────────────────────────────
+const useFadeIn = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.15 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return { ref, style: { opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(28px)", transition: "opacity .7s ease, transform .7s ease" } as React.CSSProperties };
+};
 
 // ─── CONSTANTS ────────────────────────────────────────────────────
 const WA_NUMBER = "5521999999999";
-const PLATFORM_URL = "https://plataforma.stepsacademy.com.br";
 
 type LangKey = "ingles" | "espanhol" | "libras" | "japones";
 
@@ -195,9 +212,23 @@ const DATA: Record<LangKey, ThemeData> = {
 const BUBBLES: { key: LangKey; sym: string; label: string; fontSize?: string }[] = [
   { key: "ingles", sym: "EN", label: "inglês" },
   { key: "espanhol", sym: "ES", label: "espanhol" },
-  { key: "libras", sym: "🤟", label: "libras", fontSize: "text-[26px]" },
+  { key: "libras", sym: "LIBRAS_SVG", label: "libras" },
   { key: "japones", sym: "日", label: "japonês", fontSize: "text-[26px]" },
 ];
+
+// ─── WAVE TRANSITION COMPONENT ───────────────────────────────────
+// ─── LIBRAS SVG ICON ─────────────────────────────────────────────
+const LibrasIcon = ({ color = "currentColor", size = 24 }: { color?: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7 12c0-2 1-4 3-5" />
+    <path d="M12 3c0 0-1 2-1 4s1 3 1 3" />
+    <path d="M16 7c1 1 2 3 2 5" />
+    <path d="M6 17c0 0 2 4 6 4s6-4 6-4" />
+    <circle cx="8" cy="9" r="1.2" fill={color} stroke="none" />
+    <circle cx="16" cy="10" r="1.2" fill={color} stroke="none" />
+    <path d="M10 15c0 0 1 1.5 2 1.5s2-1.5 2-1.5" />
+  </svg>
+);
 
 // ─── WAVE TRANSITION COMPONENT ───────────────────────────────────
 const WaveOverlay = ({
@@ -207,18 +238,16 @@ const WaveOverlay = ({
   color: string;
   stage: "idle" | "entering" | "covering" | "exiting";
 }) => {
-  let transform = "translateY(100%)";
-  if (stage === "covering") transform = "translateY(0%)";
-  if (stage === "exiting") transform = "translateY(-100%)";
+  const opacity = stage === "idle" ? 0 : stage === "covering" ? 1 : 0;
 
   return (
     <div
       className="fixed inset-0 z-[998] pointer-events-none"
       style={{
         background: color,
-        transform,
-        transition: stage === "idle" ? "none" : "transform 0.52s cubic-bezier(.76,0,.24,1)",
-        willChange: "transform",
+        opacity,
+        transition: stage === "idle" ? "none" : "opacity .45s cubic-bezier(.4,0,.2,1)",
+        willChange: "opacity",
       }}
     />
   );
@@ -236,6 +265,9 @@ const LandingPage = () => {
   const [tel, setTel] = useState("");
   const formRef = useRef<HTMLElement>(null);
 
+  const difsFade = useFadeIn();
+  const levelsFade = useFadeIn();
+
   const d = DATA[lang];
 
   const scrollToForm = useCallback(() => {
@@ -249,23 +281,21 @@ const LandingPage = () => {
       const nd = DATA[next];
       setWaveColor(nd.bg);
 
-      // Step 1: wave enters from bottom
       setWaveStage("idle");
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setWaveStage("covering");
-        });
+        requestAnimationFrame(() => setWaveStage("covering"));
       });
 
-      // Step 2: after wave covers, swap theme and exit
       setTimeout(() => {
         setLang(next);
-        setWaveStage("exiting");
         setTimeout(() => {
-          setWaveStage("idle");
-          setSwitching(false);
-        }, 560);
-      }, 540);
+          setWaveStage("exiting");
+          setTimeout(() => {
+            setWaveStage("idle");
+            setSwitching(false);
+          }, 460);
+        }, 60);
+      }, 420);
     },
     [lang, switching]
   );
@@ -291,17 +321,15 @@ const LandingPage = () => {
           <span className="block text-[10px] font-normal" style={{ color: "rgba(255,255,255,.4)" }}>academy</span>
         </div>
         <div className="flex items-center gap-3">
-          <a
-            href={PLATFORM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to="/login"
             className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
             style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
           >
             entrar na plataforma
-          </a>
+          </Link>
           <button
             onClick={scrollToForm}
             className="px-5 py-2 rounded-full text-[13px] font-bold border-none cursor-pointer transition-transform hover:scale-[1.04]"
@@ -349,7 +377,9 @@ const LandingPage = () => {
                 }
               }}
             >
-              <span className={`font-black leading-none ${b.fontSize || "text-[22px]"}`} style={{ color: d.text }}>{b.sym}</span>
+              <span className={`font-black leading-none ${b.fontSize || "text-[22px]"}`} style={{ color: d.text }}>
+                {b.sym === "LIBRAS_SVG" ? <LibrasIcon color={d.text} size={26} /> : b.sym}
+              </span>
               <span className="text-[9px] font-bold tracking-wider opacity-70 lowercase" style={{ color: d.text }}>{b.label}</span>
             </button>
           ))}
@@ -414,7 +444,7 @@ const LandingPage = () => {
           style={{ color: d.text, transition: "color .4s" }}
           dangerouslySetInnerHTML={{ __html: d.dTitle.replace("\n", "<br/>") }}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[2px] rounded-[20px] overflow-hidden" style={{ border: "1.5px solid rgba(255,255,255,.12)" }}>
+        <div ref={difsFade.ref} style={difsFade.style} className="grid grid-cols-1 sm:grid-cols-2 gap-[2px] rounded-[20px] overflow-hidden" >
           {d.difs.map((df) => (
             <div
               key={df.n}
@@ -450,7 +480,7 @@ const LandingPage = () => {
           {d.nSub}
         </p>
 
-        <div className="flex flex-col md:flex-row gap-0 rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,.1)" }}>
+        <div ref={levelsFade.ref} style={levelsFade.style} className="flex flex-col md:flex-row gap-0 rounded-2xl overflow-hidden" >
           {d.levels.map((l, i) => (
             <div
               key={l.name}
