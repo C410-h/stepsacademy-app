@@ -266,6 +266,9 @@ const LandingPage = () => {
   const [tel, setTel] = useState("");
   const formRef = useRef<HTMLElement>(null);
 
+  const difsFade = useFadeIn();
+  const levelsFade = useFadeIn();
+
   const d = DATA[lang];
 
   const scrollToForm = useCallback(() => {
