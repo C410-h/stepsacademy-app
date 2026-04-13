@@ -20,7 +20,6 @@ const useFadeIn = () => {
 
 // ─── CONSTANTS ────────────────────────────────────────────────────
 const WA_NUMBER = "5521999999999";
-const PLATFORM_URL = "https://plataforma.stepsacademy.com.br";
 
 type LangKey = "ingles" | "espanhol" | "libras" | "japones";
 
