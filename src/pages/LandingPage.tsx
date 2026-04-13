@@ -445,7 +445,7 @@ const LandingPage = () => {
           style={{ color: d.text, transition: "color .4s" }}
           dangerouslySetInnerHTML={{ __html: d.dTitle.replace("\n", "<br/>") }}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[2px] rounded-[20px] overflow-hidden" style={{ border: "1.5px solid rgba(255,255,255,.12)" }}>
+        <div ref={difsFade.ref} style={difsFade.style} className="grid grid-cols-1 sm:grid-cols-2 gap-[2px] rounded-[20px] overflow-hidden" >
           {d.difs.map((df) => (
             <div
               key={df.n}
@@ -481,7 +481,7 @@ const LandingPage = () => {
           {d.nSub}
         </p>
 
-        <div className="flex flex-col md:flex-row gap-0 rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,.1)" }}>
+        <div ref={levelsFade.ref} style={levelsFade.style} className="flex flex-col md:flex-row gap-0 rounded-2xl overflow-hidden" >
           {d.levels.map((l, i) => (
             <div
               key={l.name}
