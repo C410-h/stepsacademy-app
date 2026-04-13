@@ -62,6 +62,54 @@ const NOTIF_TYPE_LABELS: Record<string, string> = {
   welcome: "Boas-vindas",
 };
 
+// ─── NotifCard (extracted to keep hooks at top level) ────────────────────────
+
+interface NotifCardProps {
+  ns: any;
+  notifLog: any[];
+  savingNotif: string | null;
+  onSave: (ns: any, updates: any) => void;
+}
+
+const NotifCard = ({ ns, notifLog, savingNotif, onSave }: NotifCardProps) => {
+  const [localEnabled, setLocalEnabled] = useState(ns.enabled);
+  const [localTitle, setLocalTitle] = useState(ns.title_template || "");
+  const [localBody, setLocalBody] = useState(ns.body_template || "");
+  const [localSendTime, setLocalSendTime] = useState(ns.send_time || "");
+  const countThisMonth = notifLog.filter((n: any) => n.type === ns.type && new Date(n.sent_at).getMonth() === new Date().getMonth()).length;
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold">{NOTIF_TYPE_LABELS[ns.type] || ns.type}</p>
+            <p className="text-xs text-muted-foreground">{countThisMonth} enviadas este mês</p>
+          </div>
+          <Switch checked={localEnabled} onCheckedChange={setLocalEnabled} />
+        </div>
+        <div>
+          <Label className="text-xs">Título</Label>
+          <Input value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="h-8 text-xs" />
+        </div>
+        <div>
+          <Label className="text-xs">Mensagem</Label>
+          <Textarea value={localBody} onChange={e => setLocalBody(e.target.value)} rows={2} className="text-xs" />
+        </div>
+        {ns.send_time !== null && (
+          <div>
+            <Label className="text-xs">Horário de envio</Label>
+            <Input type="time" value={localSendTime} onChange={e => setLocalSendTime(e.target.value)} className="h-8 text-xs" />
+          </div>
+        )}
+        <Button size="sm" className="w-full bg-primary text-white" disabled={savingNotif === ns.id}
+          onClick={() => onSave(ns, { enabled: localEnabled, title_template: localTitle, body_template: localBody, ...(ns.send_time !== null ? { send_time: localSendTime } : {}) })}>
+          {savingNotif === ns.id ? "Salvando..." : "Salvar"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const Admin = () => {
@@ -1768,45 +1816,9 @@ const Admin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {notifSettings.map((ns: any) => {
-                  const [localEnabled, setLocalEnabled] = useState(ns.enabled);
-                  const [localTitle, setLocalTitle] = useState(ns.title_template || "");
-                  const [localBody, setLocalBody] = useState(ns.body_template || "");
-                  const [localSendTime, setLocalSendTime] = useState(ns.send_time || "");
-                  const countThisMonth = notifLog.filter((n: any) => n.type === ns.type && new Date(n.sent_at).getMonth() === new Date().getMonth()).length;
-
-                  return (
-                    <Card key={ns.id}>
-                      <CardContent className="p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-bold">{NOTIF_TYPE_LABELS[ns.type] || ns.type}</p>
-                            <p className="text-xs text-muted-foreground">{countThisMonth} enviadas este mês</p>
-                          </div>
-                          <Switch checked={localEnabled} onCheckedChange={setLocalEnabled} />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Título</Label>
-                          <Input value={localTitle} onChange={e => setLocalTitle(e.target.value)} className="h-8 text-xs" />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Mensagem</Label>
-                          <Textarea value={localBody} onChange={e => setLocalBody(e.target.value)} rows={2} className="text-xs" />
-                        </div>
-                        {ns.send_time !== null && (
-                          <div>
-                            <Label className="text-xs">Horário de envio</Label>
-                            <Input type="time" value={localSendTime} onChange={e => setLocalSendTime(e.target.value)} className="h-8 text-xs" />
-                          </div>
-                        )}
-                        <Button size="sm" className="w-full bg-primary text-white" disabled={savingNotif === ns.id}
-                          onClick={() => handleSaveNotifSetting(ns, { enabled: localEnabled, title_template: localTitle, body_template: localBody, ...(ns.send_time !== null ? { send_time: localSendTime } : {}) })}>
-                          {savingNotif === ns.id ? "Salvando..." : "Salvar"}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                {notifSettings.map((ns: any) => (
+                  <NotifCard key={ns.id} ns={ns} notifLog={notifLog} savingNotif={savingNotif} onSave={handleSaveNotifSetting} />
+                ))}
               </div>
             )}
 
