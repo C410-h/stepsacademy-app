@@ -843,7 +843,7 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-7" />
+        <a href="/"><img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-7" /></a>
         <div className="flex items-center gap-3">
           <span className="text-sm font-light text-muted-foreground hidden sm:block">{firstName} · Admin</span>
           <Button variant="ghost" size="sm" onClick={signOut} className="text-muted-foreground">
@@ -1423,7 +1423,7 @@ const Admin = () => {
             ) : (
               <div className="space-y-2">
                 {teachers.map(t => (
-                  <Card key={t.id}>
+                  <Card key={t.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate(`/admin/professor/${t.id}`)}>
                     <CardContent className="p-3">
                       <div className="flex items-start justify-between">
                         <div>
@@ -1432,9 +1432,14 @@ const Admin = () => {
                             {t.languages.join(", ") || "Sem idiomas"} · {t.studentCount} aluno{t.studentCount !== 1 ? "s" : ""}
                           </p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => setLinkTeacherId(t.id)}>
-                          <Link2 className="h-3 w-3 mr-1" />Vincular
-                        </Button>
+                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/admin/professor/${t.id}`)}>
+                            <Eye className="h-3 w-3 mr-1" />Ver
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setLinkTeacherId(t.id)}>
+                            <Link2 className="h-3 w-3 mr-1" />Vincular
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
