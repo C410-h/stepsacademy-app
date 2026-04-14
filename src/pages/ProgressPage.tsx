@@ -273,7 +273,7 @@ const RankingTab = () => {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-500" />
+            <img src={steppieGritando2} alt="" aria-hidden="true" className="w-8" />
             Top 10 por XP
           </CardTitle>
         </CardHeader>
