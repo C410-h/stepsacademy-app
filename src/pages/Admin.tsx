@@ -26,6 +26,7 @@ import {
   UserPlus, Globe,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -366,15 +367,18 @@ const Admin = () => {
       const rand = Math.floor(100000 + Math.random() * 900000);
       const certNumber = `SA-${year}-${rand}`;
 
-      await (supabase as any).from("certificates").insert({
+      const { error: certError } = await (supabase as any).from("certificates").insert({
         student_id: studentId,
         student_name: selectedStudent.profile?.name || "Aluno",
+        level_id: selectedStudent.levelId,
+        language_id: selectedStudent.languageId,
         level_name: selectedStudent.level?.name || "—",
         language_name: selectedStudent.language?.name || "—",
         certificate_number: certNumber,
         issued_at: new Date().toISOString(),
       });
 
+      if (certError) throw certError;
       toast({ title: "Certificado emitido com sucesso!" });
       await loadDrawerCerts(studentId);
     } catch {
@@ -2086,7 +2090,7 @@ const Admin = () => {
                     paymentFilter === f ? "bg-primary text-primary-foreground border-transparent" : "border-border text-muted-foreground hover:border-primary/40"
                   )}
                 >
-                  {{ all: "Todos", pending: "Pendente", paid: "Pago", failed: "Falhou" }[f]}
+                  {f === "all" ? "Todos" : f === "pending" ? "Pendente" : f === "paid" ? "Pago" : "Falhou"}
                 </button>
               ))}
             </div>
