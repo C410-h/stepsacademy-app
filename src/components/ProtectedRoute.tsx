@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Skeleton } from "@/components/ui/skeleton";
+import SplashScreen from "@/components/SplashScreen";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,14 +12,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background p-4 space-y-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-20 w-full" />
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (!session) {

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { GamificationProvider } from "@/contexts/GamificationContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import SplashScreen from "@/components/SplashScreen";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -30,9 +31,9 @@ const queryClient = new QueryClient();
 
 const HomeRedirect = () => {
   const { profile, loading, session } = useAuth();
-  if (loading) return null;
+  if (loading) return <SplashScreen />;
   if (!session) return <LandingPage />;
-  if (!profile) return null;
+  if (!profile) return <SplashScreen />;
   if (profile.role === "admin") return <Navigate to="/admin" replace />;
   if (profile.role === "teacher") return <Navigate to="/teacher" replace />;
   return <Dashboard />;
