@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
@@ -310,22 +310,35 @@ const OpenAnswer = ({
 
 // ─── ExercisesEngine ──────────────────────────────────────────────────────────
 
+type AttemptMap = Record<string, { answer_given: string; correct: boolean; xp_earned: number }>;
+
 const ExercisesEngine = ({
   exercises,
   studentId,
+  initialAttempts,
   onXpEarned,
 }: {
   exercises: Exercise[];
   studentId: string;
+  initialAttempts: AttemptMap;
   onXpEarned?: (xp: number, coins: number) => void;
 }) => {
   const { gamification, refresh: refreshGamification } = useGamification();
-  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Start from first unattempted exercise; if all done → show done screen
+  const firstUnattempted = useMemo(
+    () => exercises.findIndex(ex => !initialAttempts[ex.id]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [] // compute once on mount
+  );
+  const allPreviouslyDone = firstUnattempted === -1 && exercises.length > 0;
+
+  const [currentIndex, setCurrentIndex] = useState(() => allPreviouslyDone ? 0 : Math.max(0, firstUnattempted));
   const [status, setStatus] = useState<ExStatus>("pending");
   const [answer, setAnswer] = useState("");
   const [sessionXp, setSessionXp] = useState(0);
   const [sessionCoins, setSessionCoins] = useState(0);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(() => allPreviouslyDone);
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
   const [pairs, setPairs] = useState<Record<number, number>>({});
   const [shuffledRight, setShuffledRight] = useState<string[]>([]);
@@ -341,27 +354,50 @@ const ExercisesEngine = ({
     }
   }, [currentIndex, exercises]);
 
-  const awardXp = useCallback(async (xpAmount: number, coinsAmount: number, correct: boolean) => {
+  const awardXp = useCallback(async (exerciseId: string, answerGiven: string, xpAmount: number, coinsAmount: number, correct: boolean) => {
     const sid = studentId || gamification.studentId;
     if (!sid) return;
-    await (supabase as any).from("student_gamification").update({
-      xp_total: gamification.xp_total + xpAmount,
-      coins: gamification.coins + coinsAmount,
-      updated_at: new Date().toISOString(),
-    }).eq("student_id", sid);
-    const ex = exercises[currentIndex];
-    await (supabase as any).from("xp_events").insert({
-      student_id: sid,
-      event_type: "lesson_exercise",
-      xp: xpAmount,
-      coins: coinsAmount,
-      description: correct ? `Correto: ${ex?.question?.slice(0, 50)}` : `Tentativa: ${ex?.question?.slice(0, 50)}`,
-    });
-    setSessionXp(prev => prev + xpAmount);
-    setSessionCoins(prev => prev + coinsAmount);
-    onXpEarned?.(xpAmount, coinsAmount);
-    await refreshGamification();
-    supabase.functions.invoke("update-streak").catch(() => {});
+
+    // Check first time — only give XP + insert attempt if no previous record
+    const { data: existing } = await (supabase as any)
+      .from("lesson_exercise_attempts")
+      .select("id")
+      .eq("student_id", sid)
+      .eq("exercise_id", exerciseId)
+      .maybeSingle();
+
+    const isFirstTime = !existing;
+    const actualXp = isFirstTime ? xpAmount : 0;
+    const actualCoins = isFirstTime ? coinsAmount : 0;
+
+    if (isFirstTime) {
+      await (supabase as any).from("lesson_exercise_attempts").insert({
+        student_id: sid,
+        exercise_id: exerciseId,
+        answer_given: answerGiven,
+        correct,
+        xp_earned: actualXp,
+      });
+    }
+
+    if (actualXp > 0) {
+      await (supabase as any).from("student_gamification").update({
+        xp_total: gamification.xp_total + actualXp,
+        coins: gamification.coins + actualCoins,
+        updated_at: new Date().toISOString(),
+      }).eq("student_id", sid);
+      const ex = exercises[currentIndex];
+      await (supabase as any).from("xp_events").insert({
+        student_id: sid, event_type: "lesson_exercise",
+        xp: actualXp, coins: actualCoins,
+        description: correct ? `Correto: ${ex?.question?.slice(0, 50)}` : `Tentativa: ${ex?.question?.slice(0, 50)}`,
+      });
+      setSessionXp(prev => prev + actualXp);
+      setSessionCoins(prev => prev + actualCoins);
+      onXpEarned?.(actualXp, actualCoins);
+      await refreshGamification();
+      supabase.functions.invoke("update-streak").catch(() => {});
+    }
   }, [studentId, gamification, exercises, currentIndex, refreshGamification, onXpEarned]);
 
   const handleFillBlankSubmit = async () => {
@@ -369,13 +405,14 @@ const ExercisesEngine = ({
     if (!answer.trim()) return;
     const correct = answer.trim().toLowerCase() === ex.answer.trim().toLowerCase();
     setStatus(correct ? "correct" : "wrong");
-    await awardXp(correct ? 10 : 2, correct ? 5 : 0, correct);
+    await awardXp(ex.id, answer.trim(), correct ? 10 : 2, correct ? 5 : 0, correct);
   };
 
   const handleOpenSubmit = async () => {
+    const ex = exercises[currentIndex];
     if (!answer.trim()) return;
     setStatus("submitted");
-    await awardXp(10, 5, true);
+    await awardXp(ex.id, answer.trim(), 10, 5, true);
   };
 
   const handleAssociationConfirm = async () => {
@@ -385,8 +422,9 @@ const ExercisesEngine = ({
     for (let i = 0; i < ex.options.length; i++) {
       if (shuffledRight[pairs[i]] !== ex.options[i].right) { allCorrect = false; break; }
     }
+    const answerStr = ex.options.map((o, i) => `${o.left}=${shuffledRight[pairs[i]] ?? "?"}`).join(";");
     setStatus(allCorrect ? "correct" : "wrong");
-    await awardXp(allCorrect ? 10 : 2, allCorrect ? 5 : 0, allCorrect);
+    await awardXp(ex.id, answerStr, allCorrect ? 10 : 2, allCorrect ? 5 : 0, allCorrect);
   };
 
   const handleNext = () => {
@@ -401,7 +439,8 @@ const ExercisesEngine = ({
     setSessionCoins(0);
   };
 
-  const progressPercent = ((currentIndex + (status !== "pending" ? 1 : 0)) / exercises.length) * 100;
+  const completedBefore = firstUnattempted === -1 ? exercises.length : firstUnattempted;
+  const progressPercent = ((completedBefore + (currentIndex - completedBefore) + (status !== "pending" ? 1 : 0)) / exercises.length) * 100;
   const canGoNext = status !== "pending";
   const currentExercise = exercises[currentIndex];
 
@@ -487,6 +526,7 @@ const AulaPage = () => {
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [attemptMap, setAttemptMap] = useState<AttemptMap>({});
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfTitle, setPdfTitle] = useState("");
@@ -556,6 +596,18 @@ const AulaPage = () => {
       supabase.from("material_accesses").select("material_id").eq("student_id", s.id),
       supabase.from("student_materials").select("material_id, materials(id, title, type, delivery, file_url)").eq("student_id", s.id).eq("is_personal", true),
     ]);
+
+    // Fetch attempts for current step exercises (for resume + XP dedup)
+    const exerciseIds = ((exercisesRes.data || []) as any[]).map((e: any) => e.id);
+    const attemptsRes = exerciseIds.length > 0
+      ? await (supabase as any).from("lesson_exercise_attempts")
+          .select("exercise_id, answer_given, correct, xp_earned")
+          .eq("student_id", s.id)
+          .in("exercise_id", exerciseIds)
+      : { data: [] };
+    setAttemptMap(Object.fromEntries(
+      ((attemptsRes.data || []) as any[]).map((a: any) => [a.exercise_id, a])
+    ));
 
     const accessedIds = new Set((accessesRes.data || []).map((a: any) => a.material_id));
 
@@ -674,7 +726,7 @@ const AulaPage = () => {
               </CardContent>
             </Card>
           ) : (
-            <ExercisesEngine exercises={exercises} studentId={student.id} />
+            <ExercisesEngine exercises={exercises} studentId={student.id} initialAttempts={attemptMap} />
           )}
         </CollapsibleSection>
 
