@@ -8,8 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Lock, Trophy, Flame, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import steppieOrgulhoso from "@/assets/steppie/steppie-orgulhoso.svg";
-import steppieGritando2 from "@/assets/steppie/steppie-gritando-2.svg";
+const steppieOrgulhoso = "/steppie/steppie-orgulhoso.svg";
+const steppieGritando2 = "/steppie/steppie-gritando-2.svg";
 
 const db = supabase as any;
 
