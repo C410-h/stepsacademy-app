@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { Check, ArrowLeft, ArrowRight, Copy } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 interface Plan {
@@ -30,6 +32,8 @@ const cycleLabel: Record<string, string> = {
 };
 
 const Planos = () => {
+  const { session, profile } = useAuth();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
@@ -119,7 +123,21 @@ const Planos = () => {
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 h-[60px] border-b" style={{ borderColor: "rgba(255,255,255,.08)" }}>
         <Link to="/"><img src="/brand/logo-reto-lime.svg" alt="steps academy" className="h-6" /></Link>
-        <Link to="/login" className="text-sm font-light text-white/60 hover:text-white transition-colors">Já tenho conta →</Link>
+        {session ? (
+          <button onClick={() => navigate(profile?.role === "admin" ? "/admin" : profile?.role === "teacher" ? "/teacher" : "/")} className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+            <span className="text-sm font-light text-white/60 hidden sm:block">
+              {profile?.name?.split(" ")[0] || "Minha conta"}
+            </span>
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                {profile?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        ) : (
+          <Link to="/login" className="text-sm font-light text-white/60 hover:text-white transition-colors">Já tenho conta →</Link>
+        )}
       </nav>
 
       {/* Header */}

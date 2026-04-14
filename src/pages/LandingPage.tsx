@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // ─── STEPPIE PATHS (served from /public/steppie/) ────────────────
 const steppieOrgulhoso = "/steppie/steppie-orgulhoso.svg";
@@ -262,6 +264,8 @@ const WaveOverlay = ({
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────
 const LandingPage = () => {
+  const { session, profile } = useAuth();
+  const navigate = useNavigate();
   const [lang, setLang] = useState<LangKey>("ingles");
   const [waveStage, setWaveStage] = useState<"idle" | "entering" | "covering" | "exiting">("idle");
   const [waveColor, setWaveColor] = useState("#520A70");
@@ -325,29 +329,53 @@ const LandingPage = () => {
       <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 md:px-14 h-[60px] border-b" style={{ background: "rgba(0,0,0,.35)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderColor: "rgba(255,255,255,.07)" }}>
         <img src="/brand/logo-reto-lime.svg" alt="steps academy" className="h-6" />
         <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
-            style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
-          >
-            entrar na plataforma
-          </Link>
-          <button
-            onClick={scrollToForm}
-            className="px-5 py-2 rounded-full text-[13px] font-bold border-none cursor-pointer transition-transform hover:scale-[1.04]"
-            style={{ background: d.accent, color: d.at, transition: "background .4s, color .4s" }}
-          >
-            aula grátis
-          </button>
-          <Link
-            to="/planos"
-            className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-bold border-none cursor-pointer transition-transform hover:scale-[1.04]"
-            style={{ background: "#C1FE00", color: "#1D1D1B" }}
-          >
-            matricular-se
-          </Link>
+          {session ? (
+            <>
+              <button
+                onClick={() => navigate("/")}
+                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
+                style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
+              >
+                ir para a plataforma
+              </button>
+              <button onClick={() => navigate("/perfil")} className="cursor-pointer hover:opacity-80 transition-opacity">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {profile?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
+                style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
+              >
+                entrar na plataforma
+              </Link>
+              <button
+                onClick={scrollToForm}
+                className="px-5 py-2 rounded-full text-[13px] font-bold border-none cursor-pointer transition-transform hover:scale-[1.04]"
+                style={{ background: d.accent, color: d.at, transition: "background .4s, color .4s" }}
+              >
+                aula grátis
+              </button>
+              <Link
+                to="/planos"
+                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-bold border-none cursor-pointer transition-transform hover:scale-[1.04]"
+                style={{ background: "#C1FE00", color: "#1D1D1B" }}
+              >
+                matricular-se
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 

@@ -15,6 +15,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import AdminCommandPalette from "@/components/AdminCommandPalette";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -34,6 +36,7 @@ interface StudentRow {
   id: string; status: string; currentStepNumber: number;
   profile: { name: string } | null; language: { name: string } | null;
   level: { name: string; code: string } | null; teacherName: string | null;
+  teacherId: string | null;
   createdAt: string; languageId: string; levelId: string;
 }
 interface TeacherRow {
@@ -251,6 +254,9 @@ const Admin = () => {
   // ── Active tab (controlled, needed for desktop sidebar)
   const [activeTab, setActiveTab] = useState("overview");
 
+  // ── Command palette
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   // ── Payments tab
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid" | "failed">("all");
@@ -279,6 +285,9 @@ const Admin = () => {
     loadAllSteps();
     loadAdmins();
     loadPayments();
+    const handlePaletteOpen = () => setPaletteOpen(true);
+    window.addEventListener("adminpalette:open", handlePaletteOpen);
+    return () => window.removeEventListener("adminpalette:open", handlePaletteOpen);
   }, []);
 
   // ── Reference data ───────────────────────────────────────────────────────────
@@ -300,13 +309,14 @@ const Admin = () => {
       id, status, user_id, language_id, level_id, current_step_id, created_at,
       profiles!students_user_id_fkey(name),
       steps!students_current_step_id_fkey(number),
-      teacher_students(teachers(profiles!teachers_user_id_fkey(name)))
+      teacher_students(teacher_id, teachers(profiles!teachers_user_id_fkey(name)))
     `).order("created_at", { ascending: false });
     if (studs) {
       const rows: StudentRow[] = (studs as any[]).map(s => {
         const teacherEntry = s.teacher_students?.[0];
         const tp = teacherEntry?.teachers?.profiles;
         const teacherName = Array.isArray(tp) ? tp[0]?.name || null : tp?.name || null;
+        const teacherId = teacherEntry?.teacher_id || null;
         const langData = (langs || []).find((l: any) => l.id === s.language_id);
         const levelData = (lvls || []).find((l: any) => l.id === s.level_id);
         return {
@@ -314,7 +324,7 @@ const Admin = () => {
           profile: s.profiles ? { name: s.profiles.name } : null,
           language: langData ? { name: langData.name } : null,
           level: levelData ? { name: levelData.name, code: levelData.code } : null,
-          teacherName, createdAt: s.created_at, languageId: s.language_id, levelId: s.level_id,
+          teacherName, teacherId, createdAt: s.created_at, languageId: s.language_id, levelId: s.level_id,
         };
       });
       setStudents(rows);
@@ -739,9 +749,16 @@ const Admin = () => {
   };
 
   const handleDeleteVocab = async (id: string) => {
+    const prevWords = [...vocabWords];
+    setVocabWords(v => v.filter(w => w.id !== id));
     await (supabase as any).from("vocabulary").update({ active: false }).eq("id", id);
-    toast({ title: "Palavra desativada." });
-    loadVocabulary();
+    toast({
+      title: "Palavra desativada.",
+      action: <ToastAction altText="Desfazer" onClick={async () => {
+        await (supabase as any).from("vocabulary").update({ active: true }).eq("id", id);
+        setVocabWords(prevWords);
+      }}>Desfazer</ToastAction>,
+    });
   };
 
   const handleImportVocabCSV = async (file: File) => {
@@ -784,9 +801,16 @@ const Admin = () => {
   };
 
   const handleDeleteExercise = async (id: string) => {
+    const prevExercises = [...exercises];
+    setExercises(e => e.filter(ex => ex.id !== id));
     await (supabase as any).from("lesson_exercises").update({ active: false }).eq("id", id);
-    toast({ title: "Exercício desativado." });
-    loadExercises();
+    toast({
+      title: "Exercício desativado.",
+      action: <ToastAction altText="Desfazer" onClick={async () => {
+        await (supabase as any).from("lesson_exercises").update({ active: true }).eq("id", id);
+        setExercises(prevExercises);
+      }}>Desfazer</ToastAction>,
+    });
   };
 
   const handleSaveNotifSetting = async (setting: any, updates: any) => {
@@ -845,6 +869,14 @@ const Admin = () => {
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
         <a href="/"><img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-7" /></a>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground border rounded-md px-3 py-1.5 hover:bg-muted transition-colors"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Buscar…
+            <kbd className="ml-1 font-mono text-[10px] border rounded px-1">⌘K</kbd>
+          </button>
           <span className="text-sm font-light text-muted-foreground hidden sm:block">{firstName} · Admin</span>
           <Button variant="ghost" size="sm" onClick={signOut} className="text-muted-foreground">
             <LogOut className="h-4 w-4" />
@@ -892,7 +924,12 @@ const Admin = () => {
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.value === "students" && (metrics?.studentsInactive7d ?? 0) > 0 && (
+                      <span className="ml-auto text-[10px] font-bold bg-orange-500 text-white rounded-full px-1.5 py-0.5 leading-none">
+                        {metrics!.studentsInactive7d}
+                      </span>
+                    )}
                   </button>
                 ))}
               </nav>
@@ -1287,7 +1324,21 @@ const Admin = () => {
                             {selectedStudent.status}
                           </Badge>
                         </div>
-                        {selectedStudent.teacherName && <div className="flex justify-between"><span className="text-muted-foreground">Professor</span><span>{selectedStudent.teacherName}</span></div>}
+                        {selectedStudent.teacherName && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Professor</span>
+                            {selectedStudent.teacherId ? (
+                              <button
+                                className="text-primary underline underline-offset-2 hover:opacity-70 transition-opacity"
+                                onClick={() => { setStudentDrawerOpen(false); navigate(`/admin/professor/${selectedStudent.teacherId}`); }}
+                              >
+                                {selectedStudent.teacherName}
+                              </button>
+                            ) : (
+                              <span>{selectedStudent.teacherName}</span>
+                            )}
+                          </div>
+                        )}
                         <div className="flex justify-between"><span className="text-muted-foreground">Cadastro</span><span>{formatDate(selectedStudent.createdAt)}</span></div>
                       </CardContent>
                     </Card>
@@ -2197,6 +2248,26 @@ const Admin = () => {
           </div>{/* end lg:flex wrapper */}
         </Tabs>
       </main>
+
+      {/* ── Command Palette ─────────────────────────────────────────────────── */}
+      <AdminCommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        students={students}
+        teachers={teachers}
+        groups={groups}
+        onNavigate={(type, id) => {
+          setPaletteOpen(false);
+          if (type === "student") {
+            const s = students.find(st => st.id === id);
+            if (s) openStudentDrawer(s);
+          } else if (type === "teacher") {
+            navigate(`/admin/professor/${id}`);
+          } else if (type === "group") {
+            setActiveTab("groups");
+          }
+        }}
+      />
     </div>
   );
 };
