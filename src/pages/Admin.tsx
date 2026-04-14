@@ -23,7 +23,7 @@ import {
   BookOpen, CalendarCheck, AlertCircle, Link2, Search,
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
-  UserPlus, Globe,
+  UserPlus, Globe, CreditCard,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -247,6 +247,9 @@ const Admin = () => {
   const [notifLog, setNotifLog] = useState<any[]>([]);
   const [notifLoading, setNotifLoading] = useState(true);
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
+
+  // ── Active tab (controlled, needed for desktop sidebar)
+  const [activeTab, setActiveTab] = useState("overview");
 
   // ── Payments tab
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -849,9 +852,10 @@ const Admin = () => {
         </div>
       </header>
 
-      <main className="px-4 py-4 max-w-4xl mx-auto">
-        <Tabs defaultValue="overview">
-          <TabsList className="w-full mb-4 flex overflow-x-auto gap-1 h-auto p-1 justify-start">
+      <main className="px-4 py-4 md:px-8 lg:px-10 max-w-7xl mx-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          {/* Mobile: horizontal scrollable tab bar */}
+          <TabsList className="lg:hidden w-full mb-4 flex overflow-x-auto gap-1 h-auto p-1 justify-start">
             <TabsTrigger value="overview" className="shrink-0 text-xs px-3 py-1.5">Visão Geral</TabsTrigger>
             <TabsTrigger value="students" className="shrink-0 text-xs px-3 py-1.5">Alunos</TabsTrigger>
             <TabsTrigger value="teachers" className="shrink-0 text-xs px-3 py-1.5">Professores</TabsTrigger>
@@ -862,11 +866,46 @@ const Admin = () => {
             <TabsTrigger value="payments" className="shrink-0 text-xs px-3 py-1.5">Pagamentos</TabsTrigger>
           </TabsList>
 
+          {/* Desktop: sidebar + content */}
+          <div className="lg:flex lg:gap-8">
+            {/* Desktop sidebar nav */}
+            <aside className="hidden lg:flex flex-col w-44 shrink-0 border-r pr-4 pt-1">
+              <nav className="space-y-0.5 sticky top-20">
+                {[
+                  { value: "overview", label: "Visão Geral", icon: LayoutGrid },
+                  { value: "students", label: "Alunos", icon: Users },
+                  { value: "teachers", label: "Professores", icon: GraduationCap },
+                  { value: "groups", label: "Turmas", icon: BookOpen },
+                  { value: "content", label: "Conteúdo", icon: FileText },
+                  { value: "notifications", label: "Notificações", icon: Bell },
+                  { value: "payments", label: "Pagamentos", icon: CreditCard },
+                  { value: "settings", label: "Config", icon: Settings },
+                ].map(item => (
+                  <button
+                    key={item.value}
+                    onClick={() => setActiveTab(item.value)}
+                    className={cn(
+                      "flex items-center gap-2.5 text-sm px-3 py-2 rounded-md w-full text-left transition-colors",
+                      activeTab === item.value
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </aside>
+
+            {/* Tab content */}
+            <div className="flex-1 min-w-0">
+
           {/* ── Tab: Visão Geral ─────────────────────────────────────────────── */}
           <TabsContent value="overview" className="space-y-5">
 
             {/* Metric cards */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {dashLoading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />) : (
                 <>
                   <Card>
@@ -912,7 +951,7 @@ const Admin = () => {
             </div>
 
             {/* Engagement row */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {dashLoading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />) : (
                 <>
                   <Card>
@@ -955,145 +994,148 @@ const Admin = () => {
               )}
             </div>
 
-            {/* Chart: Aulas por semana */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold">Aulas por semana (últimas 8 semanas)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {dashLoading ? <Skeleton className="h-40 w-full" /> : (
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={weeklyClasses} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip />
-                      <Bar dataKey="aulas" fill="#520A70" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Chart: Top 5 alunos por XP */}
-            {!dashLoading && topXpStudents.length > 0 && (
+            {/* Charts row 1: weekly classes + top XP */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold">Top 5 alunos por XP</CardTitle>
+                  <CardTitle className="text-sm font-bold">Aulas por semana (últimas 8 semanas)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={150}>
-                    <BarChart layout="vertical" data={topXpStudents} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis type="number" tick={{ fontSize: 10 }} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
-                      <Tooltip />
-                      <Bar dataKey="xp" fill="#C1FE00" radius={[0, 3, 3, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {dashLoading ? <Skeleton className="h-40 w-full" /> : (
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart data={weeklyClasses} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="week" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Bar dataKey="aulas" fill="#520A70" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
-            )}
 
-            {/* Distribuição por idioma */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold">Alunos por idioma</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {dashLoading ? <Skeleton className="h-20 w-full" /> : langDist.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhum dado disponível.</p>
-                ) : langDist.map(l => (
-                  <div key={l.id}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-bold" style={{ color: l.color }}>{l.name}</span>
-                      <span className="text-muted-foreground">{l.count} aluno{l.count !== 1 ? "s" : ""}</span>
-                    </div>
-                    <Progress value={(l.count / (metrics?.activeStudents || 1)) * 100} className="h-2" style={{ "--progress-foreground": l.color } as React.CSSProperties} />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+              {!dashLoading && topXpStudents.length > 0 ? (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold">Top 5 alunos por XP</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart layout="vertical" data={topXpStudents} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis type="number" tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
+                        <Tooltip />
+                        <Bar dataKey="xp" fill="#C1FE00" radius={[0, 3, 3, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              ) : <div />}
+            </div>
 
-            {/* Distribuição por nível */}
-            {!dashLoading && levelDist.length > 0 && (
+            {/* Charts row 2: language dist + level dist */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold">Distribuição por nível</CardTitle>
+                  <CardTitle className="text-sm font-bold">Alunos por idioma</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {levelDist.map(group => (
-                    <div key={group.languageName}>
-                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">{group.languageName}</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {group.levels.map(lv => (
-                          <div key={lv.code} className="text-center bg-muted rounded-lg py-2 px-1">
-                            <p className="text-xs font-bold text-primary">{lv.code}</p>
-                            <p className="text-lg font-bold">{lv.count}</p>
-                            <p className="text-[10px] text-muted-foreground font-light leading-tight">{lv.name}</p>
-                          </div>
-                        ))}
+                <CardContent className="space-y-3">
+                  {dashLoading ? <Skeleton className="h-20 w-full" /> : langDist.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Nenhum dado disponível.</p>
+                  ) : langDist.map(l => (
+                    <div key={l.id}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-bold" style={{ color: l.color }}>{l.name}</span>
+                        <span className="text-muted-foreground">{l.count} aluno{l.count !== 1 ? "s" : ""}</span>
                       </div>
+                      <Progress value={(l.count / (metrics?.activeStudents || 1)) * 100} className="h-2" style={{ "--progress-foreground": l.color } as React.CSSProperties} />
                     </div>
                   ))}
                 </CardContent>
               </Card>
-            )}
 
-            {/* Atividade recente */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold">Atividade recente</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {dashLoading ? <Skeleton className="h-32 w-full" /> : recentClasses.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
-                    <CalendarCheck className="h-8 w-8 mb-2 opacity-30" />
-                    <p className="text-xs">Nenhuma aula recente.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {recentClasses.map((c, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                        <div>
-                          <span className="font-medium">{c.studentName}</span>
-                          <span className="text-muted-foreground"> · {c.teacherName}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <span>Passo {c.stepNumber}</span>
-                          <span>{formatDate(c.completedAt)}</span>
+              {!dashLoading && levelDist.length > 0 ? (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold">Distribuição por nível</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {levelDist.map(group => (
+                      <div key={group.languageName}>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">{group.languageName}</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {group.levels.map(lv => (
+                            <div key={lv.code} className="text-center bg-muted rounded-lg py-2 px-1">
+                              <p className="text-xs font-bold text-primary">{lv.code}</p>
+                              <p className="text-lg font-bold">{lv.count}</p>
+                              <p className="text-[10px] text-muted-foreground font-light leading-tight">{lv.name}</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              ) : <div />}
+            </div>
 
-            {/* Alunos recentes */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold">Alunos recentes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {dashLoading ? <Skeleton className="h-24 w-full" /> : recentStudents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhum aluno recente.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {recentStudents.map(s => (
-                      <div key={s.id} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                        <span className="font-medium">{s.profile?.name || "—"}</span>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <span>{s.language?.name}</span>
-                          <span>{s.level?.code}</span>
-                          <span>{formatDate(s.createdAt)}</span>
+            {/* Bottom row: recent activity + recent students */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-bold">Atividade recente</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dashLoading ? <Skeleton className="h-32 w-full" /> : recentClasses.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                      <CalendarCheck className="h-8 w-8 mb-2 opacity-30" />
+                      <p className="text-xs">Nenhuma aula recente.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentClasses.map((c, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
+                          <div>
+                            <span className="font-medium">{c.studentName}</span>
+                            <span className="text-muted-foreground"> · {c.teacherName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span>Passo {c.stepNumber}</span>
+                            <span>{formatDate(c.completedAt)}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-bold">Alunos recentes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dashLoading ? <Skeleton className="h-24 w-full" /> : recentStudents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Nenhum aluno recente.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentStudents.map(s => (
+                        <div key={s.id} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
+                          <span className="font-medium">{s.profile?.name || "—"}</span>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span>{s.language?.name}</span>
+                            <span>{s.level?.code}</span>
+                            <span>{formatDate(s.createdAt)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>{/* end bottom row grid */}
           </TabsContent>
 
           {/* ── Tab: Alunos ──────────────────────────────────────────────────── */}
@@ -1226,7 +1268,7 @@ const Admin = () => {
 
             {/* Student Drawer */}
             <Sheet open={studentDrawerOpen} onOpenChange={setStudentDrawerOpen}>
-              <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+              <SheetContent className="w-full sm:max-w-lg lg:max-w-2xl overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>{selectedStudent?.profile?.name || "Aluno"}</SheetTitle>
                 </SheetHeader>
@@ -2146,6 +2188,8 @@ const Admin = () => {
               )}
             </div>
           </TabsContent>
+          </div>{/* end tab content */}
+          </div>{/* end lg:flex wrapper */}
         </Tabs>
       </main>
     </div>

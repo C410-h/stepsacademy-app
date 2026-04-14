@@ -434,7 +434,8 @@ const Teacher = () => {
           </Card>
         )}
 
-        {/* Student cards */}
+        {/* Student cards — 2-col grid on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {students.map(student => {
           const isCompleting = completing === student.studentId;
           const notesOpen = expandedNotes.has(student.studentId);
@@ -515,6 +516,7 @@ const Teacher = () => {
             </Card>
           );
         })}
+        </div>{/* end student cards grid */}
 
         {/* ── Gravações pendentes ── */}
         {recordings.length > 0 && (
