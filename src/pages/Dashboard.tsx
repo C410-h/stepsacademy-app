@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Video, BookOpen, Headphones, FileText, PenLine, ExternalLink } from "lucide-react";
+import { Video, BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 
 interface StudentData {
@@ -46,6 +47,7 @@ const typeLabels: Record<string, string> = {
 
 const Dashboard = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [studentData, setStudentData] = useState<StudentData | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +191,6 @@ const Dashboard = () => {
   const totalSteps = studentData.level?.total_steps || 40;
   const progressPercent = (studentData.currentStepNumber / totalSteps) * 100;
   const beforeClass = materials.filter(m => m.delivery === "before");
-  const afterClass = materials.filter(m => m.delivery === "after");
 
   return (
     <StudentLayout>
@@ -248,66 +249,53 @@ const Dashboard = () => {
           </Button>
         )}
 
-        {/* Materials */}
-        {beforeClass.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Antes da aula</h3>
-            {beforeClass.map(m => (
-              <Card key={m.id} className="cursor-pointer hover:border-primary/30 transition-colors">
-                <CardContent className="flex items-center gap-3 py-3 px-4">
-                  <div className="text-primary">{typeIcons[m.type] || <FileText className="h-5 w-5" />}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{m.title}</p>
-                    <p className="text-xs text-muted-foreground font-light">{typeLabels[m.type] || m.type}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-primary text-xs"
-                    onClick={() => m.file_url && window.open(m.file_url, "_blank")}
-                  >
-                    Abrir
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Aula atual */}
+        <Card
+          className="cursor-pointer hover:border-primary/30 transition-colors"
+          onClick={() => navigate("/aula")}
+        >
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Aula atual</p>
+                  <p className="text-xs text-muted-foreground font-light">
+                    Passo {studentData.currentStepNumber}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
 
-        {afterClass.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Após a aula</h3>
-            {afterClass.map(m => (
-              <Card key={m.id} className="cursor-pointer hover:border-primary/30 transition-colors">
-                <CardContent className="flex items-center gap-3 py-3 px-4">
-                  <div className="text-primary">{typeIcons[m.type] || <FileText className="h-5 w-5" />}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{m.title}</p>
-                    <p className="text-xs text-muted-foreground font-light">{typeLabels[m.type] || m.type}</p>
+            {beforeClass.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Antes da aula</p>
+                {beforeClass.slice(0, 3).map(m => (
+                  <div key={m.id} className="flex items-center gap-2 text-xs py-1">
+                    <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
+                    <span className="truncate text-foreground">{m.title}</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-primary text-xs"
-                    onClick={() => m.file_url && window.open(m.file_url, "_blank")}
-                  >
-                    Abrir
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                ))}
+                {beforeClass.length > 3 && (
+                  <p className="text-xs text-muted-foreground font-light">+{beforeClass.length - 3} mais…</p>
+                )}
+              </div>
+            )}
 
-        {materials.length === 0 && (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <img src="/steppie/steppie-comendo.svg" alt="" aria-hidden="true" className="w-20 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Nenhum material disponível ainda.</p>
-              <p className="text-xs text-muted-foreground font-light mt-1">Seus materiais aparecerão aqui quando forem liberados.</p>
-            </CardContent>
-          </Card>
-        )}
+            <Button
+              size="sm"
+              className="w-full text-xs font-bold gap-1.5"
+              style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+              onClick={e => { e.stopPropagation(); navigate("/aula"); }}
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+              Ver aula completa
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </StudentLayout>
   );
