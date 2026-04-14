@@ -93,7 +93,10 @@ const ProgressTab = () => {
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-xl">Progresso</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl">Progresso</CardTitle>
+            <img src={steppieOrgulhoso} alt="" aria-hidden="true" className="w-12" />
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
