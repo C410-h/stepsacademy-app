@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Zap, Flame, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import steppieGritando from "@/assets/steppie/steppie-gritando.svg";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VocabWord {
@@ -722,6 +723,12 @@ const StepByStep = () => {
   return (
     <StudentLayout>
       <div className="space-y-4">
+        {/* Steppie header */}
+        <div className="flex items-center gap-3">
+          <img src={steppieGritando} alt="" aria-hidden="true" className="w-12 shrink-0" />
+          <h2 className="text-lg font-bold">Step by Step</h2>
+        </div>
+
         {/* ── Daily mission ─── */}
         <Card>
           <CardContent className="py-4 space-y-2">

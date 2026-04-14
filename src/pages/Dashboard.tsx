@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import steppieApontando from "@/assets/steppie/steppie-apontando.svg";
+import steppieComendo from "@/assets/steppie/steppie-comendo.svg";
 import { supabase } from "@/integrations/supabase/client";
 import StudentLayout from "@/components/StudentLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -163,8 +165,8 @@ const Dashboard = () => {
     return (
       <StudentLayout>
         <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-          <BookOpen className="h-12 w-12 text-muted-foreground" />
-          <h2 className="text-lg font-bold">Nenhum registro encontrado</h2>
+          <img src={steppieApontando} alt="" aria-hidden="true" className="w-24 mb-2" />
+          <h2 className="text-lg font-bold">Sua jornada começa aqui!</h2>
           <p className="text-sm text-muted-foreground">Entre em contato com a administração para configurar sua conta.</p>
         </div>
       </StudentLayout>
@@ -286,7 +288,7 @@ const Dashboard = () => {
         {materials.length === 0 && (
           <Card>
             <CardContent className="py-8 text-center">
-              <BookOpen className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+              <img src={steppieComendo} alt="" aria-hidden="true" className="w-20 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">Nenhum material disponível ainda.</p>
               <p className="text-xs text-muted-foreground font-light mt-1">Seus materiais aparecerão aqui quando forem liberados.</p>
             </CardContent>
