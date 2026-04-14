@@ -87,7 +87,7 @@ const Certificado = () => {
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-12 space-y-4" style={{ color: "#fff" }}>
           {/* Logo */}
           <div className="space-y-0.5">
-            <img src="/brand/logo-reto-lime.svg" alt="steps academy" className="h-8 mx-auto" />
+            <img src="/brand/logo-over-lime.svg" alt="steps academy" className="h-14 mx-auto" />
             <div className="h-px w-16 mx-auto" style={{ background: "#C1FE00", opacity: 0.4 }} />
           </div>
 

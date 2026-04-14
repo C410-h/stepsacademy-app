@@ -453,12 +453,12 @@ const LandingPage = () => {
           </div>
 
           {/* Steppie — Hero */}
-          <div className="hidden md:block flex-shrink-0">
+          <div className="flex-shrink-0 flex justify-center md:justify-start">
             <img
               src={steppieOrgulhoso}
               alt=""
               aria-hidden="true"
-              className="w-[220px] lg:w-[280px] drop-shadow-xl"
+              className="w-[160px] md:w-[220px] lg:w-[280px] drop-shadow-xl"
               style={{ animation: "steppieFloat 3s ease-in-out infinite" }}
             />
           </div>
@@ -482,7 +482,7 @@ const LandingPage = () => {
             src={steppieApontando}
             alt=""
             aria-hidden="true"
-            className="hidden lg:block w-[140px] flex-shrink-0 -mt-4"
+            className="hidden md:block w-[140px] flex-shrink-0 -mt-4"
           />
         </div>
         <div ref={difsFade.ref} style={difsFade.style} className="grid grid-cols-1 sm:grid-cols-2 gap-[2px] rounded-[20px] overflow-hidden" >
@@ -527,7 +527,7 @@ const LandingPage = () => {
             src={steppieLendo}
             alt=""
             aria-hidden="true"
-            className="hidden lg:block w-[130px] flex-shrink-0"
+            className="hidden md:block w-[130px] flex-shrink-0"
           />
         </div>
 
@@ -578,7 +578,7 @@ const LandingPage = () => {
             src={steppieFantasia}
             alt=""
             aria-hidden="true"
-            className="hidden lg:block w-[120px] flex-shrink-0 -mt-2"
+            className="hidden md:block w-[120px] flex-shrink-0 -mt-2"
           />
         </div>
         <div
@@ -732,7 +732,7 @@ const LandingPage = () => {
           src={steppieAlegre}
           alt=""
           aria-hidden="true"
-          className="hidden md:block absolute right-6 bottom-2 w-[60px] opacity-70"
+          className="absolute right-6 bottom-2 w-[60px] opacity-70"
         />
       </footer>
     </div>
