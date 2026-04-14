@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -425,8 +426,8 @@ const Perfil = () => {
               <Avatar className="h-20 w-20">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback
-                  className="text-xl font-bold text-white"
-                  style={{ background: "#520A70" }}
+                  className="text-xl font-bold"
+                  style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
                 >
                   {initials}
                 </AvatarFallback>
@@ -479,7 +480,7 @@ const Perfil = () => {
         {gamification && (
           <div className="grid grid-cols-2 gap-3">
             <StatCard
-              icon={<Zap className="h-4 w-4 fill-lime text-lime" />}
+              icon={<Zap className="h-4 w-4" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />}
               label="XP Total"
               value={gamification.xp_total.toLocaleString("pt-BR")}
               iconBg="bg-primary/10"
@@ -683,6 +684,9 @@ const Perfil = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* ── Theme switcher ── */}
+        <ThemeSwitcher />
 
         {/* ── Notifications toggle ── */}
         <Card className="rounded-xl">

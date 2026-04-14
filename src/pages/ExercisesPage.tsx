@@ -39,7 +39,7 @@ const XpBadge = ({ xp, coins }: { xp: number; coins: number }) => (
   <div className="flex items-center gap-3 text-sm font-light text-muted-foreground">
     {xp > 0 && (
       <span className="flex items-center gap-1 text-primary font-bold">
-        <Zap className="h-3.5 w-3.5 fill-lime text-lime" />
+        <Zap className="h-3.5 w-3.5" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
         +{xp} XP
       </span>
     )}
@@ -489,7 +489,7 @@ const ExercisesPage = () => {
         <div className="space-y-4">
           <Card>
             <CardContent className="py-3 flex items-center gap-2">
-              <Zap className="h-4 w-4 fill-lime text-lime" />
+              <Zap className="h-4 w-4" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
               <span className="text-sm font-bold">{gamification.xp_total} XP total</span>
             </CardContent>
           </Card>
@@ -512,7 +512,7 @@ const ExercisesPage = () => {
     return (
       <StudentLayout>
         <div className="flex flex-col items-center justify-center py-10 space-y-6 text-center">
-          <div className="h-20 w-20 rounded-full bg-lime/20 flex items-center justify-center">
+          <div className="h-20 w-20 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-accent) 20%, transparent)' }}>
             <CheckCircle2 className="h-10 w-10 text-primary" />
           </div>
           <div>
@@ -526,7 +526,7 @@ const ExercisesPage = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-light text-muted-foreground">XP ganho</span>
                 <span className="font-bold text-primary flex items-center gap-1">
-                  <Zap className="h-4 w-4 fill-lime text-lime" />
+                  <Zap className="h-4 w-4" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
                   +{sessionXp} XP
                 </span>
               </div>
@@ -541,7 +541,8 @@ const ExercisesPage = () => {
             </CardContent>
           </Card>
           <Button
-            className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold"
+            className="w-full font-bold"
+            style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }}
             onClick={handleRestart}
           >
             <RotateCcw className="h-4 w-4 mr-2" />
@@ -591,8 +592,8 @@ const ExercisesPage = () => {
           </div>
           <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-lime transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${progressPercent}%`, background: 'var(--theme-accent)' }}
             />
           </div>
         </div>
@@ -666,7 +667,8 @@ const ExercisesPage = () => {
         {/* Next button */}
         {canGoNext && (
           <Button
-            className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold"
+            className="w-full font-bold"
+            style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }}
             onClick={handleNext}
           >
             {currentIndex + 1 >= exercises.length ? "Ver resultado" : "Próximo exercício →"}

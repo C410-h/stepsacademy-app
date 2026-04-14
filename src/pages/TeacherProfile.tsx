@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Camera, Save, Mail, Phone, BookOpen, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 interface ProfileData {
   id: string;
@@ -208,6 +209,9 @@ export default function TeacherProfile() {
     <TeacherLayout>
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         <h1 className="text-2xl font-bold text-foreground">Meu Perfil</h1>
+
+        {/* Theme switcher */}
+        <ThemeSwitcher />
 
         {/* Avatar card */}
         <Card>

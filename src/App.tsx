@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { GamificationProvider } from "@/contexts/GamificationContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import TeacherProfilePage from "./pages/TeacherProfile";
@@ -48,8 +49,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <GamificationProvider>
-            <Routes>
+          <ThemeProvider>
+            <GamificationProvider>
+              <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
@@ -69,8 +71,9 @@ const App = () => (
               <Route path="/certificado/:id" element={<Certificado />} />
               <Route path="/planos" element={<Planos />} />
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </GamificationProvider>
+              </Routes>
+            </GamificationProvider>
+          </ThemeProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

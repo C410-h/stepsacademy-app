@@ -67,6 +67,12 @@ export default {
         "steps-black": "#1D1D1B",
         "steps-offwhite": "#F5F0E6",
         "steps-purple": "#520A70",
+        'theme-primary': 'var(--theme-primary)',
+        'theme-accent':  'var(--theme-accent)',
+        'theme-bg':      'var(--theme-background)',
+        'theme-text':    'var(--theme-text)',
+        'theme-on-primary': 'var(--theme-text-on-primary)',
+        'theme-on-accent':  'var(--theme-text-on-accent)',
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

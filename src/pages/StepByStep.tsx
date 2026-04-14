@@ -37,16 +37,16 @@ const db = supabase as any;
 // ─── SVG Hangman ─────────────────────────────────────────────────────────────
 const HangmanSVG = ({ errors }: { errors: number }) => (
   <svg viewBox="0 0 120 140" className="w-full max-w-[180px] mx-auto" strokeLinecap="round">
-    <line x1="10" y1="135" x2="110" y2="135" stroke="#520A70" strokeWidth="3" />
-    <line x1="30" y1="135" x2="30" y2="10" stroke="#520A70" strokeWidth="3" />
-    <line x1="30" y1="10" x2="75" y2="10" stroke="#520A70" strokeWidth="3" />
-    <line x1="75" y1="10" x2="75" y2="25" stroke="#520A70" strokeWidth="3" />
-    {errors >= 1 && <circle cx="75" cy="35" r="10" stroke="#520A70" strokeWidth="2.5" fill="none" />}
-    {errors >= 2 && <line x1="75" y1="45" x2="75" y2="90" stroke="#520A70" strokeWidth="2.5" />}
-    {errors >= 3 && <line x1="75" y1="58" x2="55" y2="75" stroke="#520A70" strokeWidth="2.5" />}
-    {errors >= 4 && <line x1="75" y1="58" x2="95" y2="75" stroke="#520A70" strokeWidth="2.5" />}
-    {errors >= 5 && <line x1="75" y1="90" x2="55" y2="115" stroke="#520A70" strokeWidth="2.5" />}
-    {errors >= 6 && <line x1="75" y1="90" x2="95" y2="115" stroke="#520A70" strokeWidth="2.5" />}
+    <line x1="10" y1="135" x2="110" y2="135" stroke="var(--theme-primary)" strokeWidth="3" />
+    <line x1="30" y1="135" x2="30" y2="10" stroke="var(--theme-primary)" strokeWidth="3" />
+    <line x1="30" y1="10" x2="75" y2="10" stroke="var(--theme-primary)" strokeWidth="3" />
+    <line x1="75" y1="10" x2="75" y2="25" stroke="var(--theme-primary)" strokeWidth="3" />
+    {errors >= 1 && <circle cx="75" cy="35" r="10" stroke="var(--theme-primary)" strokeWidth="2.5" fill="none" />}
+    {errors >= 2 && <line x1="75" y1="45" x2="75" y2="90" stroke="var(--theme-primary)" strokeWidth="2.5" />}
+    {errors >= 3 && <line x1="75" y1="58" x2="55" y2="75" stroke="var(--theme-primary)" strokeWidth="2.5" />}
+    {errors >= 4 && <line x1="75" y1="58" x2="95" y2="75" stroke="var(--theme-primary)" strokeWidth="2.5" />}
+    {errors >= 5 && <line x1="75" y1="90" x2="55" y2="115" stroke="var(--theme-primary)" strokeWidth="2.5" />}
+    {errors >= 6 && <line x1="75" y1="90" x2="95" y2="115" stroke="var(--theme-primary)" strokeWidth="2.5" />}
   </svg>
 );
 
@@ -233,7 +233,7 @@ const FlashcardGame = ({
           <Card><CardContent className="p-3"><p className="text-2xl font-bold text-red-500">{results.wrong}</p><p className="text-xs text-muted-foreground">Errou</p></CardContent></Card>
           <Card><CardContent className="p-3"><p className="text-2xl font-bold text-primary">+{results.xp}</p><p className="text-xs text-muted-foreground">XP</p></CardContent></Card>
         </div>
-        <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={handleRestart}>
+        <Button className="w-full font-bold" style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }} onClick={handleRestart}>
           <RotateCcw className="h-4 w-4 mr-2" /> Nova sessão
         </Button>
       </div>
@@ -273,7 +273,7 @@ const FlashcardGame = ({
             <p className="text-xs text-muted-foreground mt-2 font-light">Toque para ver a tradução</p>
           </div>
           {/* Back */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border-2 border-lime/40 bg-lime/5 p-6 text-center" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border-2 p-6 text-center" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderColor: 'color-mix(in srgb, var(--theme-accent) 40%, transparent)', backgroundColor: 'color-mix(in srgb, var(--theme-accent) 5%, transparent)' }}>
             <p className="text-xl font-bold">{card.translation || "—"}</p>
             {card.example_sentence && (
               <p className="text-xs text-muted-foreground mt-3 italic font-light">"{card.example_sentence}"</p>
@@ -457,7 +457,7 @@ const FillBlankGame = ({
           <Card><CardContent className="p-3"><p className="text-2xl font-bold text-red-500">{results.wrong}</p><p className="text-xs text-muted-foreground">Errou</p></CardContent></Card>
           <Card><CardContent className="p-3"><p className="text-2xl font-bold text-primary">+{results.xp}</p><p className="text-xs text-muted-foreground">XP</p></CardContent></Card>
         </div>
-        <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={handleRestart}>
+        <Button className="w-full font-bold" style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }} onClick={handleRestart}>
           <RotateCcw className="h-4 w-4 mr-2" /> Nova sessão
         </Button>
       </div>
@@ -740,7 +740,7 @@ const StepByStep = () => {
                 )}
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground font-light">
-                <Zap className="h-3 w-3 fill-lime text-lime" />{mission?.xp_earned ?? 0} XP hoje
+                <Zap className="h-3 w-3" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />{mission?.xp_earned ?? 0} XP hoje
               </div>
             </div>
             {missionLoading ? <Skeleton className="h-2 w-full rounded" /> : (
@@ -815,7 +815,7 @@ const StepByStep = () => {
                   )}
                   {isPlaying && <Keyboard guessed={guessed} correctLetters={correctLetters} onLetter={handleGuess} disabled={!isPlaying} />}
                   {(gameState === "won" || gameState === "lost") && (
-                    <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={() => pickHangmanWord(words)}>
+                    <Button className="w-full font-bold" style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }} onClick={() => pickHangmanWord(words)}>
                       {gameState === "won" ? "Próxima palavra →" : "Tentar outra →"}
                     </Button>
                   )}
@@ -871,7 +871,7 @@ const StepByStep = () => {
         {/* ── Session XP ─── */}
         {sessionXp > 0 && (
           <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground font-light pb-2">
-            <Zap className="h-4 w-4 fill-lime text-lime" />
+            <Zap className="h-4 w-4" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
             <span><span className="font-bold text-primary">+{sessionXp} XP</span> nesta sessão</span>
           </div>
         )}

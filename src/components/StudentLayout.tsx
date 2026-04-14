@@ -17,9 +17,9 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
         <Link to="/"><img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-7" /></Link>
         <div className="flex items-center gap-3">
           {gamification.studentId && (
-            <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1">
-              <Zap className="h-3.5 w-3.5 fill-lime text-lime" />
-              <span className="text-xs font-bold text-primary">{gamification.xp_total} XP</span>
+            <div className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)' }}>
+              <Zap className="h-3.5 w-3.5" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
+              <span className="text-xs font-bold" style={{ color: 'var(--theme-primary)' }}>{gamification.xp_total} XP</span>
             </div>
           )}
           <Link to="/perfil">

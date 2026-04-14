@@ -136,7 +136,7 @@ const ProgressTab = () => {
                 )}
               >
                 {step.status === "done" ? (
-                  <><Check className="h-4 w-4 text-lime" /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
+                  <><Check className="h-4 w-4" style={{ color: 'var(--theme-accent)' }} /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
                 ) : step.status === "locked" ? (
                   <><Lock className="h-3 w-3" /><span className="text-xs mt-0.5">{step.number}</span></>
                 ) : (
@@ -149,7 +149,7 @@ const ProgressTab = () => {
           <div className="flex items-center justify-center gap-5 pt-2 pb-1">
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
-                <Check className="h-2.5 w-2.5 text-lime" />
+                <Check className="h-2.5 w-2.5" style={{ color: 'var(--theme-accent)' }} />
               </div>
               <span className="text-xs text-muted-foreground font-light">Concluído</span>
             </div>
@@ -345,7 +345,7 @@ const RankingTab = () => {
                       </div>
                     )}
                     <div className="flex items-center gap-0.5 text-xs text-primary">
-                      <Zap className="h-3 w-3 fill-lime text-lime" />
+                      <Zap className="h-3 w-3" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
                       <span className="font-bold">{entry.xp_total.toLocaleString("pt-BR")}</span>
                     </div>
                   </div>
@@ -365,7 +365,7 @@ const RankingTab = () => {
                       <p className="text-xs text-muted-foreground font-light">{myEntry.language_name}</p>
                     </div>
                     <div className="flex items-center gap-0.5 text-xs text-primary shrink-0">
-                      <Zap className="h-3 w-3 fill-lime text-lime" />
+                      <Zap className="h-3 w-3" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />
                       <span className="font-bold">{myEntry.xp_total.toLocaleString("pt-BR")}</span>
                     </div>
                   </div>

@@ -224,7 +224,8 @@ const Dashboard = () => {
         {/* Join class */}
         {studentData.meetLink && (
           <Button
-            className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold h-14 text-base"
+            className="w-full font-bold h-14 text-base"
+            style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }}
             onClick={() => window.open(studentData.meetLink!, "_blank")}
           >
             <ExternalLink className="h-5 w-5 mr-2" />

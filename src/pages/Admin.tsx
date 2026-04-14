@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2079,6 +2080,9 @@ const Admin = () => {
 
           {/* ── Tab: Configurações ───────────────────────────────────────────── */}
           <TabsContent value="settings" className="space-y-4">
+            {/* Theme switcher */}
+            <ThemeSwitcher />
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
