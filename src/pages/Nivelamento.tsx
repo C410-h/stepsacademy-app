@@ -345,7 +345,7 @@ const Nivelamento = () => {
       }
 
       // Insert placement_test
-      const { error: insertError } = await supabase
+      const { error: insertError } = await (supabase as any)
         .from("placement_tests")
         .insert({
           student_id: selectedStudentId,

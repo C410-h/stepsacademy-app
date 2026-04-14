@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      badges: {
+        Row: {
+          active: boolean | null
+          condition_type: string
+          condition_value: number
+          created_at: string | null
+          description: string | null
+          icon: string
+          id: string
+          language_id: string | null
+          name: string
+        }
+        Insert: {
+          active?: boolean | null
+          condition_type: string
+          condition_value: number
+          created_at?: string | null
+          description?: string | null
+          icon: string
+          id?: string
+          language_id?: string | null
+          name: string
+        }
+        Update: {
+          active?: boolean | null
+          condition_type?: string
+          condition_value?: number
+          created_at?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          language_id?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "badges_language_id_fkey"
+            columns: ["language_id"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certificates: {
+        Row: {
+          certificate_number: string
+          id: string
+          issued_at: string | null
+          language_id: string
+          language_name: string
+          level_id: string
+          level_name: string
+          student_id: string
+          student_name: string
+        }
+        Insert: {
+          certificate_number: string
+          id?: string
+          issued_at?: string | null
+          language_id: string
+          language_name: string
+          level_id: string
+          level_name: string
+          student_id: string
+          student_name: string
+        }
+        Update: {
+          certificate_number?: string
+          id?: string
+          issued_at?: string | null
+          language_id?: string
+          language_name?: string
+          level_id?: string
+          level_name?: string
+          student_id?: string
+          student_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_language_id_fkey"
+            columns: ["language_id"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classes: {
         Row: {
           created_at: string | null
@@ -380,6 +482,260 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          body: string
+          delivered: boolean | null
+          id: string
+          opened: boolean | null
+          sent_at: string | null
+          student_id: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          body: string
+          delivered?: boolean | null
+          id?: string
+          opened?: boolean | null
+          sent_at?: string | null
+          student_id?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          body?: string
+          delivered?: boolean | null
+          id?: string
+          opened?: boolean | null
+          sent_at?: string | null
+          student_id?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_settings: {
+        Row: {
+          body_template: string
+          enabled: boolean
+          id: string
+          send_time: string | null
+          title_template: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          body_template: string
+          enabled?: boolean
+          id?: string
+          send_time?: string | null
+          title_template: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          body_template?: string
+          enabled?: boolean
+          id?: string
+          send_time?: string | null
+          title_template?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      payment_plans: {
+        Row: {
+          active: boolean | null
+          billing_cycle: string
+          created_at: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          language_id: string | null
+          name: string
+          order_index: number | null
+          price_cents: number
+        }
+        Insert: {
+          active?: boolean | null
+          billing_cycle: string
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          language_id?: string | null
+          name: string
+          order_index?: number | null
+          price_cents: number
+        }
+        Update: {
+          active?: boolean | null
+          billing_cycle?: string
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          language_id?: string | null
+          name?: string
+          order_index?: number | null
+          price_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_plans_language_id_fkey"
+            columns: ["language_id"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_cents: number
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          lead_email: string | null
+          lead_language: string | null
+          lead_name: string | null
+          lead_whatsapp: string | null
+          paid_at: string | null
+          payment_method: string | null
+          pix_copy_paste: string | null
+          pix_qr_code: string | null
+          plan_id: string | null
+          provider: string | null
+          provider_id: string | null
+          status: string
+          student_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          lead_email?: string | null
+          lead_language?: string | null
+          lead_name?: string | null
+          lead_whatsapp?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
+          plan_id?: string | null
+          provider?: string | null
+          provider_id?: string | null
+          status?: string
+          student_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          lead_email?: string | null
+          lead_language?: string | null
+          lead_name?: string | null
+          lead_whatsapp?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
+          plan_id?: string | null
+          provider?: string | null
+          provider_id?: string | null
+          status?: string
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "payment_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      placement_tests: {
+        Row: {
+          assigned_level: string | null
+          completed_at: string | null
+          conducted_by: string | null
+          created_at: string | null
+          id: string
+          language_id: string
+          notes: string | null
+          responses: Json | null
+          student_id: string
+          test_type: string
+        }
+        Insert: {
+          assigned_level?: string | null
+          completed_at?: string | null
+          conducted_by?: string | null
+          created_at?: string | null
+          id?: string
+          language_id: string
+          notes?: string | null
+          responses?: Json | null
+          student_id: string
+          test_type: string
+        }
+        Update: {
+          assigned_level?: string | null
+          completed_at?: string | null
+          conducted_by?: string | null
+          created_at?: string | null
+          id?: string
+          language_id?: string
+          notes?: string | null
+          responses?: Json | null
+          student_id?: string
+          test_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "placement_tests_conducted_by_fkey"
+            columns: ["conducted_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "placement_tests_language_id_fkey"
+            columns: ["language_id"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "placement_tests_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -409,6 +765,121 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string | null
+          device_label: string | null
+          endpoint: string
+          id: string
+          p256dh: string
+          student_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string | null
+          device_label?: string | null
+          endpoint: string
+          id?: string
+          p256dh: string
+          student_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string | null
+          device_label?: string | null
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      speaking_recordings: {
+        Row: {
+          class_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          file_url: string
+          filename: string
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          step_id: string | null
+          student_id: string
+          teacher_feedback: string | null
+          teacher_score: number | null
+        }
+        Insert: {
+          class_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_url: string
+          filename: string
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          step_id?: string | null
+          student_id: string
+          teacher_feedback?: string | null
+          teacher_score?: number | null
+        }
+        Update: {
+          class_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_url?: string
+          filename?: string
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          step_id?: string | null
+          student_id?: string
+          teacher_feedback?: string | null
+          teacher_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaking_recordings_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaking_recordings_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaking_recordings_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaking_recordings_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stepbystep_attempts: {
         Row: {
@@ -496,6 +967,123 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_items: {
+        Row: {
+          active: boolean | null
+          category: string
+          coins_cost: number
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          stock: number | null
+          title: string
+        }
+        Insert: {
+          active?: boolean | null
+          category: string
+          coins_cost: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          stock?: number | null
+          title: string
+        }
+        Update: {
+          active?: boolean | null
+          category?: string
+          coins_cost?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          stock?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
+      store_redemptions: {
+        Row: {
+          coins_spent: number
+          id: string
+          item_id: string | null
+          notes: string | null
+          redeemed_at: string | null
+          status: string | null
+          student_id: string | null
+        }
+        Insert: {
+          coins_spent: number
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          redeemed_at?: string | null
+          status?: string | null
+          student_id?: string | null
+        }
+        Update: {
+          coins_spent?: number
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          redeemed_at?: string | null
+          status?: string | null
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_redemptions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "store_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_redemptions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_badges: {
+        Row: {
+          badge_id: string | null
+          earned_at: string | null
+          id: string
+          student_id: string | null
+        }
+        Insert: {
+          badge_id?: string | null
+          earned_at?: string | null
+          id?: string
+          student_id?: string | null
+        }
+        Update: {
+          badge_id?: string | null
+          earned_at?: string | null
+          id?: string
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_badges_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
         ]

@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Lock, Trophy, Flame, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import steppieOrgulhoso from "@/assets/steppie/steppie-orgulhoso.svg";
+import steppieGritando2 from "@/assets/steppie/steppie-gritando-2.svg";
 
 const db = supabase as any;
 
@@ -91,7 +93,10 @@ const ProgressTab = () => {
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-xl">Progresso</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl">Progresso</CardTitle>
+            <img src={steppieOrgulhoso} alt="" aria-hidden="true" className="w-12" />
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -271,7 +276,7 @@ const RankingTab = () => {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-500" />
+            <img src={steppieGritando2} alt="" aria-hidden="true" className="w-8" />
             Top 10 por XP
           </CardTitle>
         </CardHeader>

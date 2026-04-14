@@ -2,6 +2,7 @@ import StudentLayout from "@/components/StudentLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BookOpen, Video, HelpCircle, GraduationCap } from "lucide-react";
+import steppieDesconfiado from "@/assets/steppie/steppie-desconfiado.svg";
 
 const guides = [
   { icon: <BookOpen className="h-6 w-6" />, title: "Materiais", desc: "Acesse vocabulário, gramática e exercícios antes e depois de cada aula." },
@@ -54,9 +55,12 @@ const Help = () => {
 
         {/* FAQ */}
         <div className="space-y-2">
-          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-            <HelpCircle className="h-4 w-4" /> Perguntas frequentes
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <HelpCircle className="h-4 w-4" /> Perguntas frequentes
+            </h3>
+            <img src={steppieDesconfiado} alt="" aria-hidden="true" className="w-14 -mt-2" />
+          </div>
           <Accordion type="single" collapsible>
             {faqs.map((faq, i) => (
               <AccordionItem key={i} value={`faq-${i}`}>
