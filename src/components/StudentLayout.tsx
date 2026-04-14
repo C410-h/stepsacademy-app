@@ -14,7 +14,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <span className="text-lg font-bold text-primary">steps academy</span>
+        <img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-7" />
         <div className="flex items-center gap-3">
           {gamification.studentId && (
             <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1">

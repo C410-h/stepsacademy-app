@@ -48,7 +48,7 @@ const ResetPassword = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-primary">steps academy</h1>
+          <img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-9 mx-auto" />
           <p className="text-muted-foreground">Link inválido ou expirado.</p>
           <Button onClick={() => navigate("/login")}>Voltar ao login</Button>
         </div>
@@ -60,7 +60,7 @@ const ResetPassword = () => {
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-primary">steps academy</h1>
+          <img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-9 mx-auto" />
           <p className="mt-2 text-sm text-muted-foreground font-light">Defina sua nova senha</p>
         </div>
         <form onSubmit={handleReset} className="space-y-4">

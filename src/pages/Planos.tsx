@@ -118,7 +118,7 @@ const Planos = () => {
     <div className="min-h-screen" style={{ background: "#15012A", fontFamily: "'Libre Franklin', sans-serif" }}>
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 h-[60px] border-b" style={{ borderColor: "rgba(255,255,255,.08)" }}>
-        <Link to="/" className="text-lg font-black" style={{ color: "#C1FE00" }}>steps academy</Link>
+        <Link to="/"><img src="/brand/logo-reto-lime.svg" alt="steps academy" className="h-6" /></Link>
         <Link to="/login" className="text-sm font-light text-white/60 hover:text-white transition-colors">Já tenho conta →</Link>
       </nav>
 
