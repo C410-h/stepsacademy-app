@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookCheck, CheckCircle2, XCircle, Zap, RotateCcw } from "lucide-react";
+import { BookCheck, CheckCircle2, XCircle, Zap, RotateCcw, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
+import VoiceRecorder from "@/components/VoiceRecorder";
 
 interface Exercise {
   id: string;
@@ -319,6 +320,7 @@ const ExercisesPage = () => {
   const [sessionXp, setSessionXp] = useState(0);
   const [sessionCoins, setSessionCoins] = useState(0);
   const [done, setDone] = useState(false);
+  const [currentStepId, setCurrentStepId] = useState<string | null>(null);
 
   // Association state
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
@@ -345,6 +347,7 @@ const ExercisesPage = () => {
       return;
     }
     setStudentId(student.id);
+    setCurrentStepId(student.current_step_id || null);
 
     const { data: exs } = await (supabase as any)
       .from("lesson_exercises")
@@ -544,6 +547,27 @@ const ExercisesPage = () => {
             <RotateCcw className="h-4 w-4 mr-2" />
             Refazer exercícios
           </Button>
+
+          {/* Speaking section */}
+          <Card className="w-full text-left">
+            <CardContent className="pt-5 pb-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Mic className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">Pratique sua pronúncia</p>
+                  <p className="text-xs text-muted-foreground font-light">
+                    Envie uma gravação falando sobre o tema da aula para o seu professor avaliar.
+                  </p>
+                </div>
+              </div>
+              <VoiceRecorder
+                studentId={studentId || ""}
+                stepId={currentStepId || ""}
+              />
+            </CardContent>
+          </Card>
         </div>
       </StudentLayout>
     );

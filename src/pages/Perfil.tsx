@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -46,6 +46,25 @@ interface BadgeItem {
   condition_value: number;
   earned: boolean;
   earned_at: string | null;
+}
+
+interface CertItem {
+  id: string;
+  certificate_number: string;
+  level_name: string;
+  language_name: string;
+  issued_at: string;
+}
+
+interface RecordingItem {
+  id: string;
+  step_id: string | null;
+  audio_url: string;
+  status: string;
+  recorded_at: string;
+  teacher_score: number | null;
+  teacher_feedback: string | null;
+  stepNumber: number | null;
 }
 
 // ─── Inline editable field ───────────────────────────────────────────────────
@@ -166,6 +185,8 @@ const Perfil = () => {
   const [exercisesDone, setExercisesDone] = useState<number>(0);
   const [badges, setBadges] = useState<BadgeItem[]>([]);
   const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
+  const [certificates, setCertificates] = useState<CertItem[]>([]);
+  const [recordings, setRecordings] = useState<RecordingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -242,6 +263,38 @@ const Perfil = () => {
           merged.sort((a, b) => (b.earned ? 1 : 0) - (a.earned ? 1 : 0));
           setBadges(merged);
         }
+
+        const certsRes = await (supabase as any)
+          .from("certificates")
+          .select("id, certificate_number, level_name, language_name, issued_at")
+          .eq("student_id", studentData.id)
+          .order("issued_at", { ascending: false });
+        setCertificates(certsRes.data || []);
+
+        // Fetch speaking recordings
+        const recordingsRes = await (supabase as any)
+          .from("speaking_recordings")
+          .select("id, step_id, audio_url, status, recorded_at, teacher_score, teacher_feedback")
+          .eq("student_id", studentData.id)
+          .order("recorded_at", { ascending: false })
+          .limit(10);
+
+        const recs = recordingsRes.data || [];
+        const enrichedRecs: RecordingItem[] = await Promise.all(
+          recs.map(async (r: any) => {
+            let stepNumber: number | null = null;
+            if (r.step_id) {
+              const { data: step } = await supabase
+                .from("steps")
+                .select("number")
+                .eq("id", r.step_id)
+                .maybeSingle();
+              stepNumber = step?.number ?? null;
+            }
+            return { ...r, stepNumber };
+          })
+        );
+        setRecordings(enrichedRecs);
       }
     } finally {
       setLoading(false);
@@ -488,6 +541,37 @@ const Perfil = () => {
           </CardContent>
         </Card>
 
+        {/* ── Meus certificados ── */}
+        {certificates.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                Meus certificados
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pb-5">
+              {certificates.map(cert => (
+                <div key={cert.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate">{cert.language_name} · {cert.level_name}</p>
+                    <p className="text-xs text-muted-foreground font-light">
+                      {new Date(cert.issued_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                    </p>
+                  </div>
+                  <a
+                    href={`/certificado/${cert.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                  >
+                    Ver <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* ── Badges / Conquistas ── */}
         {badges.length > 0 && (
           <Card className="rounded-xl">
@@ -552,6 +636,52 @@ const Perfil = () => {
               </button>
             </div>
           </div>
+        )}
+
+        {/* ── Minhas gravações ── */}
+        {recordings.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+                <Mic className="h-4 w-4" /> Minhas gravações
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pb-5">
+              {recordings.map(rec => (
+                <div key={rec.id} className="space-y-2 border-b last:border-0 pb-3 last:pb-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">
+                      {rec.stepNumber ? `Passo ${rec.stepNumber}` : "Gravação"}
+                    </p>
+                    <span className={cn(
+                      "text-xs font-bold px-2 py-0.5 rounded-full",
+                      rec.status === "reviewed"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                    )}>
+                      {rec.status === "reviewed" ? "Avaliado" : "Pendente"}
+                    </span>
+                  </div>
+                  <audio controls src={rec.audio_url} className="w-full h-10" />
+                  {rec.status === "reviewed" && rec.teacher_score && (
+                    <div className="space-y-1">
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map(s => (
+                          <span key={s} className={cn("text-base", rec.teacher_score! >= s ? "text-yellow-400" : "text-muted-foreground/30")}>★</span>
+                        ))}
+                      </div>
+                      {rec.teacher_feedback && (
+                        <p className="text-xs text-muted-foreground font-light italic">"{rec.teacher_feedback}"</p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground font-light">
+                    {new Date(rec.recorded_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         )}
 
         {/* ── Notifications toggle ── */}

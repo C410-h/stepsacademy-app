@@ -8,8 +8,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface RecordingRow {
+  id: string;
+  student_id: string;
+  step_id: string | null;
+  audio_url: string;
+  status: string;
+  recorded_at: string;
+  studentName: string;
+  stepNumber: number | null;
+}
 
 interface StudentCard {
   studentId: string;
@@ -47,6 +58,10 @@ const Teacher = () => {
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [savingNotes, setSavingNotes] = useState<string | null>(null);
+  const [recordings, setRecordings] = useState<RecordingRow[]>([]);
+  const [reviewScore, setReviewScore] = useState<Record<string, number>>({});
+  const [reviewFeedback, setReviewFeedback] = useState<Record<string, string>>({});
+  const [submittingReview, setSubmittingReview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -136,7 +151,58 @@ const Teacher = () => {
     });
     setNotes(initialNotes);
 
+    // Fetch pending recordings for this teacher's students
+    const studentIds = studentCards.map(s => s.studentId);
+    if (studentIds.length > 0) {
+      const { data: recs } = await (supabase as any)
+        .from("speaking_recordings")
+        .select("id, student_id, step_id, audio_url, status, recorded_at")
+        .in("student_id", studentIds)
+        .eq("status", "pending")
+        .order("recorded_at", { ascending: false });
+
+      const enriched: RecordingRow[] = await Promise.all(
+        (recs || []).map(async (r: any) => {
+          const sc = studentCards.find(s => s.studentId === r.student_id);
+          let stepNumber: number | null = null;
+          if (r.step_id) {
+            const { data: step } = await supabase
+              .from("steps")
+              .select("number")
+              .eq("id", r.step_id)
+              .maybeSingle();
+            stepNumber = step?.number ?? null;
+          }
+          return { ...r, studentName: sc?.name || "Aluno", stepNumber };
+        })
+      );
+      setRecordings(enriched);
+    }
+
     setLoading(false);
+  };
+
+  const submitReview = async (recordingId: string) => {
+    if (!teacherId) return;
+    setSubmittingReview(recordingId);
+    try {
+      await (supabase as any)
+        .from("speaking_recordings")
+        .update({
+          status: "reviewed",
+          teacher_feedback: reviewFeedback[recordingId] || null,
+          teacher_score: reviewScore[recordingId] || null,
+          reviewed_by: teacherId,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", recordingId);
+      toast({ title: "Avaliação enviada com sucesso!" });
+      setRecordings(prev => prev.filter(r => r.id !== recordingId));
+    } catch {
+      toast({ title: "Erro ao enviar avaliação.", variant: "destructive" });
+    } finally {
+      setSubmittingReview(null);
+    }
   };
 
   const markClassDone = async (student: StudentCard) => {
@@ -449,6 +515,64 @@ const Teacher = () => {
             </Card>
           );
         })}
+
+        {/* ── Gravações pendentes ── */}
+        {recordings.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Mic className="h-5 w-5 text-primary" /> Gravações pendentes
+              <Badge variant="secondary">{recordings.length}</Badge>
+            </h2>
+            {recordings.map(rec => (
+              <Card key={rec.id}>
+                <CardContent className="pt-5 pb-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-sm">{rec.studentName}</p>
+                      <p className="text-xs text-muted-foreground font-light">
+                        {rec.stepNumber ? `Passo ${rec.stepNumber}` : "Passo —"} · {new Date(rec.recorded_at).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">Pendente</Badge>
+                  </div>
+                  <audio controls src={rec.audio_url} className="w-full h-10" />
+                  {/* Star rating */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground font-light">Nota (1–5 estrelas)</p>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setReviewScore(prev => ({ ...prev, [rec.id]: s }))}
+                          className={cn(
+                            "text-xl transition-transform hover:scale-110",
+                            (reviewScore[rec.id] || 0) >= s ? "text-yellow-400" : "text-muted-foreground/30"
+                          )}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Textarea
+                    placeholder="Feedback para o aluno..."
+                    value={reviewFeedback[rec.id] || ""}
+                    onChange={e => setReviewFeedback(prev => ({ ...prev, [rec.id]: e.target.value }))}
+                    rows={3}
+                    className="text-sm"
+                  />
+                  <Button
+                    className="w-full bg-primary text-primary-foreground font-bold"
+                    disabled={!reviewScore[rec.id] || submittingReview === rec.id}
+                    onClick={() => submitReview(rec.id)}
+                  >
+                    {submittingReview === rec.id ? "Enviando..." : "Enviar avaliação"}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </TeacherLayout>
   );

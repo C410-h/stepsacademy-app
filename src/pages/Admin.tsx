@@ -49,6 +49,19 @@ interface LevelDist { languageName: string; levels: { code: string; name: string
 interface RecentClass { studentName: string; teacherName: string; stepNumber: number; completedAt: string; }
 interface LangOption { id: string; name: string; }
 interface LevelOption { id: string; name: string; code: string; language_id: string; }
+interface PaymentRow {
+  id: string;
+  lead_name: string | null;
+  lead_email: string | null;
+  lead_language: string | null;
+  plan_id: string | null;
+  amount_cents: number;
+  status: string;
+  payment_method: string | null;
+  created_at: string;
+  paid_at: string | null;
+  student_id: string | null;
+}
 
 const LANG_COLORS: Record<string, string> = { "Inglês": "#520A70", "Espanhol": "#F97316", "Libras": "#FF97CB" };
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
@@ -134,6 +147,8 @@ const Admin = () => {
   const [drawerClasses, setDrawerClasses] = useState<any[]>([]);
   const [drawerProgress, setDrawerProgress] = useState<{ done: number; available: number; locked: number }>({ done: 0, available: 0, locked: 0 });
   const [drawerLoading, setDrawerLoading] = useState(false);
+  const [drawerCerts, setDrawerCerts] = useState<any[]>([]);
+  const [issuingCert, setIssuingCert] = useState(false);
 
   // ── Dashboard tab
   const [metrics, setMetrics] = useState<DashMetrics | null>(null);
@@ -232,6 +247,12 @@ const Admin = () => {
   const [notifLoading, setNotifLoading] = useState(true);
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
 
+  // ── Payments tab
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid" | "failed">("all");
+  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+  const [plansMap, setPlansMap] = useState<Record<string, string>>({});
+
   // ── Settings tab
   const [schoolName, setSchoolName] = useState(() => localStorage.getItem("schoolName") || "Steps Academy");
   const [defaultMeetLink, setDefaultMeetLink] = useState(() => localStorage.getItem("defaultMeetLink") || "");
@@ -253,6 +274,7 @@ const Admin = () => {
     loadMaterials();
     loadAllSteps();
     loadAdmins();
+    loadPayments();
   }, []);
 
   // ── Reference data ───────────────────────────────────────────────────────────
@@ -304,6 +326,7 @@ const Admin = () => {
     setDrawerPlacement(null);
     setDrawerClasses([]);
     setDrawerProgress({ done: 0, available: 0, locked: 0 });
+    setDrawerCerts([]);
     const [
       { data: gamif },
       { data: placements },
@@ -323,6 +346,42 @@ const Admin = () => {
     const locked = (progress || []).filter((p: any) => p.status === "locked").length;
     setDrawerProgress({ done, available, locked });
     setDrawerLoading(false);
+    await loadDrawerCerts(student.id);
+  };
+
+  const loadDrawerCerts = async (studentId: string) => {
+    const { data } = await (supabase as any)
+      .from("certificates")
+      .select("id, certificate_number, level_name, language_name, issued_at")
+      .eq("student_id", studentId)
+      .order("issued_at", { ascending: false });
+    setDrawerCerts(data || []);
+  };
+
+  const issueManualCert = async (studentId?: string) => {
+    if (!studentId || !selectedStudent) return;
+    setIssuingCert(true);
+    try {
+      const year = new Date().getFullYear();
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const certNumber = `SA-${year}-${rand}`;
+
+      await (supabase as any).from("certificates").insert({
+        student_id: studentId,
+        student_name: selectedStudent.profile?.name || "Aluno",
+        level_name: selectedStudent.level?.name || "—",
+        language_name: selectedStudent.language?.name || "—",
+        certificate_number: certNumber,
+        issued_at: new Date().toISOString(),
+      });
+
+      toast({ title: "Certificado emitido com sucesso!" });
+      await loadDrawerCerts(studentId);
+    } catch {
+      toast({ title: "Erro ao emitir certificado.", variant: "destructive" });
+    } finally {
+      setIssuingCert(false);
+    }
   };
 
   // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -545,6 +604,39 @@ const Admin = () => {
     setAdmins(data || []);
   };
 
+  const loadPayments = async () => {
+    const { data: paysData } = await (supabase as any)
+      .from("payments")
+      .select("id, lead_name, lead_email, lead_language, plan_id, amount_cents, status, payment_method, created_at, paid_at, student_id")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    const { data: plansData } = await (supabase as any)
+      .from("payment_plans")
+      .select("id, name");
+
+    const pm: Record<string, string> = {};
+    (plansData || []).forEach((p: any) => { pm[p.id] = p.name; });
+    setPlansMap(pm);
+    setPayments(paysData || []);
+  };
+
+  const markAsPaid = async (paymentId: string) => {
+    setMarkingPaid(paymentId);
+    try {
+      await (supabase as any)
+        .from("payments")
+        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .eq("id", paymentId);
+      toast({ title: "Pagamento marcado como pago!" });
+      setPayments(prev => prev.map(p => p.id === paymentId ? { ...p, status: "paid", paid_at: new Date().toISOString() } : p));
+    } catch {
+      toast({ title: "Erro ao atualizar pagamento.", variant: "destructive" });
+    } finally {
+      setMarkingPaid(null);
+    }
+  };
+
   // ── Actions ───────────────────────────────────────────────────────────────────
 
   // PRESERVE ORIGINAL - não alterar
@@ -763,6 +855,7 @@ const Admin = () => {
             <TabsTrigger value="content" className="shrink-0 text-xs px-3 py-1.5">Conteúdo</TabsTrigger>
             <TabsTrigger value="notifications" className="shrink-0 text-xs px-3 py-1.5">Notificações</TabsTrigger>
             <TabsTrigger value="settings" className="shrink-0 text-xs px-3 py-1.5">Config</TabsTrigger>
+            <TabsTrigger value="payments" className="shrink-0 text-xs px-3 py-1.5">Pagamentos</TabsTrigger>
           </TabsList>
 
           {/* ── Tab: Visão Geral ─────────────────────────────────────────────── */}
@@ -1232,6 +1325,33 @@ const Admin = () => {
                         </CardContent>
                       </Card>
                     )}
+                    {/* Certificados do aluno */}
+                    <div className="space-y-3 pt-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Certificados</p>
+                      {drawerCerts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground font-light">Nenhum certificado emitido.</p>
+                      ) : (
+                        drawerCerts.map(c => (
+                          <div key={c.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border">
+                            <div>
+                              <p className="text-xs font-bold">{c.language_name} · {c.level_name}</p>
+                              <p className="text-[10px] text-muted-foreground">{new Date(c.issued_at).toLocaleDateString("pt-BR")}</p>
+                            </div>
+                            <a href={`/certificado/${c.id}`} target="_blank" className="text-xs text-primary font-bold hover:underline">Ver</a>
+                          </div>
+                        ))
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5"
+                        disabled={issuingCert}
+                        onClick={() => issueManualCert(selectedStudent?.id)}
+                      >
+                        <GraduationCap className="h-3.5 w-3.5" />
+                        {issuingCert ? "Emitindo..." : "Emitir certificado manualmente"}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </SheetContent>
@@ -1929,6 +2049,98 @@ const Admin = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ── Tab: Pagamentos ──────────────────────────────────────────────── */}
+          <TabsContent value="payments" className="space-y-5">
+            {/* Metric cards */}
+            {(() => {
+              const pending = payments.filter(p => p.status === "pending");
+              const paidThisMonth = payments.filter(p => p.status === "paid" && p.paid_at && new Date(p.paid_at).getMonth() === new Date().getMonth());
+              const today = payments.filter(p => new Date(p.created_at).toDateString() === new Date().toDateString());
+              return (
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Pendentes", value: pending.length, color: "text-yellow-600" },
+                    { label: "Pagos este mês", value: paidThisMonth.length, color: "text-green-600" },
+                    { label: "Leads hoje", value: today.length, color: "text-primary" },
+                  ].map(m => (
+                    <Card key={m.label}>
+                      <CardContent className="py-3 text-center">
+                        <p className={`text-2xl font-black ${m.color}`}>{m.value}</p>
+                        <p className="text-[10px] text-muted-foreground font-light">{m.label}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Filter */}
+            <div className="flex gap-2 flex-wrap">
+              {(["all", "pending", "paid", "failed"] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setPaymentFilter(f)}
+                  className={cn("px-3 py-1 rounded-full text-xs font-bold border transition-all",
+                    paymentFilter === f ? "bg-primary text-primary-foreground border-transparent" : "border-border text-muted-foreground hover:border-primary/40"
+                  )}
+                >
+                  {{ all: "Todos", pending: "Pendente", paid: "Pago", failed: "Falhou" }[f]}
+                </button>
+              ))}
+            </div>
+
+            {/* Payments list */}
+            <div className="space-y-3">
+              {payments
+                .filter(p => paymentFilter === "all" || p.status === paymentFilter)
+                .map(pay => (
+                  <Card key={pay.id}>
+                    <CardContent className="py-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate">{pay.lead_name || "—"}</p>
+                          <p className="text-xs text-muted-foreground font-light truncate">{pay.lead_email || "—"}</p>
+                          <p className="text-xs text-muted-foreground font-light">{pay.lead_language || "—"} · {plansMap[pay.plan_id || ""] || "—"}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-sm">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((pay.amount_cents || 0) / 100)}</p>
+                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                            pay.status === "paid" ? "bg-green-100 text-green-700" :
+                            pay.status === "failed" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          )}>
+                            {pay.status === "paid" ? "Pago" : pay.status === "failed" ? "Falhou" : "Pendente"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-light">
+                        <span>{pay.payment_method?.toUpperCase() || "—"} · {new Date(pay.created_at).toLocaleDateString("pt-BR")}</span>
+                        {pay.paid_at && <span>Pago em {new Date(pay.paid_at).toLocaleDateString("pt-BR")}</span>}
+                      </div>
+                      {pay.status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs"
+                          disabled={markingPaid === pay.id}
+                          onClick={() => markAsPaid(pay.id)}
+                        >
+                          {markingPaid === pay.id ? "Marcando..." : "✓ Marcar como pago"}
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              {payments.filter(p => paymentFilter === "all" || p.status === paymentFilter).length === 0 && (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground font-light">
+                    Nenhum pagamento encontrado.
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </main>
