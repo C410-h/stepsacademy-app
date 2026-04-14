@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, BookOpen } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,17 @@ interface Gamification {
   coins: number;
   streak_current: number;
   streak_best: number;
+}
+
+interface BadgeItem {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string;
+  condition_type: string;
+  condition_value: number;
+  earned: boolean;
+  earned_at: string | null;
 }
 
 // ─── Inline editable field ───────────────────────────────────────────────────
@@ -152,6 +164,8 @@ const Perfil = () => {
   const [gamification, setGamification] = useState<Gamification | null>(null);
   const [completedClasses, setCompletedClasses] = useState<number>(0);
   const [exercisesDone, setExercisesDone] = useState<number>(0);
+  const [badges, setBadges] = useState<BadgeItem[]>([]);
+  const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -206,30 +220,28 @@ const Perfil = () => {
       setStudent(studentData);
 
       if (studentData) {
-        // Load gamification, completed classes and exercises in parallel
-        const [gamifRes, classesRes, exercisesRes] = await Promise.all([
-          db
-            .from("student_gamification")
-            .select("xp_total, coins, streak_current, streak_best")
-            .eq("student_id", studentData.id)
-            .single(),
-          db
-            .from("classes")
-            .select("id", { count: "exact", head: true })
-            .eq("student_id", studentData.id)
-            .eq("status", "completed"),
-          db
-            .from("xp_events")
-            .select("id", { count: "exact", head: true })
-            .eq("student_id", studentData.id)
-            .in("event_type", ["lesson_exercise", "stepbystep"]),
+        // Load gamification, completed classes, exercises and badges in parallel
+        const [gamifRes, classesRes, exercisesRes, allBadgesRes, earnedBadgesRes] = await Promise.all([
+          db.from("student_gamification").select("xp_total, coins, streak_current, streak_best").eq("student_id", studentData.id).single(),
+          db.from("classes").select("id", { count: "exact", head: true }).eq("student_id", studentData.id).eq("status", "completed"),
+          db.from("xp_events").select("id", { count: "exact", head: true }).eq("student_id", studentData.id).in("event_type", ["lesson_exercise", "stepbystep"]),
+          db.from("badges").select("id, name, description, icon, condition_type, condition_value").eq("active", true),
+          db.from("student_badges").select("badge_id, earned_at").eq("student_id", studentData.id),
         ]);
 
-        if (gamifRes.data) {
-          setGamification(gamifRes.data as Gamification);
-        }
+        if (gamifRes.data) setGamification(gamifRes.data as Gamification);
         setCompletedClasses(classesRes.count ?? 0);
         setExercisesDone(exercisesRes.count ?? 0);
+
+        if (allBadgesRes.data) {
+          const earnedMap = new Map<string, string>();
+          (earnedBadgesRes.data || []).forEach((eb: any) => earnedMap.set(eb.badge_id, eb.earned_at));
+          const merged: BadgeItem[] = allBadgesRes.data.map((b: any) => ({
+            ...b, earned: earnedMap.has(b.id), earned_at: earnedMap.get(b.id) || null,
+          }));
+          merged.sort((a, b) => (b.earned ? 1 : 0) - (a.earned ? 1 : 0));
+          setBadges(merged);
+        }
       }
     } finally {
       setLoading(false);
@@ -475,6 +487,72 @@ const Perfil = () => {
             />
           </CardContent>
         </Card>
+
+        {/* ── Badges / Conquistas ── */}
+        {badges.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                Minhas conquistas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-5">
+              <div className="grid grid-cols-4 gap-3">
+                {badges.map(badge => (
+                  <button
+                    key={badge.id}
+                    onClick={() => setSelectedBadge(badge)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 p-2 rounded-xl border transition-all",
+                      badge.earned
+                        ? "border-primary/20 bg-primary/5 hover:border-primary/40"
+                        : "border-border bg-muted/20 opacity-50 hover:opacity-70"
+                    )}
+                  >
+                    <span className={cn("text-2xl", !badge.earned && "grayscale")}>
+                      {badge.earned ? badge.icon : <Lock className="h-5 w-5 text-muted-foreground" />}
+                    </span>
+                    <span className="text-[10px] text-center leading-tight text-muted-foreground font-light line-clamp-2">
+                      {badge.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Badge detail dialog */}
+        {selectedBadge && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center p-4" onClick={() => setSelectedBadge(null)}>
+            <div className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+              <div className="text-center">
+                <span className={cn("text-5xl block mb-2", !selectedBadge.earned && "grayscale opacity-50")}>
+                  {selectedBadge.earned ? selectedBadge.icon : "🔒"}
+                </span>
+                <p className="font-bold text-lg">{selectedBadge.name}</p>
+                {selectedBadge.description && (
+                  <p className="text-sm text-muted-foreground mt-1">{selectedBadge.description}</p>
+                )}
+              </div>
+              {selectedBadge.earned ? (
+                <p className="text-center text-xs text-green-600 font-bold">
+                  ✓ Conquistado em {new Date(selectedBadge.earned_at!).toLocaleDateString("pt-BR")}
+                </p>
+              ) : (
+                <p className="text-center text-xs text-muted-foreground">
+                  Continue praticando para desbloquear esta conquista!
+                </p>
+              )}
+              <button
+                onClick={() => setSelectedBadge(null)}
+                className="w-full text-center text-sm text-primary font-bold py-2"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Notifications toggle ── */}
         <Card className="rounded-xl">

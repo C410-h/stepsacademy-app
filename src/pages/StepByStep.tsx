@@ -5,11 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import StudentLayout from "@/components/StudentLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Flame, CheckCircle2 } from "lucide-react";
+import { Zap, Flame, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VocabWord {
@@ -73,7 +75,7 @@ const Keyboard = ({
   </div>
 );
 
-const WordDisplay = ({ word, revealed, gameOver, won }: { word: string; revealed: Set<string>; gameOver: boolean; won: boolean; }) => {
+const WordDisplay = ({ word, revealed, gameOver, won }: { word: string; revealed: Set<string>; gameOver: boolean; won: boolean }) => {
   const letters = word.toUpperCase().split("");
   return (
     <div className="flex flex-wrap justify-center gap-2 py-4">
@@ -93,6 +95,454 @@ const WordDisplay = ({ word, revealed, gameOver, won }: { word: string; revealed
   );
 };
 
+// ─── Flashcard component ──────────────────────────────────────────────────────
+const FlashcardGame = ({
+  words, studentId, mission, onMissionUpdate, onSessionXp,
+}: {
+  words: VocabWord[];
+  studentId: string;
+  mission: DailyMission | null;
+  onMissionUpdate: (m: DailyMission) => void;
+  onSessionXp: (xp: number) => void;
+}) => {
+  const { gamification, refresh: refreshGamification } = useGamification();
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [answered, setAnswered] = useState(false);
+  const [results, setResults] = useState<{ correct: number; wrong: number; xp: number }>({ correct: 0, wrong: 0, xp: 0 });
+  const [done, setDone] = useState(false);
+
+  const SESSION_SIZE = Math.min(10, words.length);
+  const sessionWords = words.slice(0, SESSION_SIZE);
+
+  const awardXp = useCallback(async (correct: boolean) => {
+    const xpGain = correct ? 10 : 2;
+    const coinsGain = correct ? 5 : 0;
+    const w = sessionWords[index];
+
+    await db.from("student_gamification").update({
+      xp_total: gamification.xp_total + xpGain,
+      coins: gamification.coins + coinsGain,
+      updated_at: new Date().toISOString(),
+    }).eq("student_id", studentId);
+
+    await db.from("xp_events").insert({
+      student_id: studentId,
+      event_type: "stepbystep",
+      xp: xpGain,
+      coins: coinsGain,
+      description: `Flashcard ${correct ? "correto" : "errado"}: ${w?.word ?? ""}`,
+    });
+
+    await db.from("stepbystep_attempts").insert({
+      student_id: studentId,
+      vocabulary_id: w?.id ?? null,
+      exercise_type: "flashcard",
+      correct,
+      xp_earned: xpGain,
+      mission_id: mission?.id ?? null,
+    });
+
+    onSessionXp(xpGain);
+
+    // Update mission
+    if (mission && !mission.completed) {
+      const newDone = mission.exercises_done + 1;
+      const nowComplete = newDone >= mission.exercises_total;
+      const missionUpdate: Record<string, unknown> = {
+        exercises_done: newDone,
+        xp_earned: (mission.xp_earned || 0) + xpGain,
+      };
+      if (nowComplete) {
+        missionUpdate.completed = true;
+        missionUpdate.completed_at = new Date().toISOString();
+        const bonusXp = 50; const bonusCoins = 25;
+        await db.from("xp_events").insert({
+          student_id: studentId, event_type: "daily_mission", xp: bonusXp, coins: bonusCoins, description: "Missão diária concluída! 🎯",
+        });
+        await db.from("student_gamification").update({
+          xp_total: gamification.xp_total + xpGain + bonusXp,
+          coins: gamification.coins + coinsGain + bonusCoins,
+          updated_at: new Date().toISOString(),
+        }).eq("student_id", studentId);
+        onSessionXp(bonusXp);
+        missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + bonusXp;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
+      }
+      await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
+      onMissionUpdate({
+        ...mission,
+        exercises_done: newDone,
+        completed: nowComplete || mission.completed,
+        xp_earned: (mission.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
+      });
+    }
+
+    await refreshGamification();
+    return xpGain;
+  }, [index, sessionWords, studentId, gamification, mission, onMissionUpdate, onSessionXp, refreshGamification]);
+
+  const handleAnswer = async (correct: boolean) => {
+    if (answered) return;
+    setAnswered(true);
+    const xp = await awardXp(correct);
+    setResults(prev => ({
+      correct: prev.correct + (correct ? 1 : 0),
+      wrong: prev.wrong + (correct ? 0 : 1),
+      xp: prev.xp + xp,
+    }));
+  };
+
+  const handleNext = () => {
+    if (index + 1 >= SESSION_SIZE) {
+      setDone(true);
+    } else {
+      setIndex(i => i + 1);
+      setFlipped(false);
+      setAnswered(false);
+    }
+  };
+
+  const handleRestart = () => {
+    setIndex(0);
+    setFlipped(false);
+    setAnswered(false);
+    setResults({ correct: 0, wrong: 0, xp: 0 });
+    setDone(false);
+  };
+
+  if (words.length === 0) {
+    return (
+      <div className="py-8 text-center space-y-2">
+        <p className="font-bold text-sm">Nenhuma palavra cadastrada</p>
+        <p className="text-xs text-muted-foreground font-light">Peça ao professor para adicionar vocabulário ao seu nível.</p>
+      </div>
+    );
+  }
+
+  if (done) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="py-4">
+          <p className="text-4xl mb-2">🎉</p>
+          <p className="font-bold text-lg">Sessão concluída!</p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Card><CardContent className="p-3"><p className="text-2xl font-bold text-green-600">{results.correct}</p><p className="text-xs text-muted-foreground">Acertou</p></CardContent></Card>
+          <Card><CardContent className="p-3"><p className="text-2xl font-bold text-red-500">{results.wrong}</p><p className="text-xs text-muted-foreground">Errou</p></CardContent></Card>
+          <Card><CardContent className="p-3"><p className="text-2xl font-bold text-primary">+{results.xp}</p><p className="text-xs text-muted-foreground">XP</p></CardContent></Card>
+        </div>
+        <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={handleRestart}>
+          <RotateCcw className="h-4 w-4 mr-2" /> Nova sessão
+        </Button>
+      </div>
+    );
+  }
+
+  const card = sessionWords[index];
+
+  return (
+    <div className="space-y-4">
+      {/* Progress bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs text-muted-foreground font-light">
+          <span>{index + 1}/{SESSION_SIZE}</span>
+          <span>{results.correct} ✓  {results.wrong} ✗</span>
+        </div>
+        <Progress value={((index) / SESSION_SIZE) * 100} className="h-1.5" />
+      </div>
+
+      {/* Flashcard flip */}
+      <div
+        className="relative w-full cursor-pointer select-none"
+        style={{ perspective: 1000, minHeight: 180 }}
+        onClick={() => !answered && setFlipped(f => !f)}
+        role="button"
+        tabIndex={0}
+        aria-label="Virar carta"
+        onKeyDown={e => e.key === "Enter" && !answered && setFlipped(f => !f)}
+      >
+        <div
+          className="relative w-full transition-transform duration-500"
+          style={{ transformStyle: "preserve-3d", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)", minHeight: 180 }}
+        >
+          {/* Front */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border-2 border-primary/20 bg-card p-6 text-center" style={{ backfaceVisibility: "hidden" }}>
+            <p className="text-2xl font-bold text-primary">{card.word}</p>
+            <p className="text-xs text-muted-foreground mt-2 font-light">Toque para ver a tradução</p>
+          </div>
+          {/* Back */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border-2 border-lime/40 bg-lime/5 p-6 text-center" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
+            <p className="text-xl font-bold">{card.translation || "—"}</p>
+            {card.example_sentence && (
+              <p className="text-xs text-muted-foreground mt-3 italic font-light">"{card.example_sentence}"</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {!flipped && !answered && (
+        <p className="text-center text-xs text-muted-foreground font-light">Toque na carta para ver a resposta</p>
+      )}
+
+      {/* Answer buttons — show after flipping */}
+      {flipped && !answered && (
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => handleAnswer(false)}>
+            Não sabia
+          </Button>
+          <Button className="bg-green-500 hover:bg-green-600 text-white" onClick={() => handleAnswer(true)}>
+            Sabia! ✓
+          </Button>
+        </div>
+      )}
+
+      {/* Feedback + next */}
+      {answered && (
+        <div className="space-y-3">
+          <div className={cn("p-3 rounded-lg text-center text-sm font-bold", results.correct > results.wrong ? "bg-green-500/10 text-green-700 border border-green-500/20" : "bg-muted")}>
+            +{results.xp > 0 ? (results.xp - (results.wrong > 0 ? (results.wrong * 2) : 0)) : 2} XP
+          </div>
+          <Button className="w-full bg-primary text-white" onClick={handleNext}>
+            {index + 1 >= SESSION_SIZE ? "Ver resultado →" : "Próxima →"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Fill in the blank game ───────────────────────────────────────────────────
+const FillBlankGame = ({
+  words, studentId, mission, onMissionUpdate, onSessionXp,
+}: {
+  words: VocabWord[];
+  studentId: string;
+  mission: DailyMission | null;
+  onMissionUpdate: (m: DailyMission) => void;
+  onSessionXp: (xp: number) => void;
+}) => {
+  const { gamification, refresh: refreshGamification } = useGamification();
+  const [index, setIndex] = useState(0);
+  const [answer, setAnswer] = useState("");
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [results, setResults] = useState<{ correct: number; wrong: number; xp: number }>({ correct: 0, wrong: 0, xp: 0 });
+  const [done, setDone] = useState(false);
+
+  const SESSION_SIZE = Math.min(8, words.filter(w => w.example_sentence).length);
+  const sessionWords = words.filter(w => w.example_sentence).slice(0, SESSION_SIZE);
+
+  const buildQuestion = (w: VocabWord) => {
+    const sentence = w.example_sentence || "";
+    // Replace the word (case-insensitive) in the sentence with ___
+    const regex = new RegExp(w.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    return { question: sentence.replace(regex, "___"), word: w.word };
+  };
+
+  const awardXp = useCallback(async (correct: boolean, w: VocabWord) => {
+    const xpGain = correct ? 12 : 2;
+    const coinsGain = correct ? 6 : 0;
+
+    await db.from("student_gamification").update({
+      xp_total: gamification.xp_total + xpGain,
+      coins: gamification.coins + coinsGain,
+      updated_at: new Date().toISOString(),
+    }).eq("student_id", studentId);
+
+    await db.from("xp_events").insert({
+      student_id: studentId,
+      event_type: "stepbystep",
+      xp: xpGain,
+      coins: coinsGain,
+      description: `Preencha a lacuna ${correct ? "correto" : "errado"}: ${w.word}`,
+    });
+
+    await db.from("stepbystep_attempts").insert({
+      student_id: studentId,
+      vocabulary_id: w.id,
+      exercise_type: "fill_blank",
+      correct,
+      xp_earned: xpGain,
+      mission_id: mission?.id ?? null,
+    });
+
+    onSessionXp(xpGain);
+
+    if (mission && !mission.completed) {
+      const newDone = mission.exercises_done + 1;
+      const nowComplete = newDone >= mission.exercises_total;
+      const missionUpdate: Record<string, unknown> = {
+        exercises_done: newDone,
+        xp_earned: (mission.xp_earned || 0) + xpGain,
+      };
+      if (nowComplete) {
+        missionUpdate.completed = true;
+        missionUpdate.completed_at = new Date().toISOString();
+        const bonusXp = 50; const bonusCoins = 25;
+        await db.from("xp_events").insert({
+          student_id: studentId, event_type: "daily_mission", xp: bonusXp, coins: bonusCoins, description: "Missão diária concluída! 🎯",
+        });
+        await db.from("student_gamification").update({
+          xp_total: gamification.xp_total + xpGain + bonusXp,
+          coins: gamification.coins + coinsGain + bonusCoins,
+          updated_at: new Date().toISOString(),
+        }).eq("student_id", studentId);
+        onSessionXp(bonusXp);
+        missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + bonusXp;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
+      }
+      await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
+      onMissionUpdate({
+        ...mission,
+        exercises_done: newDone,
+        completed: nowComplete || mission.completed,
+        xp_earned: (mission.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
+      });
+    }
+
+    await refreshGamification();
+    return xpGain;
+  }, [studentId, gamification, mission, onMissionUpdate, onSessionXp, refreshGamification]);
+
+  const handleSubmit = async () => {
+    if (!answer.trim() || feedback) return;
+    const w = sessionWords[index];
+    const correct = answer.trim().toLowerCase() === w.word.toLowerCase();
+    setFeedback(correct ? "correct" : "wrong");
+    const xp = await awardXp(correct, w);
+    setResults(prev => ({
+      correct: prev.correct + (correct ? 1 : 0),
+      wrong: prev.wrong + (correct ? 0 : 1),
+      xp: prev.xp + xp,
+    }));
+  };
+
+  const handleNext = () => {
+    if (index + 1 >= SESSION_SIZE) {
+      setDone(true);
+    } else {
+      setIndex(i => i + 1);
+      setAnswer("");
+      setFeedback(null);
+    }
+  };
+
+  const handleRestart = () => {
+    setIndex(0);
+    setAnswer("");
+    setFeedback(null);
+    setResults({ correct: 0, wrong: 0, xp: 0 });
+    setDone(false);
+  };
+
+  if (sessionWords.length === 0) {
+    return (
+      <div className="py-8 text-center space-y-2">
+        <p className="font-bold text-sm">Nenhuma frase de exemplo cadastrada</p>
+        <p className="text-xs text-muted-foreground font-light">Peça ao professor para adicionar exemplos ao vocabulário.</p>
+      </div>
+    );
+  }
+
+  if (done) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="py-4">
+          <p className="text-4xl mb-2">✏️</p>
+          <p className="font-bold text-lg">Sessão concluída!</p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Card><CardContent className="p-3"><p className="text-2xl font-bold text-green-600">{results.correct}</p><p className="text-xs text-muted-foreground">Acertou</p></CardContent></Card>
+          <Card><CardContent className="p-3"><p className="text-2xl font-bold text-red-500">{results.wrong}</p><p className="text-xs text-muted-foreground">Errou</p></CardContent></Card>
+          <Card><CardContent className="p-3"><p className="text-2xl font-bold text-primary">+{results.xp}</p><p className="text-xs text-muted-foreground">XP</p></CardContent></Card>
+        </div>
+        <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={handleRestart}>
+          <RotateCcw className="h-4 w-4 mr-2" /> Nova sessão
+        </Button>
+      </div>
+    );
+  }
+
+  const w = sessionWords[index];
+  const { question } = buildQuestion(w);
+
+  return (
+    <div className="space-y-4">
+      {/* Progress */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs text-muted-foreground font-light">
+          <span>{index + 1}/{SESSION_SIZE}</span>
+          <span>{results.correct} ✓  {results.wrong} ✗</span>
+        </div>
+        <Progress value={(index / SESSION_SIZE) * 100} className="h-1.5" />
+      </div>
+
+      {/* Question */}
+      <div className="p-4 rounded-xl bg-muted/40 space-y-2">
+        <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">Complete a frase</p>
+        <p className="text-base leading-relaxed font-medium">
+          {question.split("___").map((part, i, arr) => (
+            <span key={i}>
+              {part}
+              {i < arr.length - 1 && (
+                <span className={cn(
+                  "inline-block border-b-2 px-2 min-w-[60px] text-center font-bold",
+                  feedback === "correct" && "border-green-500 text-green-700",
+                  feedback === "wrong" && "border-red-400 text-red-500",
+                  !feedback && "border-primary"
+                )}>
+                  {feedback ? w.word : (answer || "\u00A0\u00A0\u00A0")}
+                </span>
+              )}
+            </span>
+          ))}
+        </p>
+        {w.translation && (
+          <p className="text-xs text-muted-foreground font-light">Tradução: <span className="font-bold">{w.translation}</span></p>
+        )}
+      </div>
+
+      {/* Input */}
+      {!feedback && (
+        <div className="flex gap-2">
+          <Input
+            value={answer}
+            onChange={e => setAnswer(e.target.value)}
+            placeholder="Digite a palavra..."
+            className="flex-1"
+            onKeyDown={e => e.key === "Enter" && handleSubmit()}
+            autoFocus
+          />
+          <Button onClick={handleSubmit} disabled={!answer.trim()}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Feedback */}
+      {feedback && (
+        <div className="space-y-3">
+          <div className={cn("p-3 rounded-lg text-center text-sm font-bold", feedback === "correct" ? "bg-green-500/10 text-green-700 border border-green-500/20" : "bg-red-500/10 text-red-700 border border-red-500/20")}>
+            {feedback === "correct" ? "✓ Correto! +12 XP +6 🪙" : `✗ Era "${w.word}" — +2 XP por tentar`}
+          </div>
+          <Button className="w-full bg-primary text-white" onClick={handleNext}>
+            {index + 1 >= SESSION_SIZE ? "Ver resultado →" : "Próxima →"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Game mode tabs ───────────────────────────────────────────────────────────
+type GameMode = "hangman" | "flashcard" | "fillblank";
+
+const MODE_CONFIG: { id: GameMode; label: string; emoji: string }[] = [
+  { id: "hangman", label: "Forca", emoji: "🪓" },
+  { id: "flashcard", label: "Flashcards", emoji: "🃏" },
+  { id: "fillblank", label: "Lacuna", emoji: "✏️" },
+];
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const StepByStep = () => {
   const { profile } = useAuth();
@@ -103,13 +553,17 @@ const StepByStep = () => {
   const [levelId, setLevelId] = useState<string | null>(null);
   const [mission, setMission] = useState<DailyMission | null>(null);
   const [missionLoading, setMissionLoading] = useState(true);
+  const [words, setWords] = useState<VocabWord[]>([]);
+
+  // Hangman state
   const [word, setWord] = useState<VocabWord | null>(null);
   const [guessed, setGuessed] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState(0);
   const [gameState, setGameState] = useState<"playing" | "won" | "lost" | "no_vocab">("playing");
-  const [sessionXp, setSessionXp] = useState(0);
-  const [freePlay, setFreePlay] = useState(false);
   const [celebrateWin, setCelebrateWin] = useState(false);
+
+  const [sessionXp, setSessionXp] = useState(0);
+  const [mode, setMode] = useState<GameMode>("hangman");
 
   const MAX_ERRORS = 6;
 
@@ -126,8 +580,10 @@ const StepByStep = () => {
     setStudentId(student.id);
     setLevelId(student.level_id);
     setLoading(false);
-    await loadOrCreateMission(student.id);
-    await loadNewWord(student.level_id);
+    await Promise.all([
+      loadOrCreateMission(student.id),
+      loadVocabulary(student.level_id),
+    ]);
   };
 
   const loadOrCreateMission = async (sid: string) => {
@@ -151,26 +607,25 @@ const StepByStep = () => {
     setMissionLoading(false);
   };
 
-  const loadNewWord = async (lid: string | null) => {
+  const loadVocabulary = async (lid: string | null) => {
     if (!lid) { setGameState("no_vocab"); return; }
-    const useEasy = Math.random() < 0.7;
-    const diffFilter = useEasy ? [1] : [2, 3];
-
-    let { data: words } = await db
+    const { data: allWords } = await db
       .from("vocabulary")
       .select("id, word, translation, example_sentence, difficulty")
-      .eq("level_id", lid).eq("active", true).in("difficulty", diffFilter);
+      .eq("level_id", lid).eq("active", true);
+    if (!allWords || allWords.length === 0) { setGameState("no_vocab"); return; }
+    // Shuffle
+    const shuffled = [...allWords].sort(() => Math.random() - 0.5) as VocabWord[];
+    setWords(shuffled);
+    pickHangmanWord(shuffled);
+  };
 
-    if (!words || words.length === 0) {
-      const { data: allWords } = await db
-        .from("vocabulary")
-        .select("id, word, translation, example_sentence, difficulty")
-        .eq("level_id", lid).eq("active", true);
-      words = allWords;
-    }
-
-    if (!words || words.length === 0) { setGameState("no_vocab"); setWord(null); return; }
-    const random = words[Math.floor(Math.random() * words.length)] as VocabWord;
+  const pickHangmanWord = (vocab: VocabWord[]) => {
+    if (!vocab.length) { setGameState("no_vocab"); return; }
+    const useEasy = Math.random() < 0.7;
+    const pool = vocab.filter(w => useEasy ? w.difficulty === 1 : w.difficulty > 1);
+    const chosen = pool.length ? pool : vocab;
+    const random = chosen[Math.floor(Math.random() * chosen.length)];
     setWord(random);
     setGuessed(new Set());
     setErrors(0);
@@ -181,23 +636,22 @@ const StepByStep = () => {
   const wordLetters = word ? new Set(word.word.toUpperCase().split("").filter(c => /[A-Z]/.test(c))) : new Set<string>();
   const correctLetters = new Set([...guessed].filter(l => wordLetters.has(l)));
 
-  const handleWin = async () => {
-    const sid = studentId;
-    if (!sid || !word) return;
+  const handleWin = useCallback(async () => {
+    if (!studentId || !word) return;
     const xpGain = 15; const coinsGain = 8;
     const currentXp = gamification.xp_total;
     const currentCoins = gamification.coins;
 
     await db.from("student_gamification").update({
       xp_total: currentXp + xpGain, coins: currentCoins + coinsGain, updated_at: new Date().toISOString(),
-    }).eq("student_id", sid);
+    }).eq("student_id", studentId);
 
     await db.from("xp_events").insert({
-      student_id: sid, event_type: "stepbystep", xp: xpGain, coins: coinsGain, description: `Forca correto: ${word.word}`,
+      student_id: studentId, event_type: "stepbystep", xp: xpGain, coins: coinsGain, description: `Forca correto: ${word.word}`,
     });
 
     await db.from("stepbystep_attempts").insert({
-      student_id: sid, vocabulary_id: word.id, exercise_type: "hangman", correct: true, xp_earned: xpGain, mission_id: mission?.id || null,
+      student_id: studentId, vocabulary_id: word.id, exercise_type: "hangman", correct: true, xp_earned: xpGain, mission_id: mission?.id || null,
     });
 
     setSessionXp(prev => prev + xpGain);
@@ -205,70 +659,49 @@ const StepByStep = () => {
     if (mission && !mission.completed) {
       const newDone = mission.exercises_done + 1;
       const nowComplete = newDone >= mission.exercises_total;
-      const missionUpdate: Record<string, unknown> = {
-        exercises_done: newDone, xp_earned: (mission.xp_earned || 0) + xpGain,
-      };
+      const missionUpdate: Record<string, unknown> = { exercises_done: newDone, xp_earned: (mission.xp_earned || 0) + xpGain };
       if (nowComplete) {
         missionUpdate.completed = true;
         missionUpdate.completed_at = new Date().toISOString();
         const bonusXp = 50; const bonusCoins = 25;
-        await db.from("xp_events").insert({
-          student_id: sid, event_type: "daily_mission", xp: bonusXp, coins: bonusCoins, description: "Missão diária concluída! 🎯",
-        });
-        await db.from("student_gamification").update({
-          xp_total: currentXp + xpGain + bonusXp, coins: currentCoins + coinsGain + bonusCoins, updated_at: new Date().toISOString(),
-        }).eq("student_id", sid);
+        await db.from("xp_events").insert({ student_id: studentId, event_type: "daily_mission", xp: bonusXp, coins: bonusCoins, description: "Missão diária concluída! 🎯" });
+        await db.from("student_gamification").update({ xp_total: currentXp + xpGain + bonusXp, coins: currentCoins + coinsGain + bonusCoins, updated_at: new Date().toISOString() }).eq("student_id", studentId);
         setSessionXp(prev => prev + bonusXp);
         missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + bonusXp;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
       }
       await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
-      setMission(prev => prev ? {
-        ...prev, exercises_done: newDone, completed: nowComplete || prev.completed,
-        xp_earned: (prev.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
-      } : prev);
+      setMission(prev => prev ? { ...prev, exercises_done: newDone, completed: nowComplete || prev.completed, xp_earned: (prev.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0) } : prev);
     }
     await refreshGamification();
-  };
+  }, [studentId, word, gamification, mission, refreshGamification]);
 
-  const handleLoss = async () => {
-    const sid = studentId;
-    if (!sid || !word) return;
+  const handleLoss = useCallback(async () => {
+    if (!studentId || !word) return;
     const xpGain = 3;
-    await db.from("student_gamification").update({
-      xp_total: gamification.xp_total + xpGain, updated_at: new Date().toISOString(),
-    }).eq("student_id", sid);
-    await db.from("xp_events").insert({
-      student_id: sid, event_type: "stepbystep", xp: xpGain, coins: 0, description: `Forca errado: ${word.word}`,
-    });
-    await db.from("stepbystep_attempts").insert({
-      student_id: sid, vocabulary_id: word.id, exercise_type: "hangman", correct: false, xp_earned: xpGain, mission_id: mission?.id || null,
-    });
+    await db.from("student_gamification").update({ xp_total: gamification.xp_total + xpGain, updated_at: new Date().toISOString() }).eq("student_id", studentId);
+    await db.from("xp_events").insert({ student_id: studentId, event_type: "stepbystep", xp: xpGain, coins: 0, description: `Forca errado: ${word.word}` });
+    await db.from("stepbystep_attempts").insert({ student_id: studentId, vocabulary_id: word.id, exercise_type: "hangman", correct: false, xp_earned: xpGain, mission_id: mission?.id || null });
     setSessionXp(prev => prev + xpGain);
     await refreshGamification();
-  };
+  }, [studentId, word, gamification, mission, refreshGamification]);
 
-  const handleGuess = useCallback(
-    async (letter: string) => {
-      if (!word || gameState !== "playing") return;
-      const upper = letter.toUpperCase();
-      if (guessed.has(upper)) return;
-      const wLetters = new Set(word.word.toUpperCase().split("").filter(c => /[A-Z]/.test(c)));
-      const newGuessed = new Set(guessed).add(upper);
-      const isCorrect = wLetters.has(upper);
-      const newErrors = isCorrect ? errors : errors + 1;
-      const newCorrect = new Set([...newGuessed].filter(l => wLetters.has(l)));
-      const newWon = [...wLetters].every(l => newCorrect.has(l));
-      const newLost = newErrors >= MAX_ERRORS;
-      setGuessed(newGuessed);
-      setErrors(newErrors);
-      if (newWon) { setGameState("won"); setCelebrateWin(true); await handleWin(); }
-      else if (newLost) { setGameState("lost"); await handleLoss(); }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [word, guessed, errors, gameState, handleWin, handleLoss]
-  );
-
-  const handleNextWord = () => { loadNewWord(levelId); };
+  const handleGuess = useCallback(async (letter: string) => {
+    if (!word || gameState !== "playing") return;
+    const upper = letter.toUpperCase();
+    if (guessed.has(upper)) return;
+    const wLetters = new Set(word.word.toUpperCase().split("").filter(c => /[A-Z]/.test(c)));
+    const newGuessed = new Set(guessed).add(upper);
+    const isCorrect = wLetters.has(upper);
+    const newErrors = isCorrect ? errors : errors + 1;
+    const newCorrect = new Set([...newGuessed].filter(l => wLetters.has(l)));
+    const newWon = [...wLetters].every(l => newCorrect.has(l));
+    const newLost = newErrors >= MAX_ERRORS;
+    setGuessed(newGuessed);
+    setErrors(newErrors);
+    if (newWon) { setGameState("won"); setCelebrateWin(true); await handleWin(); }
+    else if (newLost) { setGameState("lost"); await handleLoss(); }
+  }, [word, guessed, errors, gameState, handleWin, handleLoss]);
 
   if (loading) {
     return (
@@ -289,6 +722,7 @@ const StepByStep = () => {
   return (
     <StudentLayout>
       <div className="space-y-4">
+        {/* ── Daily mission ─── */}
         <Card>
           <CardContent className="py-4 space-y-2">
             <div className="flex items-center justify-between">
@@ -311,52 +745,102 @@ const StepByStep = () => {
           </CardContent>
         </Card>
 
+        {/* ── Mode selector ─── */}
+        <div className="grid grid-cols-3 gap-2">
+          {MODE_CONFIG.map(m => (
+            <button
+              key={m.id}
+              onClick={() => setMode(m.id)}
+              className={cn(
+                "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-xs font-bold",
+                mode === m.id
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/30"
+              )}
+            >
+              <span className="text-xl">{m.emoji}</span>
+              <span>{m.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Game area ─── */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">{missionDone && !freePlay ? "Prática Livre" : "Mini-game Forca"}</CardTitle>
-              <span className="text-xs text-muted-foreground font-light">{errors}/{MAX_ERRORS} erros</span>
+              <CardTitle className="text-base">
+                {mode === "hangman" && "Forca"}
+                {mode === "flashcard" && "Flashcards"}
+                {mode === "fillblank" && "Preencha a Lacuna"}
+              </CardTitle>
+              {mode === "hangman" && <span className="text-xs text-muted-foreground font-light">{errors}/{MAX_ERRORS} erros</span>}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {gameState === "no_vocab" ? (
-              <div className="py-8 text-center space-y-2">
-                <p className="font-bold text-sm">Nenhuma palavra cadastrada</p>
-                <p className="text-xs text-muted-foreground font-light">Peça ao professor para adicionar vocabulário ao seu nível.</p>
-              </div>
-            ) : (
-              <>
-                <HangmanSVG errors={errors} />
-                {word && <WordDisplay word={word.word} revealed={correctLetters} gameOver={gameState !== "playing"} won={gameState === "won"} />}
-                {gameState === "won" && (
-                  <div className="space-y-2">
-                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
-                      <p className="font-bold text-green-700 text-sm">{celebrateWin ? "🎉 Correto! " : ""}+15 XP +8 🪙</p>
+            {/* Hangman */}
+            {mode === "hangman" && (
+              gameState === "no_vocab" ? (
+                <div className="py-8 text-center space-y-2">
+                  <p className="font-bold text-sm">Nenhuma palavra cadastrada</p>
+                  <p className="text-xs text-muted-foreground font-light">Peça ao professor para adicionar vocabulário.</p>
+                </div>
+              ) : (
+                <>
+                  <HangmanSVG errors={errors} />
+                  {word && <WordDisplay word={word.word} revealed={correctLetters} gameOver={gameState !== "playing"} won={gameState === "won"} />}
+                  {gameState === "won" && (
+                    <div className="space-y-2">
+                      <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
+                        <p className="font-bold text-green-700 text-sm">{celebrateWin ? "🎉 Correto! " : ""}+15 XP +8 🪙</p>
+                      </div>
+                      {word?.translation && <p className="text-xs text-center text-muted-foreground font-light"><span className="font-bold">{word.word}</span> = {word.translation}</p>}
+                      {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
                     </div>
-                    {word?.translation && <p className="text-xs text-center text-muted-foreground font-light"><span className="font-bold">{word.word}</span> = {word.translation}</p>}
-                    {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
-                  </div>
-                )}
-                {gameState === "lost" && (
-                  <div className="space-y-2">
-                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
-                      <p className="font-bold text-red-600 text-sm">A palavra era: <span className="uppercase">{word?.word}</span></p>
-                      <p className="text-xs text-muted-foreground font-light mt-1">+3 XP por tentar</p>
+                  )}
+                  {gameState === "lost" && (
+                    <div className="space-y-2">
+                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+                        <p className="font-bold text-red-600 text-sm">A palavra era: <span className="uppercase">{word?.word}</span></p>
+                        <p className="text-xs text-muted-foreground font-light mt-1">+3 XP por tentar</p>
+                      </div>
+                      {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
                     </div>
-                    {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
-                  </div>
-                )}
-                {isPlaying && <Keyboard guessed={guessed} correctLetters={correctLetters} onLetter={handleGuess} disabled={!isPlaying} />}
-                {(gameState === "won" || gameState === "lost") && (
-                  <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={handleNextWord}>
-                    {gameState === "won" ? "Próxima palavra →" : "Tentar outra →"}
-                  </Button>
-                )}
-              </>
+                  )}
+                  {isPlaying && <Keyboard guessed={guessed} correctLetters={correctLetters} onLetter={handleGuess} disabled={!isPlaying} />}
+                  {(gameState === "won" || gameState === "lost") && (
+                    <Button className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold" onClick={() => pickHangmanWord(words)}>
+                      {gameState === "won" ? "Próxima palavra →" : "Tentar outra →"}
+                    </Button>
+                  )}
+                </>
+              )
+            )}
+
+            {/* Flashcards */}
+            {mode === "flashcard" && studentId && (
+              <FlashcardGame
+                words={words}
+                studentId={studentId}
+                mission={mission}
+                onMissionUpdate={setMission}
+                onSessionXp={xp => setSessionXp(prev => prev + xp)}
+              />
+            )}
+
+            {/* Fill in the blank */}
+            {mode === "fillblank" && studentId && (
+              <FillBlankGame
+                words={words}
+                studentId={studentId}
+                mission={mission}
+                onMissionUpdate={setMission}
+                onSessionXp={xp => setSessionXp(prev => prev + xp)}
+              />
             )}
           </CardContent>
         </Card>
 
+        {/* ── Streak ─── */}
         <Card>
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
@@ -377,20 +861,7 @@ const StepByStep = () => {
           </CardContent>
         </Card>
 
-        {missionDone && !freePlay && (
-          <Card className="border-lime/40 bg-lime/5">
-            <CardContent className="py-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-primary">Missão concluída! 🎯</p>
-                <p className="text-xs text-muted-foreground font-light">Continue praticando por diversão.</p>
-              </div>
-              <Button size="sm" className="bg-lime text-steps-black hover:bg-lime/90 font-bold shrink-0" onClick={() => setFreePlay(true)}>
-                <Zap className="h-4 w-4 mr-1" />Continuar
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
+        {/* ── Session XP ─── */}
         {sessionXp > 0 && (
           <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground font-light pb-2">
             <Zap className="h-4 w-4 fill-lime text-lime" />

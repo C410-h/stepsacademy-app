@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import StudentLayout from "@/components/StudentLayout";
+import PDFViewer from "@/components/PDFViewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,7 +46,9 @@ const Materials = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [filter, setFilter] = useState("before");
   const [loading, setLoading] = useState(true);
-  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfTitle, setPdfTitle] = useState<string>("");
 
   useEffect(() => {
     if (!profile) return;
@@ -70,10 +73,7 @@ const Materials = () => {
 
     if (sm) {
       const mats = sm
-        .map((s: any) => ({
-          ...s.materials,
-          accessed: !!s.accessed_at,
-        }))
+        .map((s: any) => ({ ...s.materials, accessed: !!s.accessed_at }))
         .filter(Boolean) as Material[];
       setMaterials(mats);
     }
@@ -86,9 +86,11 @@ const Materials = () => {
     if (!m.file_url) return;
 
     if (m.type === "audio") {
-      setViewingUrl(m.file_url);
+      setAudioUrl(m.file_url);
     } else {
-      window.open(m.file_url, "_blank");
+      // Open all non-audio files in the embedded PDFViewer
+      setPdfTitle(m.title);
+      setPdfUrl(m.file_url);
     }
 
     // Registrar acesso se ainda não foi acessado
@@ -167,18 +169,18 @@ const Materials = () => {
           </div>
         )}
 
-        {/* Audio player */}
-        {viewingUrl && (
+        {/* Áudio inline player */}
+        {audioUrl && (
           <Card>
             <CardContent className="py-4">
-              <audio controls className="w-full" src={viewingUrl}>
+              <audio controls className="w-full" src={audioUrl}>
                 Seu navegador não suporta áudio.
               </audio>
               <Button
                 variant="ghost"
                 size="sm"
                 className="mt-2 text-xs"
-                onClick={() => setViewingUrl(null)}
+                onClick={() => setAudioUrl(null)}
               >
                 Fechar player
               </Button>
@@ -186,6 +188,9 @@ const Materials = () => {
           </Card>
         )}
       </div>
+
+      {/* PDF / Slide embedded viewer */}
+      <PDFViewer url={pdfUrl} title={pdfTitle} onClose={() => setPdfUrl(null)} />
     </StudentLayout>
   );
 };

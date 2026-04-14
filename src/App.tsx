@@ -20,6 +20,7 @@ import ExercisesPage from "./pages/ExercisesPage";
 import StepByStep from "./pages/StepByStep";
 import Perfil from "./pages/Perfil";
 import Nivelamento from "./pages/Nivelamento";
+import Loja from "./pages/Loja";
 import NotFound from "./pages/NotFound";
 import { Navigate } from "react-router-dom";
 
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><Teacher /></ProtectedRoute>} />
               <Route path="/nivelamento" element={<ProtectedRoute><Nivelamento /></ProtectedRoute>} />
+              <Route path="/loja" element={<ProtectedRoute><Loja /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </GamificationProvider>

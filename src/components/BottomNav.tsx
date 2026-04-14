@@ -1,4 +1,4 @@
-import { Home, BookOpen, BarChart3, HelpCircle, BookCheck, Zap } from "lucide-react";
+import { Home, BookOpen, BarChart3, Gift, BookCheck, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -8,7 +8,7 @@ const items = [
   { to: "/exercicios-da-aula", icon: BookCheck, label: "Exercícios" },
   { to: "/step-by-step", icon: Zap, label: "Step by Step" },
   { to: "/progresso", icon: BarChart3, label: "Progresso" },
-  { to: "/ajuda", icon: HelpCircle, label: "Ajuda" },
+  { to: "/loja", icon: Gift, label: "Loja" },
 ];
 
 const BottomNav = () => {
