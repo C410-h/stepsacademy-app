@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import TeacherLayout from "@/components/TeacherLayout";
+import TeacherContentTab from "@/components/TeacherContentTab";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RecordingRow {
@@ -409,7 +411,19 @@ const Teacher = () => {
 
   return (
     <TeacherLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
+        <Tabs defaultValue="students">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="students" className="gap-1.5">
+              <Users className="h-4 w-4" />Meus Alunos
+            </TabsTrigger>
+            <TabsTrigger value="content" className="gap-1.5">
+              <FileText className="h-4 w-4" />Conteúdo
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab: Alunos ──────────────────────────────────────────────── */}
+          <TabsContent value="students" className="space-y-6 mt-4">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold">Meus Alunos</h1>
@@ -626,6 +640,19 @@ const Teacher = () => {
             ))}
           </div>
         )}
+          </TabsContent>
+
+          {/* ── Tab: Conteúdo ─────────────────────────────────────────────── */}
+          <TabsContent value="content" className="mt-4">
+            {teacherId ? (
+              <TeacherContentTab teacherId={teacherId} />
+            ) : (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Carregando...
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </TeacherLayout>
   );
