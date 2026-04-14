@@ -557,13 +557,23 @@ const LandingPage = () => {
       </section>
 
       {/* ─── COMO FUNCIONA ─────────────────────────── */}
-      <section id="como" className="px-6 md:px-14 py-[72px] md:py-24" style={{ background: "#111" }}>
-        <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
-          como funciona
-        </p>
-        <h2 className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-14 max-w-[480px]">
-          Simples, estruturado<br />e sem enrolação.
-        </h2>
+      <section id="como" className="px-6 md:px-14 py-[72px] md:py-24 relative" style={{ background: "#111" }}>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
+              como funciona
+            </p>
+            <h2 className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-14 max-w-[480px]">
+              Simples, estruturado<br />e sem enrolação.
+            </h2>
+          </div>
+          <img
+            src={steppieFantasia}
+            alt=""
+            aria-hidden="true"
+            className="hidden lg:block w-[120px] flex-shrink-0 -mt-2"
+          />
+        </div>
         <div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[1px] rounded-[18px] overflow-hidden"
           style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.08)" }}
@@ -699,7 +709,7 @@ const LandingPage = () => {
       </section>
 
       {/* ─── FOOTER ─────────────────────────────────── */}
-      <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left" style={{ background: "#0c0c0c" }}>
+      <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
         <div className="text-[17px] font-bold" style={{ color: "#C1FE00" }}>
           steps
           <span className="block text-[10px] font-light" style={{ color: "rgba(255,255,255,.3)" }}>academy</span>
@@ -714,6 +724,12 @@ const LandingPage = () => {
         <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
           © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
         </p>
+        <img
+          src={steppieAlegre}
+          alt=""
+          aria-hidden="true"
+          className="hidden md:block absolute right-6 bottom-2 w-[60px] opacity-70"
+        />
       </footer>
     </div>
   );
