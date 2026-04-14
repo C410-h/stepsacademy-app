@@ -1,6 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 
+// ─── STEPPIE IMPORTS ─────────────────────────────────────────────
+import steppieOrgulhoso from "@/assets/steppie/steppie-orgulhoso.svg";
+import steppieApontando from "@/assets/steppie/steppie-apontando.svg";
+import steppieFantasia from "@/assets/steppie/steppie-fantasia.svg";
+import steppieLendo from "@/assets/steppie/steppie-lendo.svg";
+import steppieAlegre from "@/assets/steppie/steppie-alegre.svg";
+
 // ─── SCROLL FADE-IN HOOK ─────────────────────────────────────────
 const useFadeIn = () => {
   const ref = useRef<HTMLDivElement>(null);
