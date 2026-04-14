@@ -335,7 +335,7 @@ const Admin = () => {
       { data: progress },
     ] = await Promise.all([
       (supabase as any).from("student_gamification").select("xp_total, coins, streak_current, streak_best").eq("student_id", student.id).single(),
-      supabase.from("placement_tests").select("assigned_level, test_type, notes, completed_at").eq("student_id", student.id).order("created_at", { ascending: false }).limit(1),
+      (supabase as any).from("placement_tests").select("assigned_level, test_type, notes, completed_at").eq("student_id", student.id).order("created_at", { ascending: false }).limit(1),
       supabase.from("classes").select("scheduled_at, steps!classes_step_id_fkey(number)").eq("student_id", student.id).eq("status", "completed").order("scheduled_at", { ascending: false }).limit(5),
       supabase.from("student_progress").select("status").eq("student_id", student.id),
     ]);

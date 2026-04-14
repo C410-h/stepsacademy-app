@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "@/hooks/use-toast";
 import { ShoppingBag, Gift, Clock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import steppieFantasia from "@/assets/steppie/steppie-fantasia.svg";
 
 const db = supabase as any;
 
@@ -138,7 +139,10 @@ const Loja = () => {
       <div className="space-y-4">
         {/* ── Header with coins balance ─── */}
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Loja</h2>
+          <div className="flex items-center gap-2">
+            <img src={steppieFantasia} alt="" aria-hidden="true" className="w-10" />
+            <h2 className="text-xl font-bold">Loja</h2>
+          </div>
           <div className="flex items-center gap-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-full px-3 py-1.5">
             <span className="text-base leading-none">🪙</span>
             <span className="text-sm font-bold text-yellow-700 dark:text-yellow-300">

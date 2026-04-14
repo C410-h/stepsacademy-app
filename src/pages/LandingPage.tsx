@@ -1,6 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 
+// ─── STEPPIE IMPORTS ─────────────────────────────────────────────
+import steppieOrgulhoso from "@/assets/steppie/steppie-orgulhoso.svg";
+import steppieApontando from "@/assets/steppie/steppie-apontando.svg";
+import steppieFantasia from "@/assets/steppie/steppie-fantasia.svg";
+import steppieLendo from "@/assets/steppie/steppie-lendo.svg";
+import steppieAlegre from "@/assets/steppie/steppie-alegre.svg";
+
 // ─── SCROLL FADE-IN HOOK ─────────────────────────────────────────
 const useFadeIn = () => {
   const ref = useRef<HTMLDivElement>(null);
@@ -393,71 +400,94 @@ const LandingPage = () => {
         </div>
 
         {/* Hero content */}
-        <div className="relative z-[2] max-w-[680px] animate-[fadeUp_.65s_ease_both]">
-          <p
-            className="inline-flex items-center gap-2.5 text-[11px] font-bold tracking-[.13em] uppercase mb-7"
-            style={{ color: d.accent, transition: "color .4s" }}
-          >
-            <span className="inline-block w-[26px] h-[2px] rounded-sm" style={{ background: d.accent, transition: "background .4s" }} />
-            {d.tag}
-          </p>
-
-          <h1 className="text-[clamp(40px,5vw,68px)] font-black leading-[1.04] mb-6" style={{ color: d.text, transition: "color .4s" }}>
-            {d.h1.split("\n").map((line, i) => (
-              <span key={i}>
-                {line}
-                <br />
-              </span>
-            ))}
-            <em className="not-italic block" style={{ color: d.accent, transition: "color .4s" }}>{d.em}</em>
-          </h1>
-
-          <p className="text-[17px] leading-[1.72] max-w-[540px] mb-3.5" style={{ color: d.muted, transition: "color .4s" }}>
-            {d.body}
-          </p>
-
-          <p className="text-[15px] font-bold opacity-[.82] mb-11" style={{ color: d.text, transition: "color .4s" }}>
-            {d.sub}
-          </p>
-
-          <div className="flex gap-3.5 flex-wrap">
-            <button
-              onClick={scrollToForm}
-              className="px-8 py-[15px] rounded-full font-bold text-[16px] border-none cursor-pointer transition-transform hover:scale-[1.03]"
-              style={{ background: d.accent, color: d.at, transition: "background .4s, color .4s", fontFamily: "'Libre Franklin', sans-serif" }}
+        <div className="relative z-[2] flex flex-col md:flex-row items-start md:items-center gap-8 animate-[fadeUp_.65s_ease_both]">
+          <div className="flex-1 max-w-[680px]">
+            <p
+              className="inline-flex items-center gap-2.5 text-[11px] font-bold tracking-[.13em] uppercase mb-7"
+              style={{ color: d.accent, transition: "color .4s" }}
             >
-              {d.cta}
-            </button>
-            <button
-              onClick={() => document.getElementById("como")?.scrollIntoView({ behavior: "smooth" })}
-              className="px-8 py-[13px] rounded-full font-medium text-[15px] cursor-pointer border-2 transition-colors"
-              style={{ background: "transparent", color: d.text, borderColor: "rgba(255,255,255,.24)", fontFamily: "'Libre Franklin', sans-serif" }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.7)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.24)"; }}
-            >
-              como funciona
-            </button>
-            <Link
-              to="/planos"
-              className="inline-flex items-center px-7 py-3 rounded-full text-sm font-bold transition-transform hover:scale-[1.03]"
-              style={{ background: "#C1FE00", color: "#1D1D1B" }}
-            >
-              quero me matricular
-            </Link>
+              <span className="inline-block w-[26px] h-[2px] rounded-sm" style={{ background: d.accent, transition: "background .4s" }} />
+              {d.tag}
+            </p>
+
+            <h1 className="text-[clamp(40px,5vw,68px)] font-black leading-[1.04] mb-6" style={{ color: d.text, transition: "color .4s" }}>
+              {d.h1.split("\n").map((line, i) => (
+                <span key={i}>
+                  {line}
+                  <br />
+                </span>
+              ))}
+              <em className="not-italic block" style={{ color: d.accent, transition: "color .4s" }}>{d.em}</em>
+            </h1>
+
+            <p className="text-[17px] leading-[1.72] max-w-[540px] mb-3.5" style={{ color: d.muted, transition: "color .4s" }}>
+              {d.body}
+            </p>
+
+            <p className="text-[15px] font-bold opacity-[.82] mb-11" style={{ color: d.text, transition: "color .4s" }}>
+              {d.sub}
+            </p>
+
+            <div className="flex gap-3.5 flex-wrap">
+              <button
+                onClick={scrollToForm}
+                className="px-8 py-[15px] rounded-full font-bold text-[16px] border-none cursor-pointer transition-transform hover:scale-[1.03]"
+                style={{ background: d.accent, color: d.at, transition: "background .4s, color .4s", fontFamily: "'Libre Franklin', sans-serif" }}
+              >
+                {d.cta}
+              </button>
+              <button
+                onClick={() => document.getElementById("como")?.scrollIntoView({ behavior: "smooth" })}
+                className="px-8 py-[13px] rounded-full font-medium text-[15px] cursor-pointer border-2 transition-colors"
+                style={{ background: "transparent", color: d.text, borderColor: "rgba(255,255,255,.24)", fontFamily: "'Libre Franklin', sans-serif" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.7)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.24)"; }}
+              >
+                como funciona
+              </button>
+              <Link
+                to="/planos"
+                className="inline-flex items-center px-7 py-3 rounded-full text-sm font-bold transition-transform hover:scale-[1.03]"
+                style={{ background: "#C1FE00", color: "#1D1D1B" }}
+              >
+                quero me matricular
+              </Link>
+            </div>
+          </div>
+
+          {/* Steppie — Hero */}
+          <div className="hidden md:block flex-shrink-0">
+            <img
+              src={steppieOrgulhoso}
+              alt=""
+              aria-hidden="true"
+              className="w-[220px] lg:w-[280px] drop-shadow-xl"
+              style={{ animation: "steppieFloat 3s ease-in-out infinite" }}
+            />
           </div>
         </div>
       </section>
 
       {/* ─── DIFERENCIAIS ──────────────────────────── */}
       <section className="px-6 md:px-14 py-[72px] md:py-24 relative" style={{ background: d.bg, transition: "background .4s" }}>
-        <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: d.accent, transition: "color .4s" }}>
-          {d.dLabel}
-        </p>
-        <h2
-          className="text-[clamp(30px,3.5vw,46px)] font-black leading-[1.1] mb-14"
-          style={{ color: d.text, transition: "color .4s" }}
-          dangerouslySetInnerHTML={{ __html: d.dTitle.replace("\n", "<br/>") }}
-        />
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: d.accent, transition: "color .4s" }}>
+              {d.dLabel}
+            </p>
+            <h2
+              className="text-[clamp(30px,3.5vw,46px)] font-black leading-[1.1] mb-14"
+              style={{ color: d.text, transition: "color .4s" }}
+              dangerouslySetInnerHTML={{ __html: d.dTitle.replace("\n", "<br/>") }}
+            />
+          </div>
+          <img
+            src={steppieApontando}
+            alt=""
+            aria-hidden="true"
+            className="hidden lg:block w-[140px] flex-shrink-0 -mt-4"
+          />
+        </div>
         <div ref={difsFade.ref} style={difsFade.style} className="grid grid-cols-1 sm:grid-cols-2 gap-[2px] rounded-[20px] overflow-hidden" >
           {d.difs.map((df) => (
             <div
@@ -483,16 +513,26 @@ const LandingPage = () => {
 
       {/* ─── NÍVEIS ────────────────────────────────── */}
       <section className="px-6 md:px-14 py-[72px] md:py-24" style={{ background: "#1D1D1B" }}>
-        <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
-          {d.nLabel}
-        </p>
-        <h2
-          className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-3.5"
-          dangerouslySetInnerHTML={{ __html: d.nTitle.replace("\n", "<br/>") }}
-        />
-        <p className="text-[16px] mb-[52px] leading-[1.6]" style={{ color: "rgba(255,255,255,.5)" }}>
-          {d.nSub}
-        </p>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
+              {d.nLabel}
+            </p>
+            <h2
+              className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-3.5"
+              dangerouslySetInnerHTML={{ __html: d.nTitle.replace("\n", "<br/>") }}
+            />
+            <p className="text-[16px] mb-[52px] leading-[1.6]" style={{ color: "rgba(255,255,255,.5)" }}>
+              {d.nSub}
+            </p>
+          </div>
+          <img
+            src={steppieLendo}
+            alt=""
+            aria-hidden="true"
+            className="hidden lg:block w-[130px] flex-shrink-0"
+          />
+        </div>
 
         <div ref={levelsFade.ref} style={levelsFade.style} className="flex flex-col md:flex-row gap-0 rounded-2xl overflow-hidden" >
           {d.levels.map((l, i) => (
@@ -527,13 +567,23 @@ const LandingPage = () => {
       </section>
 
       {/* ─── COMO FUNCIONA ─────────────────────────── */}
-      <section id="como" className="px-6 md:px-14 py-[72px] md:py-24" style={{ background: "#111" }}>
-        <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
-          como funciona
-        </p>
-        <h2 className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-14 max-w-[480px]">
-          Simples, estruturado<br />e sem enrolação.
-        </h2>
+      <section id="como" className="px-6 md:px-14 py-[72px] md:py-24 relative" style={{ background: "#111" }}>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
+              como funciona
+            </p>
+            <h2 className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-14 max-w-[480px]">
+              Simples, estruturado<br />e sem enrolação.
+            </h2>
+          </div>
+          <img
+            src={steppieFantasia}
+            alt=""
+            aria-hidden="true"
+            className="hidden lg:block w-[120px] flex-shrink-0 -mt-2"
+          />
+        </div>
         <div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[1px] rounded-[18px] overflow-hidden"
           style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.08)" }}
@@ -669,7 +719,7 @@ const LandingPage = () => {
       </section>
 
       {/* ─── FOOTER ─────────────────────────────────── */}
-      <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left" style={{ background: "#0c0c0c" }}>
+      <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
         <div className="text-[17px] font-bold" style={{ color: "#C1FE00" }}>
           steps
           <span className="block text-[10px] font-light" style={{ color: "rgba(255,255,255,.3)" }}>academy</span>
@@ -684,6 +734,12 @@ const LandingPage = () => {
         <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
           © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
         </p>
+        <img
+          src={steppieAlegre}
+          alt=""
+          aria-hidden="true"
+          className="hidden md:block absolute right-6 bottom-2 w-[60px] opacity-70"
+        />
       </footer>
     </div>
   );
