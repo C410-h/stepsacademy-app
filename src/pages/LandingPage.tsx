@@ -513,16 +513,26 @@ const LandingPage = () => {
 
       {/* ─── NÍVEIS ────────────────────────────────── */}
       <section className="px-6 md:px-14 py-[72px] md:py-24" style={{ background: "#1D1D1B" }}>
-        <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
-          {d.nLabel}
-        </p>
-        <h2
-          className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-3.5"
-          dangerouslySetInnerHTML={{ __html: d.nTitle.replace("\n", "<br/>") }}
-        />
-        <p className="text-[16px] mb-[52px] leading-[1.6]" style={{ color: "rgba(255,255,255,.5)" }}>
-          {d.nSub}
-        </p>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[11px] font-bold tracking-[.14em] uppercase mb-4" style={{ color: "#C1FE00" }}>
+              {d.nLabel}
+            </p>
+            <h2
+              className="text-[clamp(30px,3.5vw,46px)] font-black text-white leading-[1.1] mb-3.5"
+              dangerouslySetInnerHTML={{ __html: d.nTitle.replace("\n", "<br/>") }}
+            />
+            <p className="text-[16px] mb-[52px] leading-[1.6]" style={{ color: "rgba(255,255,255,.5)" }}>
+              {d.nSub}
+            </p>
+          </div>
+          <img
+            src={steppieLendo}
+            alt=""
+            aria-hidden="true"
+            className="hidden lg:block w-[130px] flex-shrink-0"
+          />
+        </div>
 
         <div ref={levelsFade.ref} style={levelsFade.style} className="flex flex-col md:flex-row gap-0 rounded-2xl overflow-hidden" >
           {d.levels.map((l, i) => (
