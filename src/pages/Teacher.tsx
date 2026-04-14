@@ -58,6 +58,8 @@ const Teacher = () => {
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [savingNotes, setSavingNotes] = useState<string | null>(null);
+  const [expandedMaterials, setExpandedMaterials] = useState<Set<string>>(new Set());
+  const [studentMaterials, setStudentMaterials] = useState<Record<string, { step: any[]; personal: any[] }>>({});
   const [recordings, setRecordings] = useState<RecordingRow[]>([]);
   const [reviewScore, setReviewScore] = useState<Record<string, number>>({});
   const [reviewFeedback, setReviewFeedback] = useState<Record<string, string>>({});
@@ -265,33 +267,6 @@ const Teacher = () => {
           .update({ current_step_id: nextStepId })
           .eq("id", student.studentId);
 
-        // 4c. Buscar materiais do próximo step que ainda não foram vinculados
-        const { data: nextStepMaterials } = await supabase
-          .from("materials")
-          .select("id")
-          .eq("step_id", nextStepId)
-          .eq("active", true);
-
-        if (nextStepMaterials && nextStepMaterials.length > 0) {
-          const { data: existing } = await supabase
-            .from("student_materials")
-            .select("material_id")
-            .eq("student_id", student.studentId)
-            .in("material_id", nextStepMaterials.map((m: any) => m.id));
-
-          const existingIds = new Set((existing || []).map((e: any) => e.material_id));
-          const toInsert = nextStepMaterials
-            .filter((m: any) => !existingIds.has(m.id))
-            .map((m: any) => ({
-              student_id: student.studentId,
-              material_id: m.id,
-              available_at: new Date().toISOString(),
-            }));
-
-          if (toInsert.length > 0) {
-            await supabase.from("student_materials").insert(toInsert);
-          }
-        }
       } else {
         // 5. Sem próximo step: aluno concluiu o nível
         await supabase
@@ -346,6 +321,28 @@ const Teacher = () => {
       toast({ title: "Erro ao concluir aula.", variant: "destructive" });
     } finally {
       setCompleting(null);
+    }
+  };
+
+  const toggleMaterials = async (student: StudentCard) => {
+    const sid = student.studentId;
+    setExpandedMaterials(prev => {
+      const next = new Set(prev);
+      if (next.has(sid)) { next.delete(sid); return next; }
+      next.add(sid);
+      return next;
+    });
+    // Fetch on first open
+    if (!studentMaterials[sid]) {
+      const [stepRes, personalRes] = await Promise.all([
+        student.currentStepId
+          ? supabase.from("materials").select("id, title, type, delivery").eq("step_id", student.currentStepId).eq("active", true)
+          : Promise.resolve({ data: [] }),
+        supabase.from("student_materials").select("material_id, materials(id, title, type, delivery)").eq("student_id", sid).eq("is_personal", true),
+      ]);
+      const stepMats = (stepRes.data || []) as any[];
+      const personalMats: any[] = ((personalRes.data || []) as any[]).map((sm: any) => sm.materials).filter(Boolean);
+      setStudentMaterials(prev => ({ ...prev, [sid]: { step: stepMats, personal: personalMats } }));
     }
   };
 
@@ -476,6 +473,60 @@ const Teacher = () => {
                     </>
                   )}
                 </Button>
+
+                {/* Toggle materiais */}
+                <button
+                  onClick={() => toggleMaterials(student)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                >
+                  {expandedMaterials.has(student.studentId) ? (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
+                  Materiais do passo atual
+                </button>
+
+                {expandedMaterials.has(student.studentId) && (
+                  <div className="space-y-1.5">
+                    {!studentMaterials[student.studentId] ? (
+                      <p className="text-xs text-muted-foreground">Carregando…</p>
+                    ) : (
+                      <>
+                        {studentMaterials[student.studentId].step.length === 0 && studentMaterials[student.studentId].personal.length === 0 ? (
+                          <p className="text-xs text-muted-foreground font-light">Nenhum material neste passo.</p>
+                        ) : (
+                          <>
+                            {studentMaterials[student.studentId].step.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Da aula</p>
+                                {studentMaterials[student.studentId].step.map((m: any) => (
+                                  <div key={m.id} className="flex items-center gap-2 p-1.5 rounded bg-muted text-xs">
+                                    <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                    <span className="truncate">{m.title}</span>
+                                    <span className="ml-auto text-muted-foreground shrink-0">{m.delivery}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {studentMaterials[student.studentId].personal.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Pessoais</p>
+                                {studentMaterials[student.studentId].personal.map((m: any) => (
+                                  <div key={m.id} className="flex items-center gap-2 p-1.5 rounded bg-muted text-xs">
+                                    <BookOpen className="h-3 w-3 shrink-0 text-primary" />
+                                    <span className="truncate">{m.title}</span>
+                                    <span className="ml-auto text-muted-foreground shrink-0">{m.delivery}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Toggle observações */}
                 <button

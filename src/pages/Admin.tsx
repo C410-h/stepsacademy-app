@@ -154,6 +154,11 @@ const Admin = () => {
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerCerts, setDrawerCerts] = useState<any[]>([]);
   const [issuingCert, setIssuingCert] = useState(false);
+  const [drawerPersonalMats, setDrawerPersonalMats] = useState<any[]>([]);
+  const [showAddPersonalMat, setShowAddPersonalMat] = useState(false);
+  const [personalMatSelect, setPersonalMatSelect] = useState("");
+  const [personalMatNote, setPersonalMatNote] = useState("");
+  const [addingPersonalMat, setAddingPersonalMat] = useState(false);
 
   // ── Dashboard tab
   const [metrics, setMetrics] = useState<DashMetrics | null>(null);
@@ -342,16 +347,22 @@ const Admin = () => {
     setDrawerClasses([]);
     setDrawerProgress({ done: 0, available: 0, locked: 0 });
     setDrawerCerts([]);
+    setDrawerPersonalMats([]);
+    setShowAddPersonalMat(false);
+    setPersonalMatSelect("");
+    setPersonalMatNote("");
     const [
       { data: gamif },
       { data: placements },
       { data: classes },
       { data: progress },
+      { data: personalMats },
     ] = await Promise.all([
       (supabase as any).from("student_gamification").select("xp_total, coins, streak_current, streak_best").eq("student_id", student.id).single(),
       (supabase as any).from("placement_tests").select("assigned_level, test_type, notes, completed_at").eq("student_id", student.id).order("created_at", { ascending: false }).limit(1),
       supabase.from("classes").select("scheduled_at, steps!classes_step_id_fkey(number)").eq("student_id", student.id).eq("status", "completed").order("scheduled_at", { ascending: false }).limit(5),
       supabase.from("student_progress").select("status").eq("student_id", student.id),
+      (supabase as any).from("student_materials").select("id, material_id, note, materials(id, title, type)").eq("student_id", student.id).eq("is_personal", true),
     ]);
     setDrawerGamification(gamif || null);
     setDrawerPlacement(placements?.[0] || null);
@@ -360,6 +371,7 @@ const Admin = () => {
     const available = (progress || []).filter((p: any) => p.status === "available").length;
     const locked = (progress || []).filter((p: any) => p.status === "locked").length;
     setDrawerProgress({ done, available, locked });
+    setDrawerPersonalMats((personalMats as any[]) || []);
     setDrawerLoading(false);
     await loadDrawerCerts(student.id);
   };
@@ -399,6 +411,36 @@ const Admin = () => {
       toast({ title: "Erro ao emitir certificado.", variant: "destructive" });
     } finally {
       setIssuingCert(false);
+    }
+  };
+
+  const addPersonalMaterial = async () => {
+    if (!selectedStudent || !personalMatSelect) return;
+    setAddingPersonalMat(true);
+    try {
+      const { error } = await (supabase as any).from("student_materials").insert({
+        student_id: selectedStudent.id,
+        material_id: personalMatSelect,
+        is_personal: true,
+        note: personalMatNote.trim() || null,
+        available_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      // Refresh personal mats
+      const { data: refreshed } = await (supabase as any)
+        .from("student_materials")
+        .select("id, material_id, note, materials(id, title, type)")
+        .eq("student_id", selectedStudent.id)
+        .eq("is_personal", true);
+      setDrawerPersonalMats(refreshed || []);
+      setShowAddPersonalMat(false);
+      setPersonalMatSelect("");
+      setPersonalMatNote("");
+      toast({ title: "Material pessoal adicionado!" });
+    } catch {
+      toast({ title: "Erro ao adicionar material.", variant: "destructive" });
+    } finally {
+      setAddingPersonalMat(false);
     }
   };
 
@@ -1449,6 +1491,62 @@ const Admin = () => {
                         <GraduationCap className="h-3.5 w-3.5" />
                         {issuingCert ? "Emitindo..." : "Emitir certificado manualmente"}
                       </Button>
+                    </div>
+
+                    {/* Materiais pessoais */}
+                    <div className="space-y-3 pt-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Materiais pessoais</p>
+                      {drawerPersonalMats.length === 0 ? (
+                        <p className="text-xs text-muted-foreground font-light">Nenhum material pessoal adicionado.</p>
+                      ) : (
+                        drawerPersonalMats.map((pm: any) => (
+                          <div key={pm.id} className="flex items-start justify-between gap-2 p-2 rounded-lg border text-xs">
+                            <div>
+                              <p className="font-bold">{pm.materials?.title || "—"}</p>
+                              <p className="text-muted-foreground">{pm.materials?.type || ""}</p>
+                              {pm.note && <p className="italic text-muted-foreground mt-0.5">{pm.note}</p>}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {!showAddPersonalMat ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs gap-1.5"
+                          onClick={() => setShowAddPersonalMat(true)}
+                        >
+                          + Adicionar material pessoal
+                        </Button>
+                      ) : (
+                        <div className="space-y-2 p-2 rounded-lg border bg-muted/30">
+                          <select
+                            className="w-full text-xs rounded border px-2 py-1.5 bg-background"
+                            value={personalMatSelect}
+                            onChange={e => setPersonalMatSelect(e.target.value)}
+                          >
+                            <option value="">Selecionar material…</option>
+                            {materials.map((m: any) => (
+                              <option key={m.id} value={m.id}>{m.title} ({m.type})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Observação (opcional)"
+                            className="w-full text-xs rounded border px-2 py-1.5 bg-background"
+                            value={personalMatNote}
+                            onChange={e => setPersonalMatNote(e.target.value)}
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" className="flex-1 text-xs" onClick={addPersonalMaterial} disabled={!personalMatSelect || addingPersonalMat}>
+                              {addingPersonalMat ? "Adicionando…" : "Adicionar"}
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setShowAddPersonalMat(false); setPersonalMatSelect(""); setPersonalMatNote(""); }}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

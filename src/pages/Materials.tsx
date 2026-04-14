@@ -59,24 +59,55 @@ const Materials = () => {
     if (!profile) return;
     const { data: student } = await supabase
       .from("students")
-      .select("id")
+      .select("id, current_step_id")
       .eq("user_id", profile.id)
       .single();
 
     if (!student) { setLoading(false); return; }
     setStudentId(student.id);
 
-    const { data: sm } = await supabase
-      .from("student_materials")
-      .select("material_id, accessed_at, materials(id, title, type, delivery, file_url)")
-      .eq("student_id", student.id);
+    const s = student as any;
 
-    if (sm) {
-      const mats = sm
-        .map((s: any) => ({ ...s.materials, accessed: !!s.accessed_at }))
-        .filter(Boolean) as Material[];
-      setMaterials(mats);
+    // 3-query pattern: step materials + personal materials + accesses
+    const [stepRes, personalRes, accessRes] = await Promise.all([
+      s.current_step_id
+        ? supabase
+            .from("materials")
+            .select("id, title, type, delivery, file_url")
+            .eq("step_id", s.current_step_id)
+            .eq("active", true)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("student_materials")
+        .select("material_id, materials(id, title, type, delivery, file_url)")
+        .eq("student_id", s.id)
+        .eq("is_personal", true),
+      supabase
+        .from("material_accesses")
+        .select("material_id")
+        .eq("student_id", s.id),
+    ]);
+
+    const accessedIds = new Set((accessRes.data || []).map((a: any) => a.material_id));
+
+    const stepMats: Material[] = ((stepRes.data || []) as any[]).map((m: any) => ({
+      ...m,
+      accessed: accessedIds.has(m.id),
+    }));
+
+    const personalMats: Material[] = ((personalRes.data || []) as any[])
+      .map((sm: any) => sm.materials)
+      .filter(Boolean)
+      .map((m: any) => ({ ...m, accessed: accessedIds.has(m.id) }));
+
+    // Deduplicate by id (personal mat could overlap with step mat)
+    const seen = new Set<string>();
+    const combined: Material[] = [];
+    for (const m of [...stepMats, ...personalMats]) {
+      if (!seen.has(m.id)) { seen.add(m.id); combined.push(m); }
     }
+
+    setMaterials(combined);
     setLoading(false);
   };
 
@@ -95,11 +126,9 @@ const Materials = () => {
 
     // Registrar acesso se ainda não foi acessado
     if (studentId && !m.accessed) {
-      await supabase
-        .from("student_materials")
-        .update({ accessed_at: new Date().toISOString() })
-        .eq("student_id", studentId)
-        .eq("material_id", m.id);
+      await (supabase as any)
+        .from("material_accesses")
+        .upsert({ student_id: studentId, material_id: m.id, accessed_at: new Date().toISOString() }, { onConflict: "student_id,material_id" });
 
       setMaterials(prev =>
         prev.map(mat => mat.id === m.id ? { ...mat, accessed: true } : mat)

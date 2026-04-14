@@ -122,18 +122,33 @@ const Dashboard = () => {
 
     if (s.onboarding_completed === false) setShowOnboarding(true);
 
-    // Materiais liberados do aluno (todos, sem filtrar por step)
-    const { data: mats } = await supabase
-      .from("student_materials")
-      .select("material_id, materials(id, title, type, delivery, file_url)")
-      .eq("student_id", s.id);
+    // Materiais do step atual + materiais pessoais
+    const [stepRes, personalRes] = await Promise.all([
+      s.current_step_id
+        ? supabase
+            .from("materials")
+            .select("id, title, type, delivery, file_url")
+            .eq("step_id", s.current_step_id)
+            .eq("active", true)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("student_materials")
+        .select("material_id, materials(id, title, type, delivery, file_url)")
+        .eq("student_id", s.id)
+        .eq("is_personal", true),
+    ]);
 
-    if (mats) {
-      const flatMats = mats
-        .map((m: any) => m.materials)
-        .filter(Boolean) as MaterialItem[];
-      setMaterials(flatMats);
+    const stepMats = (stepRes.data || []) as MaterialItem[];
+    const personalMats: MaterialItem[] = ((personalRes.data || []) as any[])
+      .map((sm: any) => sm.materials)
+      .filter(Boolean);
+
+    const seen = new Set<string>();
+    const combined: MaterialItem[] = [];
+    for (const m of [...stepMats, ...personalMats]) {
+      if (!seen.has(m.id)) { seen.add(m.id); combined.push(m); }
     }
+    setMaterials(combined);
 
     setLoading(false);
   };
