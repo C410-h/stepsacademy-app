@@ -305,8 +305,8 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     const submissionMap = new Map((submissionsData || []).map((s: any) => [s.step_id, s]));
 
     const enriched: StepInfo[] = stepsData.map(s => {
-      const cs = statusMap.get(s.id);
-      const sub = submissionMap.get(s.id);
+      const cs: any = statusMap.get(s.id);
+      const sub: any = submissionMap.get(s.id);
       let status: StepInfo["status"] = "empty";
       if (cs?.is_complete) status = "complete";
       else if (cs?.has_slide || cs?.has_exercises) status = "partial";

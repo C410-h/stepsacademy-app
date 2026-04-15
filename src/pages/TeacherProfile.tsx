@@ -144,14 +144,14 @@ export default function TeacherProfile() {
         .update({ name: name.trim(), phone: phone.trim() || null, avatar_url: avatarUrl })
         .eq("id", profileData.id);
 
-      const updates: Promise<unknown>[] = [profileUpdate.then()];
+      const updates: Promise<unknown>[] = [profileUpdate as unknown as Promise<unknown>];
 
       if (teacherData) {
         const teacherUpdate = supabase
           .from("teachers")
           .update({ bio: bio.trim() || null })
           .eq("id", teacherData.id);
-        updates.push(teacherUpdate.then());
+        updates.push(teacherUpdate as unknown as Promise<unknown>);
       }
 
       const results = await Promise.all(updates);
