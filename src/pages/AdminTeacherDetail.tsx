@@ -267,7 +267,7 @@ export default function AdminTeacherDetail() {
         <img
           src="/brand/logo-reto-darkpurple.webp"
           alt="Steps Academy"
-          className="h-7"
+          className="h-10"
         />
         {/* spacer to center logo */}
         <div className="w-9" />

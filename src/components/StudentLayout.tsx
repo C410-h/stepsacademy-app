@@ -14,7 +14,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-8" /></Link>
+        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-10" /></Link>
         <div className="flex items-center gap-3">
           {gamification.studentId && (
             <div className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 12%, transparent)' }}>
