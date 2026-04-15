@@ -27,18 +27,20 @@ import Loja from "./pages/Loja";
 import Certificado from "./pages/Certificado";
 import Planos from "./pages/Planos";
 import Cadastro from "./pages/Cadastro";
+import AguardandoAtivacao from "./pages/AguardandoAtivacao";
 import NotFound from "./pages/NotFound";
 import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
 const HomeRedirect = () => {
-  const { profile, loading, session } = useAuth();
+  const { profile, loading, session, isActivated } = useAuth();
   if (loading) return <SplashScreen />;
   if (!session) return <LandingPage />;
   if (!profile) return <SplashScreen />;
   if (profile.role === "admin") return <Navigate to="/admin" replace />;
   if (profile.role === "teacher") return <Navigate to="/teacher" replace />;
+  if (profile.role === "student" && !isActivated) return <Navigate to="/aguardando-ativacao" replace />;
   return <Dashboard />;
 };
 
@@ -72,6 +74,7 @@ const App = () => (
               <Route path="/certificado/:id" element={<Certificado />} />
               <Route path="/planos" element={<Planos />} />
               <Route path="/cadastro" element={<Cadastro />} />
+              <Route path="/aguardando-ativacao" element={<AguardandoAtivacao />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
             </GamificationProvider>

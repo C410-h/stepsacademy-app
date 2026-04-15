@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, isActivated } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -23,6 +23,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const mustChangePassword = session.user?.user_metadata?.must_change_password === true;
   if (mustChangePassword && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
+  }
+
+  // Aluno ainda não ativado pelo admin → tela de espera
+  if (profile?.role === "student" && !isActivated) {
+    return <Navigate to="/aguardando-ativacao" replace />;
   }
 
   if (requiredRole && profile?.role !== requiredRole) {

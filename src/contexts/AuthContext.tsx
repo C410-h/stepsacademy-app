@@ -15,6 +15,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  isActivated: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  isActivated: true,
   signOut: async () => {},
 });
 
@@ -32,18 +34,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isActivated, setIsActivated] = useState(true);
 
-  // Busca o perfil — sempre finaliza o loading no finally
+  // Busca o perfil e, para alunos, verifica se já foi ativado pelo admin
   const fetchProfile = async (userId: string) => {
     try {
-      const { data } = await supabase
+      const { data: profileData } = await supabase
         .from("profiles")
         .select("id, name, role, phone, avatar_url")
         .eq("id", userId)
         .single();
-      setProfile(data);
+
+      setProfile(profileData);
+
+      if (profileData?.role === "student") {
+        const { data: studentData } = await supabase
+          .from("students")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        setIsActivated(!!studentData);
+      } else {
+        // Admins e teachers nunca ficam bloqueados
+        setIsActivated(true);
+      }
     } catch {
       setProfile(null);
+      setIsActivated(true);
     } finally {
       setLoading(false);
     }
@@ -80,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, isActivated, signOut }}>
       {children}
     </AuthContext.Provider>
   );
