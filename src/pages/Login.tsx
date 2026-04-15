@@ -50,7 +50,7 @@ const Login = () => {
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <img src="/brand/logo-over-darkpurple.svg" alt="steps academy" className="h-16 mx-auto" />
+          <img src="/brand/logo-over-darkpurple.webp" alt="steps academy" className="h-16 mx-auto" />
           <p className="mt-2 text-sm text-muted-foreground font-light">
             {forgotMode ? "Redefinir senha" : "Entre na sua conta"}
           </p>

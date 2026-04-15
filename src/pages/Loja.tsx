@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "@/hooks/use-toast";
 import { ShoppingBag, Gift, Clock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-const steppieFantasia = "/steppie/steppie-fantasia.svg";
+const steppieFantasia = "/steppie/steppie-fantasia.webp";
 
 const db = supabase as any;
 

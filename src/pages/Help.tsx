@@ -58,7 +58,7 @@ const Help = () => {
             <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
               <HelpCircle className="h-4 w-4" /> Perguntas frequentes
             </h3>
-            <img src="/steppie/steppie-desconfiado.svg" alt="" aria-hidden="true" className="w-14 -mt-2" />
+            <img src="/steppie/steppie-desconfiado.webp" alt="" aria-hidden="true" className="w-14 -mt-2" />
           </div>
           <Accordion type="single" collapsible>
             {faqs.map((faq, i) => (

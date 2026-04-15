@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Zap, Flame, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-const steppieGritando = "/steppie/steppie-gritando.svg";
+const steppieGritando = "/steppie/steppie-gritando.webp";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface VocabWord {

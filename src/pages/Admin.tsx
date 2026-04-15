@@ -911,7 +911,7 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <a href="/"><img src="/brand/logo-reto-darkpurple.svg" alt="steps academy" className="h-7" /></a>
+        <a href="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-7" /></a>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}

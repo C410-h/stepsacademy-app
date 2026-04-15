@@ -265,7 +265,7 @@ export default function AdminTeacherDetail() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <img
-          src="/brand/logo-reto-darkpurple.svg"
+          src="/brand/logo-reto-darkpurple.webp"
           alt="Steps Academy"
           className="h-7"
         />

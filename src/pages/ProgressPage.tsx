@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const steppieOrgulhoso = "/steppie/steppie-orgulhoso.svg";
-const steppieGritando2 = "/steppie/steppie-gritando-2.svg";
+const steppieOrgulhoso = "/steppie/steppie-orgulhoso.webp";
+const steppieGritando2 = "/steppie/steppie-gritando-2.webp";
 const db = supabase as any;
 
 // ─── Types ────────────────────────────────────────────────────────────────────

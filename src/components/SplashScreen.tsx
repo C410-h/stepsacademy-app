@@ -13,12 +13,12 @@ const SplashScreen = () => (
     `}</style>
 
     <img
-      src="/brand/logo-over-lime.svg"
+      src="/brand/logo-over-lime.webp"
       alt="steps academy"
       className="splash-logo h-16"
     />
     <img
-      src="/steppie/steppie-orgulhoso.svg"
+      src="/steppie/steppie-orgulhoso.webp"
       alt=""
       aria-hidden="true"
       className="splash-steppie h-48"
