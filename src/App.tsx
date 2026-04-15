@@ -26,6 +26,7 @@ import Nivelamento from "./pages/Nivelamento";
 import Loja from "./pages/Loja";
 import Certificado from "./pages/Certificado";
 import Planos from "./pages/Planos";
+import Cadastro from "./pages/Cadastro";
 import NotFound from "./pages/NotFound";
 import { Navigate } from "react-router-dom";
 
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="/loja" element={<ProtectedRoute><Loja /></ProtectedRoute>} />
               <Route path="/certificado/:id" element={<Certificado />} />
               <Route path="/planos" element={<Planos />} />
+              <Route path="/cadastro" element={<Cadastro />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
             </GamificationProvider>

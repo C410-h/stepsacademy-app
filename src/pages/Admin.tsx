@@ -26,7 +26,7 @@ import {
   BookOpen, CalendarCheck, AlertCircle, Link2, Search,
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
-  UserPlus, Globe, CreditCard,
+  UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -55,6 +55,10 @@ interface LevelDist { languageName: string; levels: { code: string; name: string
 interface RecentClass { studentName: string; teacherName: string; stepNumber: number; completedAt: string; }
 interface LangOption { id: string; name: string; }
 interface LevelOption { id: string; name: string; code: string; language_id: string; }
+interface PendingStudentRow {
+  id: string; name: string; email: string | null; phone: string | null; created_at: string;
+}
+
 interface PaymentRow {
   id: string;
   lead_name: string | null;
@@ -270,6 +274,18 @@ const Admin = () => {
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [plansMap, setPlansMap] = useState<Record<string, string>>({});
 
+  // ── Cadastros tab
+  const [regToken, setRegToken] = useState<string | null>(null);
+  const [regTokenLoading, setRegTokenLoading] = useState(false);
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [pendingStudents, setPendingStudents] = useState<PendingStudentRow[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [activateDrawerOpen, setActivateDrawerOpen] = useState(false);
+  const [activatingStudent, setActivatingStudent] = useState<PendingStudentRow | null>(null);
+  const [activateLangId, setActivateLangId] = useState("");
+  const [activateLevelId, setActivateLevelId] = useState("");
+  const [activating, setActivating] = useState(false);
+
   // ── Settings tab
   const [schoolName, setSchoolName] = useState(() => localStorage.getItem("schoolName") || "Steps Academy");
   const [defaultMeetLink, setDefaultMeetLink] = useState(() => localStorage.getItem("defaultMeetLink") || "");
@@ -297,6 +313,12 @@ const Admin = () => {
     return () => window.removeEventListener("adminpalette:open", handlePaletteOpen);
   }, []);
 
+  // Load cadastros data when tab becomes active
+  useEffect(() => {
+    if (activeTab === "cadastros") loadCadastros();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // ── Reference data ───────────────────────────────────────────────────────────
   const loadReference = async () => {
     const [{ data: langs }, { data: lvls }] = await Promise.all([
@@ -305,6 +327,65 @@ const Admin = () => {
     ]);
     setLanguages(langs || []);
     setLevels(lvls || []);
+  };
+
+  // ── Cadastros ────────────────────────────────────────────────────────────────
+  const loadCadastros = async () => {
+    setRegTokenLoading(true);
+    setPendingLoading(true);
+
+    // Active registration token
+    const { data: tokenData } = await (supabase as any)
+      .from("registration_tokens")
+      .select("token")
+      .eq("active", true)
+      .single();
+    setRegToken(tokenData?.token ?? null);
+    setRegTokenLoading(false);
+
+    // Pending students: profiles with role=student not yet in students table
+    const [{ data: activated }, { data: profiles }] = await Promise.all([
+      supabase.from("students").select("user_id"),
+      supabase.from("profiles").select("id, name, email, phone, created_at").eq("role", "student"),
+    ]);
+    const activatedIds = new Set((activated ?? []).map((s: any) => s.user_id));
+    const pending = (profiles ?? []).filter((p: any) => !activatedIds.has(p.id));
+    setPendingStudents(pending as PendingStudentRow[]);
+    setPendingLoading(false);
+  };
+
+  const generateNewToken = async () => {
+    setGeneratingToken(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-registration-token");
+      if (error) throw error;
+      if (data?.token) setRegToken(data.token);
+      toast({ title: "Novo link gerado!", description: "O link anterior foi desativado." });
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível gerar um novo link.", variant: "destructive" });
+    }
+    setGeneratingToken(false);
+  };
+
+  const handleActivateStudent = async () => {
+    if (!activatingStudent || !activateLangId || !activateLevelId) return;
+    setActivating(true);
+    try {
+      const { error } = await supabase.functions.invoke("activate-student", {
+        body: { user_id: activatingStudent.id, language_id: activateLangId, level_id: activateLevelId },
+      });
+      if (error) throw error;
+      toast({ title: "Aluno ativado!", description: `${activatingStudent.name} foi ativado com sucesso.` });
+      setActivateDrawerOpen(false);
+      setActivatingStudent(null);
+      setActivateLangId("");
+      setActivateLevelId("");
+      loadCadastros();
+      loadStudents();
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível ativar o aluno.", variant: "destructive" });
+    }
+    setActivating(false);
   };
 
   // ── Students ─────────────────────────────────────────────────────────────────
@@ -940,6 +1021,7 @@ const Admin = () => {
             <TabsTrigger value="notifications" className="shrink-0 text-xs px-3 py-1.5">Notificações</TabsTrigger>
             <TabsTrigger value="settings" className="shrink-0 text-xs px-3 py-1.5">Config</TabsTrigger>
             <TabsTrigger value="payments" className="shrink-0 text-xs px-3 py-1.5">Pagamentos</TabsTrigger>
+            <TabsTrigger value="cadastros" className="shrink-0 text-xs px-3 py-1.5">Cadastros</TabsTrigger>
           </TabsList>
 
           {/* Desktop: sidebar + content */}
@@ -955,6 +1037,7 @@ const Admin = () => {
                   { value: "content", label: "Conteúdo", icon: FileText },
                   { value: "notifications", label: "Notificações", icon: Bell },
                   { value: "payments", label: "Pagamentos", icon: CreditCard },
+                  { value: "cadastros", label: "Cadastros", icon: UserCheck },
                   { value: "settings", label: "Config", icon: Settings },
                 ].map(item => (
                   <button
@@ -2353,6 +2436,205 @@ const Admin = () => {
               )}
             </div>
           </TabsContent>
+
+          {/* ── Tab: Cadastros ──────────────────────────────────────────────── */}
+          <TabsContent value="cadastros" className="space-y-6">
+
+            {/* Registration link */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-primary" />
+                  Link de Cadastro
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Compartilhe este link com novos alunos para que possam criar a conta deles. O link é único e pode ser regenerado a qualquer momento.
+                </p>
+                {regTokenLoading ? (
+                  <div className="space-y-2">
+                    <div className="h-10 rounded-md bg-muted animate-pulse" />
+                    <div className="h-8 w-32 rounded-md bg-muted animate-pulse" />
+                  </div>
+                ) : regToken ? (
+                  <>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={`https://stepsacademy.com.br/cadastro?token=${regToken}`}
+                        className="text-xs font-mono text-muted-foreground"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`https://stepsacademy.com.br/cadastro?token=${regToken}`);
+                          toast({ title: "Link copiado!", description: "Cole e envie ao novo aluno." });
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5 mr-1.5" />
+                        Copiar
+                      </Button>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={generateNewToken}
+                      disabled={generatingToken}
+                      className="text-muted-foreground text-xs"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${generatingToken ? "animate-spin" : ""}`} />
+                      {generatingToken ? "Gerando…" : "Gerar novo link"}
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Nenhum link ativo encontrado.</p>
+                    <Button size="sm" onClick={generateNewToken} disabled={generatingToken}>
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${generatingToken ? "animate-spin" : ""}`} />
+                      {generatingToken ? "Gerando…" : "Gerar link"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pending students */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  Alunos Pendentes de Ativação
+                  {pendingStudents.length > 0 && (
+                    <span className="text-[11px] font-bold bg-orange-500 text-white rounded-full px-2 py-0.5 leading-none">
+                      {pendingStudents.length}
+                    </span>
+                  )}
+                </h3>
+                <Button variant="ghost" size="sm" onClick={loadCadastros} className="text-xs text-muted-foreground">
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                  Atualizar
+                </Button>
+              </div>
+
+              {pendingLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />)}
+                </div>
+              ) : pendingStudents.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground font-light">
+                    Nenhum aluno aguardando ativação.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {pendingStudents.map(student => (
+                    <Card key={student.id}>
+                      <CardContent className="py-3 px-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0 space-y-0.5">
+                          <p className="text-sm font-medium truncate">{student.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                          {student.phone && (
+                            <p className="text-xs text-muted-foreground">{student.phone}</p>
+                          )}
+                          <p className="text-[11px] text-muted-foreground/60">
+                            Cadastrado em {new Date(student.created_at).toLocaleDateString("pt-BR")}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => {
+                            setActivatingStudent(student);
+                            setActivateLangId("");
+                            setActivateLevelId("");
+                            setActivateDrawerOpen(true);
+                          }}
+                        >
+                          <UserCheck className="h-3.5 w-3.5 mr-1.5" />
+                          Ativar
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Activation drawer */}
+            <Sheet open={activateDrawerOpen} onOpenChange={setActivateDrawerOpen}>
+              <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh]">
+                <SheetHeader className="mb-4">
+                  <SheetTitle>Ativar aluno</SheetTitle>
+                </SheetHeader>
+                {activatingStudent && (
+                  <div className="space-y-5">
+                    {/* Student info */}
+                    <div className="rounded-lg bg-muted px-4 py-3 space-y-0.5">
+                      <p className="text-sm font-semibold">{activatingStudent.name}</p>
+                      <p className="text-xs text-muted-foreground">{activatingStudent.email}</p>
+                      {activatingStudent.phone && (
+                        <p className="text-xs text-muted-foreground">{activatingStudent.phone}</p>
+                      )}
+                    </div>
+
+                    {/* Language select */}
+                    <div className="space-y-2">
+                      <Label>Idioma</Label>
+                      <Select value={activateLangId} onValueChange={v => { setActivateLangId(v); setActivateLevelId(""); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o idioma" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {languages.map(l => (
+                            <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Level select */}
+                    <div className="space-y-2">
+                      <Label>Nível</Label>
+                      <Select
+                        value={activateLevelId}
+                        onValueChange={setActivateLevelId}
+                        disabled={!activateLangId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={activateLangId ? "Selecione o nível" : "Selecione o idioma primeiro"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {levels
+                            .filter(l => l.language_id === activateLangId)
+                            .map(l => (
+                              <SelectItem key={l.id} value={l.id}>{l.name} ({l.code})</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      disabled={!activateLangId || !activateLevelId || activating}
+                      onClick={handleActivateStudent}
+                    >
+                      {activating ? (
+                        <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Ativando…</>
+                      ) : (
+                        <><UserCheck className="h-4 w-4 mr-2" />Confirmar ativação</>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </SheetContent>
+            </Sheet>
+
+          </TabsContent>
+
           </div>{/* end tab content */}
           </div>{/* end lg:flex wrapper */}
         </Tabs>
