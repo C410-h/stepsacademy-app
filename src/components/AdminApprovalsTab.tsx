@@ -80,7 +80,7 @@ const AdminApprovalsTab = () => {
   const load = useCallback(async () => {
     setLoading(true);
 
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("content_submissions")
       .select(`
         id, status, admin_comment, submitted_at,
@@ -156,7 +156,7 @@ const AdminApprovalsTab = () => {
 
         if (existing) {
           // Save version history
-          await supabase.from("material_versions").insert({
+          await (supabase as any).from("material_versions").insert({
             material_id: existing.id,
             file_url: existing.file_url,
             filename: file.filename,
@@ -181,7 +181,7 @@ const AdminApprovalsTab = () => {
       }
 
       // Update submission_file status
-      await supabase
+      await (supabase as any)
         .from("submission_files")
         .update({ status: "approved", comment: null })
         .eq("id", file.id);
@@ -206,7 +206,7 @@ const AdminApprovalsTab = () => {
     }
     setProcessing(file.id);
     try {
-      await supabase
+      await (supabase as any)
         .from("submission_files")
         .update({ status: "rejected", comment })
         .eq("id", file.id);
@@ -229,7 +229,7 @@ const AdminApprovalsTab = () => {
       for (const file of submission.files.filter(f => f.status === "pending")) {
         await approveFile(submission, file);
       }
-      await supabase
+      await (supabase as any)
         .from("content_submissions")
         .update({ status: "approved" })
         .eq("id", submission.id);
@@ -250,11 +250,11 @@ const AdminApprovalsTab = () => {
     }
     setProcessing(submission.id);
     try {
-      await supabase
+      await (supabase as any)
         .from("content_submissions")
         .update({ status: "rejected", admin_comment: comment })
         .eq("id", submission.id);
-      await supabase
+      await (supabase as any)
         .from("submission_files")
         .update({ status: "rejected", comment })
         .eq("submission_id", submission.id)
@@ -270,7 +270,7 @@ const AdminApprovalsTab = () => {
 
   // After each file action, recalculate submission status
   const checkSubmissionCompletion = async (submission: Submission) => {
-    const { data: files } = await supabase
+    const { data: files } = await (supabase as any)
       .from("submission_files")
       .select("status")
       .eq("submission_id", submission.id);
@@ -286,7 +286,7 @@ const AdminApprovalsTab = () => {
     else if (!anyPending && anyRejected) newStatus = "rejected";
 
     if (!anyPending || allApproved) {
-      await supabase.from("content_submissions").update({ status: newStatus }).eq("id", submission.id);
+      await (supabase as any).from("content_submissions").update({ status: newStatus }).eq("id", submission.id);
     }
   };
 

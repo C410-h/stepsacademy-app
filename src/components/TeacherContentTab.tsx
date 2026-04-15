@@ -289,13 +289,13 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
     // Get completion status view
     const stepIds = stepsData.map(s => s.id);
-    const { data: statusData } = await supabase
+    const { data: statusData } = await (supabase as any)
       .from("step_completion_status")
       .select("step_id, has_slide, has_exercises, is_complete")
       .in("step_id", stepIds);
 
     // Get teacher submissions for these steps
-    const { data: submissionsData } = await supabase
+    const { data: submissionsData } = await (supabase as any)
       .from("content_submissions")
       .select("id, step_id, status, admin_comment")
       .eq("teacher_id", teacherId)
@@ -336,7 +336,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
     if (step.submissionId) {
       // Load existing submission files
-      const { data: sfData } = await supabase
+      const { data: sfData } = await (supabase as any)
         .from("submission_files")
         .select("id, material_type, file_url, filename, status, exercises, ai_conversion_status")
         .eq("submission_id", step.submissionId);
