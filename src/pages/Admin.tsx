@@ -1866,10 +1866,10 @@ const Admin = () => {
                             <div className="flex items-center gap-1 shrink-0">
                               {m.file_url ? (
                                 <a href={m.file_url} target="_blank" rel="noopener noreferrer">
-                                  <Badge variant="default" className="bg-[#C1FE00] text-[#1D1D1B] text-[10px] cursor-pointer">✓ arquivo</Badge>
+                                  <Badge variant="default" className="bg-[#C1FE00] text-[#1D1D1B] text-[10px] cursor-pointer">✓ Arquivo</Badge>
                                 </a>
                               ) : (
-                                <Badge variant="secondary" className="text-[10px]">sem arquivo</Badge>
+                                <Badge variant="secondary" className="text-[10px]">Sem arquivo</Badge>
                               )}
                             </div>
                           </div>
@@ -1943,7 +1943,7 @@ const Admin = () => {
                           </div>
                           <div>
                             <Label>Classe gramatical</Label>
-                            <Input value={newPartOfSpeech} onChange={e => setNewPartOfSpeech(e.target.value)} placeholder="ex: substantivo, verbo..." />
+                            <Input value={newPartOfSpeech} onChange={e => setNewPartOfSpeech(e.target.value)} placeholder="Ex: substantivo, verbo..." />
                           </div>
                           <div>
                             <Label>Dificuldade</Label>

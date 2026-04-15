@@ -663,9 +663,9 @@ const LandingPage = () => {
               <div>
                 <div className="flex flex-col gap-3 mb-4">
                   {[
-                    { value: nome, set: setNome, placeholder: "seu nome", type: "text" },
-                    { value: email, set: setEmail, placeholder: "seu melhor e-mail", type: "email" },
-                    { value: tel, set: setTel, placeholder: "whatsapp (com DDD)", type: "tel" },
+                    { value: nome, set: setNome, placeholder: "Seu nome", type: "text" },
+                    { value: email, set: setEmail, placeholder: "Seu melhor e-mail", type: "email" },
+                    { value: tel, set: setTel, placeholder: "WhatsApp (com DDD)", type: "tel" },
                   ].map((f) => (
                     <input
                       key={f.placeholder}

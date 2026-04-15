@@ -142,8 +142,8 @@ const Planos = () => {
 
       {/* Header */}
       <div className="text-center py-14 px-6 space-y-3">
-        <h1 className="text-4xl font-black text-white">escolha seu plano</h1>
-        <p className="text-sm font-light text-white/60">sem taxa de matrícula · cancele quando quiser</p>
+        <h1 className="text-4xl font-black text-white">Escolha seu plano</h1>
+        <p className="text-sm font-light text-white/60">Sem taxa de matrícula · cancele quando quiser</p>
       </div>
 
       {/* Plans grid */}
