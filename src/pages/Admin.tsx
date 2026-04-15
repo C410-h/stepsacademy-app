@@ -371,8 +371,11 @@ const Admin = () => {
     if (!activatingStudent || !activateLangId || !activateLevelId) return;
     setActivating(true);
     try {
+      // Explicitly pass the session token — functions.invoke may not attach it automatically
+      const { data: { session } } = await supabase.auth.getSession();
       const { error } = await supabase.functions.invoke("activate-student", {
         body: { user_id: activatingStudent.id, language_id: activateLangId, level_id: activateLevelId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       toast({ title: "Aluno ativado!", description: `${activatingStudent.name} foi ativado com sucesso.` });
@@ -2564,14 +2567,14 @@ const Admin = () => {
               )}
             </div>
 
-            {/* Activation drawer */}
-            <Sheet open={activateDrawerOpen} onOpenChange={setActivateDrawerOpen}>
-              <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh]">
-                <SheetHeader className="mb-4">
-                  <SheetTitle>Ativar aluno</SheetTitle>
-                </SheetHeader>
+            {/* Activation dialog */}
+            <Dialog open={activateDrawerOpen} onOpenChange={setActivateDrawerOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Ativar aluno</DialogTitle>
+                </DialogHeader>
                 {activatingStudent && (
-                  <div className="space-y-5">
+                  <div className="space-y-4 pt-1">
                     {/* Student info */}
                     <div className="rounded-lg bg-muted px-4 py-3 space-y-0.5">
                       <p className="text-sm font-semibold">{activatingStudent.name}</p>
@@ -2630,8 +2633,8 @@ const Admin = () => {
                     </Button>
                   </div>
                 )}
-              </SheetContent>
-            </Sheet>
+              </DialogContent>
+            </Dialog>
 
           </TabsContent>
 
