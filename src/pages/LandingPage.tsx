@@ -28,7 +28,7 @@ const useFadeIn = () => {
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────
-const WA_NUMBER = "5521999999999";
+const WA_NUMBER = "5521969260979";
 
 type LangKey = "ingles" | "espanhol" | "libras" | "japones";
 
