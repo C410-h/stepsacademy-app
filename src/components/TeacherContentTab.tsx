@@ -301,8 +301,8 @@ const TeacherContentTab = ({ teacherId }: Props) => {
       .eq("teacher_id", teacherId)
       .in("step_id", stepIds);
 
-    const statusMap = new Map((statusData || []).map(s => [s.step_id, s]));
-    const submissionMap = new Map((submissionsData || []).map(s => [s.step_id, s]));
+    const statusMap = new Map((statusData || []).map((s: any) => [s.step_id, s]));
+    const submissionMap = new Map((submissionsData || []).map((s: any) => [s.step_id, s]));
 
     const enriched: StepInfo[] = stepsData.map(s => {
       const cs = statusMap.get(s.id);
@@ -342,7 +342,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         .eq("submission_id", step.submissionId);
 
       if (sfData) {
-        const loaded: FileEntry[] = sfData.map(sf => ({
+        const loaded: FileEntry[] = (sfData as any[]).map(sf => ({
           localId: sf.id,
           materialType: sf.material_type as FileEntry["materialType"],
           file: null,

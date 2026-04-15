@@ -499,7 +499,7 @@ const Admin = () => {
     if (recentStudData) {
       const langLookup = Object.fromEntries((allLangs || []).map((l: any) => [l.id, l.name]));
       const levelLookup = Object.fromEntries((allLevels || []).map((l: any) => [l.id, { name: l.name, code: l.code }]));
-      const recent: StudentRow[] = (recentStudData as any[]).map(s => ({ id: s.id, status: s.status, currentStepNumber: 0, profile: s.profiles ? { name: s.profiles.name } : null, language: s.language_id ? { name: langLookup[s.language_id] || "—" } : null, level: s.level_id ? (levelLookup as any)[s.level_id] || null : null, teacherName: null, createdAt: s.created_at, languageId: s.language_id, levelId: s.level_id }));
+      const recent: StudentRow[] = (recentStudData as any[]).map(s => ({ id: s.id, status: s.status, currentStepNumber: 0, profile: s.profiles ? { name: s.profiles.name } : null, language: s.language_id ? { name: langLookup[s.language_id] || "—" } : null, level: s.level_id ? (levelLookup as any)[s.level_id] || null : null, teacherName: null, teacherId: null, createdAt: s.created_at, languageId: s.language_id, levelId: s.level_id }));
       setRecentStudents(recent);
     }
 

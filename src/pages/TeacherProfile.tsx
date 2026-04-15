@@ -144,14 +144,14 @@ export default function TeacherProfile() {
         .update({ name: name.trim(), phone: phone.trim() || null, avatar_url: avatarUrl })
         .eq("id", profileData.id);
 
-      const updates: Promise<unknown>[] = [profileUpdate];
+      const updates: Promise<unknown>[] = [profileUpdate.then()];
 
       if (teacherData) {
         const teacherUpdate = supabase
           .from("teachers")
           .update({ bio: bio.trim() || null })
           .eq("id", teacherData.id);
-        updates.push(teacherUpdate);
+        updates.push(teacherUpdate.then());
       }
 
       const results = await Promise.all(updates);
@@ -178,7 +178,7 @@ export default function TeacherProfile() {
   };
 
   const handlePasswordReset = async () => {
-    const email = profile?.email;
+    const email = (profile as any)?.email;
     if (!email) return;
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);
@@ -283,7 +283,7 @@ export default function TeacherProfile() {
                   </Label>
                   <Input
                     id="email"
-                    value={profile?.email ?? ""}
+                    value={(profile as any)?.email ?? ""}
                     readOnly
                     disabled
                     className="bg-muted cursor-not-allowed"
