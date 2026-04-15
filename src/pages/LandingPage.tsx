@@ -327,7 +327,7 @@ const LandingPage = () => {
 
       {/* ─── NAV ──────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 md:px-14 h-[60px] border-b" style={{ background: "rgba(0,0,0,.35)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderColor: "rgba(255,255,255,.07)" }}>
-        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-6" />
+        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-8" />
         <div className="flex items-center gap-3">
           {session ? (
             <>
@@ -745,7 +745,7 @@ const LandingPage = () => {
 
       {/* ─── FOOTER ─────────────────────────────────── */}
       <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
-        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-6" />
+        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-8" />
         <Link
           to="/planos"
           className="inline-flex items-center px-8 py-3.5 rounded-full font-bold text-sm transition-transform hover:scale-[1.03]"
