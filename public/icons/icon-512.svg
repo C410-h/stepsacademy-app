@@ -1,4 +1,3 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="102" fill="#520A70"/>
-  <image href="/brand/logo-over-lime.webp" x="38" y="38" width="436" height="436" preserveAspectRatio="xMidYMid meet"/>
+  <image href="/icons/icon.svg" x="0" y="0" width="512" height="512"/>
 </svg>

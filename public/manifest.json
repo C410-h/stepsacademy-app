@@ -9,9 +9,9 @@
   "background_color": "#15012A",
   "icons": [
     {
-      "src": "/brand/logo-over-lime.webp",
-      "sizes": "512x512",
-      "type": "image/webp",
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
