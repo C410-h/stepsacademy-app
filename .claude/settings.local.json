@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__b1356eaf-6f8e-4cf3-9084-a5d988d55b19__get_publishable_keys",
+      "mcp__b1356eaf-6f8e-4cf3-9084-a5d988d55b19__get_project_url",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python -c ':*)",
+      "Bash(powershell -command 'Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\('\\\\''C:\\\\Users\\\\caio_\\\\Documents\\\\MEUS PROJETOS\\\\steps-academy\\\\public\\\\brand\\\\logo-over-lime.webp'\\\\''\\); Write-Host \\($img.Width, '\\\\''x'\\\\'', $img.Height\\)')",
+      "Bash(powershell -command \"Get-Item 'public\\\\brand\\\\logo-over-lime.webp' | Select-Object Name, Length\")",
+      "Bash(powershell -command \"[Convert]::ToBase64String\\([IO.File]::ReadAllBytes\\('public\\\\brand\\\\logo-over-lime.webp'\\)\\).Length\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(npx vite:*)",
+      "Bash(cp \"C:\\\\Users\\\\caio_\\\\Documents\\\\MINHAS EMPRESAS\\\\STEPS ACADEMY\\\\1. MARKETING\\\\3. IDENTIDADE VISUAL\\\\Nova pasta\\\\favicon2.svg\" \"C:\\\\Users\\\\caio_\\\\Documents\\\\MEUS PROJETOS\\\\steps-academy\\\\public\\\\favicon.svg\")",
+      "Bash(cp \"C:\\\\Users\\\\caio_\\\\Documents\\\\MINHAS EMPRESAS\\\\STEPS ACADEMY\\\\1. MARKETING\\\\3. IDENTIDADE VISUAL\\\\Nova pasta\\\\favicon.svg\" \"C:\\\\Users\\\\caio_\\\\Documents\\\\MEUS PROJETOS\\\\steps-academy\\\\public\\\\icons\\\\icon.svg\")",
+      "Bash(cat vercel.json)",
+      "Bash(ls *.json)",
+      "Bash(grep -r \"vercel\\\\|lovable\\\\.app\" .env*)",
+      "Bash(grep \"homepage\\\\|vercel\" package.json)",
+      "WebFetch(domain:stepsacademy.com.br)",
+      "mcp__b1356eaf-6f8e-4cf3-9084-a5d988d55b19__execute_sql",
+      "Bash(grep -v \"\\\\.tsx:[0-9]*:\\\\s*//\")",
+      "Bash(grep -ohn \">[a-z][^<]{3,}<\" pages/Teacher.tsx pages/Admin.tsx pages/ProgressPage.tsx pages/AulaPage.tsx pages/Perfil.tsx pages/Loja.tsx pages/Login.tsx)",
+      "Bash(powershell -command 'Get-ChildItem -Recurse -Filter '\\\\''*.tsx'\\\\'' -Path '\\\\''pages'\\\\'','\\\\''components'\\\\'' | Where-Object { $_.FullName -notlike '\\\\''*node_modules*'\\\\'' } | ForEach-Object { $content = Get-Content $_.FullName -Raw; $matches = [regex]::Matches\\($content, '\\\\''>[a-záéíóúàãõêôâü][a-záéíóúàãõêôâüA-Z ,\\\\.]{4,}<'\\\\''\\); foreach\\($m in $matches\\) { if \\($m.Value -notmatch '\\\\''class|style|href|src|function|=>'\\\\''\\) { Write-Host $_.Name'\\\\'': '\\\\''$m.Value } } }')",
+      "Bash(powershell -command '$content = Get-Content '\\\\''pages/LandingPage.tsx'\\\\'' -Raw; $matches = [regex]::Matches\\($content, '\\\\''>[a-záéíóúàãõêôâü][a-záéíóúàãõêôâüA-Z ,\\\\.\\\\!\\\\?]{5,}<'\\\\''\\); foreach\\($m in $matches\\) { Write-Host $m.Value }')",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "Bash(ls public/favicon*)"
+    ]
+  }
+}
