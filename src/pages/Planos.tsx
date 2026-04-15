@@ -122,7 +122,7 @@ const Planos = () => {
     <div className="min-h-screen" style={{ background: "#15012A", fontFamily: "'Libre Franklin', sans-serif" }}>
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 h-[60px] border-b" style={{ borderColor: "rgba(255,255,255,.08)" }}>
-        <Link to="/"><img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-10" /></Link>
+        <Link to="/"><img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-32" /></Link>
         {session ? (
           <button onClick={() => navigate(profile?.role === "admin" ? "/admin" : profile?.role === "teacher" ? "/teacher" : "/")} className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
             <span className="text-sm font-light text-white/60 hidden sm:block">

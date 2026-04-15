@@ -326,8 +326,8 @@ const LandingPage = () => {
       <WaveOverlay color={waveColor} stage={waveStage} />
 
       {/* ─── NAV ──────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 md:px-14 h-[60px] border-b" style={{ background: "rgba(0,0,0,.35)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderColor: "rgba(255,255,255,.07)" }}>
-        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-10" />
+      <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 md:px-14 h-[72px] border-b" style={{ background: "rgba(0,0,0,.35)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderColor: "rgba(255,255,255,.07)" }}>
+        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-32" />
         <div className="flex items-center gap-3">
           {session ? (
             <>
@@ -731,7 +731,7 @@ const LandingPage = () => {
 
       {/* ─── FOOTER ─────────────────────────────────── */}
       <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
-        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-10" />
+        <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-32" />
         <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
           © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
         </p>
