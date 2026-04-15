@@ -161,7 +161,7 @@ const Login = () => {
           <img
             src="/brand/logo-over-lime.webp"
             alt="steps academy"
-            className="h-14"
+            className="h-16"
           />
           <img
             src="/steppie/steppie-orgulhoso.svg"
