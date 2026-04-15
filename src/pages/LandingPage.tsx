@@ -274,7 +274,17 @@ const LandingPage = () => {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [tel, setTel] = useState("");
+  const [isPWA, setIsPWA] = useState(false);
   const formRef = useRef<HTMLElement>(null);
+
+  // Detect if running as installed PWA — hide float button in that case
+  useEffect(() => {
+    const mq = window.matchMedia("(display-mode: standalone)");
+    setIsPWA(mq.matches || (navigator as any).standalone === true);
+    const handler = (e: MediaQueryListEvent) => setIsPWA(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const difsFade = useFadeIn();
   const levelsFade = useFadeIn();
@@ -333,7 +343,7 @@ const LandingPage = () => {
             <>
               <button
                 onClick={() => navigate("/")}
-                className="inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
+                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
                 style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
@@ -353,7 +363,7 @@ const LandingPage = () => {
             <>
               <Link
                 to="/login"
-                className="inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
+                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
                 style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
@@ -730,18 +740,58 @@ const LandingPage = () => {
       </section>
 
       {/* ─── FOOTER ─────────────────────────────────── */}
-      <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
+      <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 pb-28 sm:pb-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
         <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-32" />
         <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
           © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
         </p>
+        <div className="flex flex-col items-center md:items-end gap-2">
+          <Link
+            to="/login"
+            className="text-[13px] font-medium transition-opacity hover:opacity-100"
+            style={{ color: "#C1FE00", opacity: 0.8, textDecoration: "none" }}
+          >
+            acessar a plataforma →
+          </Link>
+          <img
+            src={steppieAlegre}
+            alt=""
+            aria-hidden="true"
+            className="hidden md:block w-[60px] opacity-60 mt-1"
+          />
+        </div>
         <img
           src={steppieAlegre}
           alt=""
           aria-hidden="true"
-          className="absolute right-6 bottom-2 w-[60px] opacity-70"
+          className="md:hidden absolute right-6 bottom-2 w-[60px] opacity-70"
         />
       </footer>
+
+      {/* ─── FLOATING CTA (mobile only, hidden when PWA installed) ── */}
+      {!isPWA && (
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-[200] px-4 pb-5 pt-3"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,.85) 60%, transparent)", backdropFilter: "blur(2px)" }}
+        >
+          {session ? (
+            <button
+              onClick={() => navigate("/")}
+              className="w-full py-4 rounded-full font-bold text-[15px] border-none cursor-pointer flex items-center justify-center gap-2 transition-transform active:scale-[.97]"
+              style={{ background: "#C1FE00", color: "#15012A", fontFamily: "'Libre Franklin', sans-serif" }}
+            >
+              ir para a plataforma
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="w-full py-4 rounded-full font-bold text-[15px] border-none cursor-pointer flex items-center justify-center gap-2 transition-transform active:scale-[.97]"
+              style={{ background: "#C1FE00", color: "#15012A", fontFamily: "'Libre Franklin', sans-serif", textDecoration: "none" }}
+            >
+              entrar na plataforma
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 };
