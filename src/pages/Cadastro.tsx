@@ -92,10 +92,16 @@ const Cadastro = () => {
     setSubmitting(false);
 
     if (error) {
-      if (error.message?.toLowerCase().includes("already registered")) {
+      const msg = error.message ?? "";
+      if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already been registered")) {
         setErrorMsg("Este e-mail já está cadastrado. Tente fazer login.");
+      } else if (msg.toLowerCase().includes("signup") && msg.toLowerCase().includes("disabled")) {
+        setErrorMsg("Cadastro desabilitado no momento. Entre em contato com o professor.");
+      } else if (msg.toLowerCase().includes("password")) {
+        setErrorMsg("Senha inválida: " + msg);
       } else {
-        setErrorMsg("Erro ao criar a conta. Tente novamente.");
+        // Show raw error for debugging
+        setErrorMsg("Erro: " + msg);
       }
     } else {
       setStatus("success");
