@@ -165,6 +165,13 @@ export type Database = {
             foreignKeyName: "classes_step_id_fkey"
             columns: ["step_id"]
             isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
+          },
+          {
+            foreignKeyName: "classes_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
             referencedRelation: "steps"
             referencedColumns: ["id"]
           },
@@ -177,6 +184,71 @@ export type Database = {
           },
           {
             foreignKeyName: "classes_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_submissions: {
+        Row: {
+          admin_comment: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          step_id: string
+          submitted_at: string | null
+          teacher_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          admin_comment?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          step_id: string
+          submitted_at?: string | null
+          teacher_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          admin_comment?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          step_id?: string
+          submitted_at?: string | null
+          teacher_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_submissions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
+          },
+          {
+            foreignKeyName: "content_submissions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_submissions_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
             referencedRelation: "teachers"
@@ -224,6 +296,86 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exercise_bank: {
+        Row: {
+          active: boolean | null
+          answer: string
+          approved_by: string | null
+          created_at: string | null
+          created_by: string | null
+          explanation: string | null
+          id: string
+          language_id: string
+          level_id: string
+          options: Json | null
+          question: string
+          tags: string[] | null
+          times_used: number | null
+          type: string
+        }
+        Insert: {
+          active?: boolean | null
+          answer: string
+          approved_by?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          explanation?: string | null
+          id?: string
+          language_id: string
+          level_id: string
+          options?: Json | null
+          question: string
+          tags?: string[] | null
+          times_used?: number | null
+          type: string
+        }
+        Update: {
+          active?: boolean | null
+          answer?: string
+          approved_by?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          explanation?: string | null
+          id?: string
+          language_id?: string
+          level_id?: string
+          options?: Json | null
+          question?: string
+          tags?: string[] | null
+          times_used?: number | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_bank_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_bank_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_bank_language_id_fkey"
+            columns: ["language_id"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_bank_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "levels"
             referencedColumns: ["id"]
           },
         ]
@@ -333,6 +485,51 @@ export type Database = {
         }
         Relationships: []
       }
+      lesson_exercise_attempts: {
+        Row: {
+          answer_given: string | null
+          completed_at: string | null
+          correct: boolean
+          exercise_id: string
+          id: string
+          student_id: string
+          xp_earned: number
+        }
+        Insert: {
+          answer_given?: string | null
+          completed_at?: string | null
+          correct: boolean
+          exercise_id: string
+          id?: string
+          student_id: string
+          xp_earned?: number
+        }
+        Update: {
+          answer_given?: string | null
+          completed_at?: string | null
+          correct?: boolean
+          exercise_id?: string
+          id?: string
+          student_id?: string
+          xp_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_exercise_attempts_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_exercise_attempts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_exercises: {
         Row: {
           active: boolean | null
@@ -371,6 +568,13 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lesson_exercises_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
+          },
           {
             foreignKeyName: "lesson_exercises_step_id_fkey"
             columns: ["step_id"]
@@ -414,6 +618,90 @@ export type Database = {
             columns: ["language_id"]
             isOneToOne: false
             referencedRelation: "languages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_accesses: {
+        Row: {
+          accessed_at: string | null
+          id: string
+          material_id: string
+          student_id: string
+        }
+        Insert: {
+          accessed_at?: string | null
+          id?: string
+          material_id: string
+          student_id: string
+        }
+        Update: {
+          accessed_at?: string | null
+          id?: string
+          material_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_accesses_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_accesses_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_versions: {
+        Row: {
+          file_url: string
+          filename: string | null
+          id: string
+          material_id: string
+          note: string | null
+          replaced_at: string | null
+          replaced_by: string | null
+          version_number: number
+        }
+        Insert: {
+          file_url: string
+          filename?: string | null
+          id?: string
+          material_id: string
+          note?: string | null
+          replaced_at?: string | null
+          replaced_by?: string | null
+          version_number?: number
+        }
+        Update: {
+          file_url?: string
+          filename?: string | null
+          id?: string
+          material_id?: string
+          note?: string | null
+          replaced_at?: string | null
+          replaced_by?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_versions_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_versions_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -465,6 +753,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "levels"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materials_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
           },
           {
             foreignKeyName: "materials_step_id_fkey"
@@ -744,6 +1039,7 @@ export type Database = {
           name: string
           phone: string | null
           role: string
+          theme: string
           updated_at: string | null
         }
         Insert: {
@@ -753,6 +1049,7 @@ export type Database = {
           name: string
           phone?: string | null
           role: string
+          theme?: string
           updated_at?: string | null
         }
         Update: {
@@ -762,6 +1059,7 @@ export type Database = {
           name?: string
           phone?: string | null
           role?: string
+          theme?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -864,6 +1162,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "teachers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaking_recordings_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
           },
           {
             foreignKeyName: "speaking_recordings_step_id_fkey"
@@ -1137,21 +1442,27 @@ export type Database = {
           accessed_at: string | null
           available_at: string | null
           id: string
+          is_personal: boolean
           material_id: string
+          note: string | null
           student_id: string
         }
         Insert: {
           accessed_at?: string | null
           available_at?: string | null
           id?: string
+          is_personal?: boolean
           material_id: string
+          note?: string | null
           student_id: string
         }
         Update: {
           accessed_at?: string | null
           available_at?: string | null
           id?: string
+          is_personal?: boolean
           material_id?: string
+          note?: string | null
           student_id?: string
         }
         Relationships: [
@@ -1197,6 +1508,13 @@ export type Database = {
           unlocked_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "student_progress_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
+          },
           {
             foreignKeyName: "student_progress_step_id_fkey"
             columns: ["step_id"]
@@ -1252,6 +1570,13 @@ export type Database = {
             foreignKeyName: "students_current_step_id_fkey"
             columns: ["current_step_id"]
             isOneToOne: false
+            referencedRelation: "step_completion_status"
+            referencedColumns: ["step_id"]
+          },
+          {
+            foreignKeyName: "students_current_step_id_fkey"
+            columns: ["current_step_id"]
+            isOneToOne: false
             referencedRelation: "steps"
             referencedColumns: ["id"]
           },
@@ -1274,6 +1599,65 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_files: {
+        Row: {
+          admin_comment: string | null
+          ai_conversion_status: string | null
+          comment: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          exercises: Json | null
+          file_url: string | null
+          filename: string | null
+          id: string
+          is_required: boolean
+          material_type: string
+          raw_document_url: string | null
+          status: string
+          submission_id: string
+        }
+        Insert: {
+          admin_comment?: string | null
+          ai_conversion_status?: string | null
+          comment?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          exercises?: Json | null
+          file_url?: string | null
+          filename?: string | null
+          id?: string
+          is_required?: boolean
+          material_type: string
+          raw_document_url?: string | null
+          status?: string
+          submission_id: string
+        }
+        Update: {
+          admin_comment?: string | null
+          ai_conversion_status?: string | null
+          comment?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          exercises?: Json | null
+          file_url?: string | null
+          filename?: string | null
+          id?: string
+          is_required?: boolean
+          material_type?: string
+          raw_document_url?: string | null
+          status?: string
+          submission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_files_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "content_submissions"
             referencedColumns: ["id"]
           },
         ]
@@ -1505,7 +1889,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      step_completion_status: {
+        Row: {
+          has_exercises: boolean | null
+          has_slide: boolean | null
+          is_complete: boolean | null
+          step_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       is_admin: { Args: never; Returns: boolean }
