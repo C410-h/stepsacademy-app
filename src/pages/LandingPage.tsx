@@ -333,7 +333,7 @@ const LandingPage = () => {
             <>
               <button
                 onClick={() => navigate("/")}
-                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
+                className="inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
                 style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
@@ -353,7 +353,7 @@ const LandingPage = () => {
             <>
               <Link
                 to="/login"
-                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
+                className="inline-flex items-center px-5 py-2 rounded-full text-[13px] font-medium border transition-colors"
                 style={{ color: "rgba(255,255,255,.7)", borderColor: "rgba(255,255,255,.2)", background: "transparent" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.6)"; e.currentTarget.style.color = "#fff"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,.2)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
