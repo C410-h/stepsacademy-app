@@ -211,91 +211,107 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-4">
-        {/* Welcome */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xl">Olá, {profile?.name?.split(" ")[0]} 👋</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground font-light">
-              {studentData.language?.name || "Idioma"} · {studentData.level?.name || "Nível"} · {studentData.level?.code || ""}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
 
-        {/* Progress */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold">Seu progresso</span>
-              <span className="text-xs text-muted-foreground">
-                Passo {studentData.currentStepNumber} de {totalSteps}
-              </span>
-            </div>
-            <Progress value={progressPercent} className="h-3" />
-          </CardContent>
-        </Card>
+        {/* ── Column 1: Welcome + Progress + Join ── */}
+        <div className="space-y-4">
+          {/* Welcome */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">Olá, {profile?.name?.split(" ")[0]} 👋</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground font-light">
+                {studentData.language?.name || "Idioma"} · {studentData.level?.name || "Nível"} · {studentData.level?.code || ""}
+              </p>
+            </CardContent>
+          </Card>
 
-        {/* Join class */}
-        {studentData.meetLink && (
-          <Button
-            className="w-full font-bold h-14 text-base"
-            style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }}
-            onClick={() => window.open(studentData.meetLink!, "_blank")}
-          >
-            <ExternalLink className="h-5 w-5 mr-2" />
-            Entrar na aula
-          </Button>
-        )}
-
-        {/* Aula atual */}
-        <Card
-          className="cursor-pointer hover:border-primary/30 transition-colors"
-          onClick={() => navigate("/aula")}
-        >
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <GraduationCap className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold">Aula atual</p>
-                  <p className="text-xs text-muted-foreground font-light">
-                    Passo {studentData.currentStepNumber}
-                  </p>
-                </div>
+          {/* Progress */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold">Seu progresso</span>
+                <span className="text-xs text-muted-foreground">
+                  Passo {studentData.currentStepNumber} de {totalSteps}
+                </span>
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </div>
+              <Progress value={progressPercent} className="h-3" />
+            </CardContent>
+          </Card>
 
-            {beforeClass.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Antes da aula</p>
-                {beforeClass.slice(0, 3).map(m => (
-                  <div key={m.id} className="flex items-center gap-2 text-xs py-1">
-                    <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
-                    <span className="truncate text-foreground">{m.title}</span>
-                  </div>
-                ))}
-                {beforeClass.length > 3 && (
-                  <p className="text-xs text-muted-foreground font-light">+{beforeClass.length - 3} mais…</p>
-                )}
-              </div>
-            )}
-
+          {/* Join class */}
+          {studentData.meetLink && (
             <Button
-              size="sm"
-              className="w-full text-xs font-bold gap-1.5"
+              className="w-full font-bold h-14 text-base"
               style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
-              onClick={e => { e.stopPropagation(); navigate("/aula"); }}
+              onClick={() => window.open(studentData.meetLink!, "_blank")}
             >
-              <GraduationCap className="h-3.5 w-3.5" />
-              Ver aula completa
+              <ExternalLink className="h-5 w-5 mr-2" />
+              Entrar na aula
             </Button>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+
+        {/* ── Column 2: Aula atual ── */}
+        <div className="mt-4 lg:mt-0">
+          <Card
+            className="cursor-pointer hover:border-primary/30 transition-colors h-full"
+            onClick={() => navigate("/aula")}
+          >
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <GraduationCap className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Aula atual</p>
+                    <p className="text-xs text-muted-foreground font-light">
+                      Passo {studentData.currentStepNumber}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+
+              {beforeClass.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Antes da aula</p>
+                  {beforeClass.map(m => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs py-1">
+                      <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
+                      <span className="truncate text-foreground">{m.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {materials.filter(m => m.delivery === "during").length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Durante a aula</p>
+                  {materials.filter(m => m.delivery === "during").map(m => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs py-1">
+                      <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
+                      <span className="truncate text-foreground">{m.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                size="sm"
+                className="w-full text-xs font-bold gap-1.5"
+                style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+                onClick={e => { e.stopPropagation(); navigate("/aula"); }}
+              >
+                <GraduationCap className="h-3.5 w-3.5" />
+                Ver aula completa
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
       </div>
     </StudentLayout>
   );

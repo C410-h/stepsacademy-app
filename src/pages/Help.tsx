@@ -21,53 +21,60 @@ const Help = () => {
       <div className="space-y-6">
         <h2 className="text-xl font-bold">Ajuda</h2>
 
-        {/* Guides */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Como funciona a plataforma</h3>
-          {guides.map((g, i) => (
-            <Card key={i}>
-              <CardContent className="flex items-start gap-3 py-4 px-4">
-                <div className="text-primary mt-0.5">{g.icon}</div>
-                <div>
-                  <p className="text-sm font-bold">{g.title}</p>
-                  <p className="text-xs text-muted-foreground font-light mt-1">{g.desc}</p>
+        <div className="lg:grid lg:grid-cols-2 lg:gap-8 lg:items-start space-y-6 lg:space-y-0">
+
+          {/* ── Left: Guides ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Como funciona a plataforma</h3>
+            {guides.map((g, i) => (
+              <Card key={i}>
+                <CardContent className="flex items-start gap-3 py-4 px-4">
+                  <div className="text-primary mt-0.5">{g.icon}</div>
+                  <div>
+                    <p className="text-sm font-bold">{g.title}</p>
+                    <p className="text-xs text-muted-foreground font-light mt-1">{g.desc}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* ── Right: Video + FAQ ── */}
+          <div className="space-y-6">
+            {/* Onboarding video placeholder */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Video className="h-5 w-5 text-primary" />
+                  Vídeo de boas-vindas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">Vídeo em breve</p>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
 
-        {/* Onboarding video placeholder */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Video className="h-5 w-5 text-primary" />
-              Vídeo de boas-vindas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
-              <p className="text-sm text-muted-foreground">Vídeo em breve</p>
+            {/* FAQ */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4" /> Perguntas frequentes
+                </h3>
+                <img src="/steppie/steppie-desconfiado.webp" alt="" aria-hidden="true" className="w-14 -mt-2" />
+              </div>
+              <Accordion type="single" collapsible>
+                {faqs.map((faq, i) => (
+                  <AccordionItem key={i} value={`faq-${i}`}>
+                    <AccordionTrigger className="text-sm font-bold text-left">{faq.q}</AccordionTrigger>
+                    <AccordionContent className="text-sm text-muted-foreground font-light">{faq.a}</AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* FAQ */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-              <HelpCircle className="h-4 w-4" /> Perguntas frequentes
-            </h3>
-            <img src="/steppie/steppie-desconfiado.webp" alt="" aria-hidden="true" className="w-14 -mt-2" />
           </div>
-          <Accordion type="single" collapsible>
-            {faqs.map((faq, i) => (
-              <AccordionItem key={i} value={`faq-${i}`}>
-                <AccordionTrigger className="text-sm font-bold text-left">{faq.q}</AccordionTrigger>
-                <AccordionContent className="text-sm text-muted-foreground font-light">{faq.a}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+
         </div>
       </div>
     </StudentLayout>

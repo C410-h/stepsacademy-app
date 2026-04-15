@@ -393,7 +393,7 @@ const Perfil = () => {
   if (loading) {
     return (
       <StudentLayout>
-        <div className="max-w-lg mx-auto space-y-4">
+        <div className="space-y-4">
           <Card className="rounded-xl">
             <CardContent className="pt-6 flex flex-col items-center gap-3">
               <Skeleton className="h-20 w-20 rounded-full" />
@@ -401,7 +401,7 @@ const Perfil = () => {
               <Skeleton className="h-4 w-28" />
             </CardContent>
           </Card>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
@@ -416,131 +416,138 @@ const Perfil = () => {
 
   return (
     <StudentLayout>
-      <div className="max-w-lg mx-auto space-y-4">
+      <div className="space-y-4">
 
-        {/* ── Header Card ── */}
-        <Card className="rounded-xl">
-          <CardContent className="pt-6 pb-6 flex flex-col items-center gap-4">
-            {/* Avatar */}
-            <div className="relative">
-              <Avatar className="h-20 w-20">
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback
-                  className="text-xl font-bold"
-                  style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
-                >
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              {uploadingAvatar && (
-                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
-                  <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
+        {/* ── Top section: 2-col on desktop ── */}
+        <div className="lg:grid lg:grid-cols-[280px_1fr] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
 
-            {/* Upload button */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingAvatar}
-            >
-              <Camera className="h-3.5 w-3.5" />
-              Alterar foto
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
+          {/* Left column: Avatar card */}
+          <Card className="rounded-xl">
+            <CardContent className="pt-6 pb-6 flex flex-col items-center gap-4">
+              {/* Avatar */}
+              <div className="relative">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback
+                    className="text-xl font-bold"
+                    style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
+                  >
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                    <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
 
-            {/* Editable name & phone */}
-            <div className="w-full space-y-3 px-2">
-              <EditableField
-                label="Nome"
-                value={profile?.name || ""}
-                onSave={saveName}
-                placeholder="Seu nome completo"
+              {/* Upload button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+              >
+                <Camera className="h-3.5 w-3.5" />
+                Alterar foto
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
               />
-              <EditableField
-                label="Telefone"
-                value={profile?.phone || ""}
-                onSave={savePhone}
-                placeholder="(11) 99999-9999"
-              />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* ── Stats grid 2×2 ── */}
-        {gamification && (
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard
-              icon={<Zap className="h-4 w-4" style={{ fill: 'var(--theme-accent)', color: 'var(--theme-accent)' }} />}
-              label="XP Total"
-              value={gamification.xp_total.toLocaleString("pt-BR")}
-              iconBg="bg-primary/10"
-            />
-            <StatCard
-              icon={<span className="text-base leading-none">🪙</span>}
-              label="Coins"
-              value={gamification.coins.toLocaleString("pt-BR")}
-              iconBg="bg-yellow-100 dark:bg-yellow-900/30"
-            />
-            <StatCard
-              icon={<Flame className="h-4 w-4 text-orange-500" />}
-              label="Streak atual"
-              value={`${gamification.streak_current} dias`}
-              iconBg="bg-orange-100 dark:bg-orange-900/30"
-            />
-            <StatCard
-              icon={<Trophy className="h-4 w-4 text-amber-500" />}
-              label="Melhor streak"
-              value={`${gamification.streak_best} dias`}
-              iconBg="bg-amber-100 dark:bg-amber-900/30"
-            />
+              {/* Editable name & phone */}
+              <div className="w-full space-y-3 px-2">
+                <EditableField
+                  label="Nome"
+                  value={profile?.name || ""}
+                  onSave={saveName}
+                  placeholder="Seu nome completo"
+                />
+                <EditableField
+                  label="Telefone"
+                  value={profile?.phone || ""}
+                  onSave={savePhone}
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Right column: Stats + Info */}
+          <div className="space-y-4">
+            {/* Stats: 2-col on mobile, 4-col on desktop */}
+            {gamification && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatCard
+                  icon={<Zap className="h-4 w-4" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />}
+                  label="XP Total"
+                  value={gamification.xp_total.toLocaleString("pt-BR")}
+                  iconBg="bg-primary/10"
+                />
+                <StatCard
+                  icon={<span className="text-base leading-none">🪙</span>}
+                  label="Coins"
+                  value={gamification.coins.toLocaleString("pt-BR")}
+                  iconBg="bg-yellow-100 dark:bg-yellow-900/30"
+                />
+                <StatCard
+                  icon={<Flame className="h-4 w-4 text-orange-500" />}
+                  label="Streak atual"
+                  value={`${gamification.streak_current} dias`}
+                  iconBg="bg-orange-100 dark:bg-orange-900/30"
+                />
+                <StatCard
+                  icon={<Trophy className="h-4 w-4 text-amber-500" />}
+                  label="Melhor streak"
+                  value={`${gamification.streak_best} dias`}
+                  iconBg="bg-amber-100 dark:bg-amber-900/30"
+                />
+              </div>
+            )}
+
+            {/* Info card */}
+            <Card className="rounded-xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                  Informações
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pb-5">
+                <InfoRow emoji="📚" label="Idioma" value={student?.language || "—"} />
+                <InfoRow
+                  emoji="🎯"
+                  label="Nível"
+                  value={
+                    student?.level_name
+                      ? `${student.level_name}${student.level_code ? ` (${student.level_code})` : ""}`
+                      : "—"
+                  }
+                />
+                <InfoRow
+                  emoji="📅"
+                  label="Matrícula"
+                  value={formatDate(student?.enrollment_date || null)}
+                />
+                <InfoRow
+                  emoji="✅"
+                  label="Total de aulas"
+                  value={`${completedClasses} ${completedClasses === 1 ? "aula" : "aulas"}`}
+                />
+                <InfoRow
+                  emoji="📝"
+                  label="Exercícios feitos"
+                  value={`${exercisesDone} ${exercisesDone === 1 ? "exercício" : "exercícios"}`}
+                />
+              </CardContent>
+            </Card>
           </div>
-        )}
-
-        {/* ── More info list ── */}
-        <Card className="rounded-xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-              Informações
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 pb-5">
-            <InfoRow emoji="📚" label="Idioma" value={student?.language || "—"} />
-            <InfoRow
-              emoji="🎯"
-              label="Nível"
-              value={
-                student?.level_name
-                  ? `${student.level_name}${student.level_code ? ` (${student.level_code})` : ""}`
-                  : "—"
-              }
-            />
-            <InfoRow
-              emoji="📅"
-              label="Matrícula"
-              value={formatDate(student?.enrollment_date || null)}
-            />
-            <InfoRow
-              emoji="✅"
-              label="Total de aulas"
-              value={`${completedClasses} ${completedClasses === 1 ? "aula" : "aulas"}`}
-            />
-            <InfoRow
-              emoji="📝"
-              label="Exercícios feitos"
-              value={`${exercisesDone} ${exercisesDone === 1 ? "exercício" : "exercícios"}`}
-            />
-          </CardContent>
-        </Card>
+        </div>
 
         {/* ── Meus certificados ── */}
         {certificates.length > 0 && (
@@ -582,7 +589,7 @@ const Perfil = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-5">
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 lg:grid-cols-6 gap-3">
                 {badges.map(badge => (
                   <button
                     key={badge.id}
@@ -609,7 +616,7 @@ const Perfil = () => {
 
         {/* Badge detail dialog */}
         {selectedBadge && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center p-4" onClick={() => setSelectedBadge(null)}>
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedBadge(null)}>
             <div className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
               <div className="text-center">
                 <span className={cn("text-5xl block mb-2", !selectedBadge.earned && "grayscale opacity-50")}>
@@ -648,39 +655,41 @@ const Perfil = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pb-5">
-              {recordings.map(rec => (
-                <div key={rec.id} className="space-y-2 border-b last:border-0 pb-3 last:pb-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">
-                      {rec.stepNumber ? `Passo ${rec.stepNumber}` : "Gravação"}
-                    </p>
-                    <span className={cn(
-                      "text-xs font-bold px-2 py-0.5 rounded-full",
-                      rec.status === "reviewed"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                    )}>
-                      {rec.status === "reviewed" ? "Avaliado" : "Pendente"}
-                    </span>
-                  </div>
-                  <audio controls src={rec.audio_url} className="w-full h-10" />
-                  {rec.status === "reviewed" && rec.teacher_score && (
-                    <div className="space-y-1">
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map(s => (
-                          <span key={s} className={cn("text-base", rec.teacher_score! >= s ? "text-yellow-400" : "text-muted-foreground/30")}>★</span>
-                        ))}
-                      </div>
-                      {rec.teacher_feedback && (
-                        <p className="text-xs text-muted-foreground font-light italic">"{rec.teacher_feedback}"</p>
-                      )}
+              <div className="lg:grid lg:grid-cols-2 lg:gap-4">
+                {recordings.map(rec => (
+                  <div key={rec.id} className="space-y-2 border-b lg:border lg:rounded-xl lg:p-3 last:border-b-0 pb-3 last:pb-0 lg:last:pb-3 lg:border-b">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">
+                        {rec.stepNumber ? `Passo ${rec.stepNumber}` : "Gravação"}
+                      </p>
+                      <span className={cn(
+                        "text-xs font-bold px-2 py-0.5 rounded-full",
+                        rec.status === "reviewed"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                      )}>
+                        {rec.status === "reviewed" ? "Avaliado" : "Pendente"}
+                      </span>
                     </div>
-                  )}
-                  <p className="text-xs text-muted-foreground font-light">
-                    {new Date(rec.recorded_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-                  </p>
-                </div>
-              ))}
+                    <audio controls src={rec.audio_url} className="w-full h-10" />
+                    {rec.status === "reviewed" && rec.teacher_score && (
+                      <div className="space-y-1">
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <span key={s} className={cn("text-base", rec.teacher_score! >= s ? "text-yellow-400" : "text-muted-foreground/30")}>★</span>
+                          ))}
+                        </div>
+                        {rec.teacher_feedback && (
+                          <p className="text-xs text-muted-foreground font-light italic">"{rec.teacher_feedback}"</p>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground font-light">
+                      {new Date(rec.recorded_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

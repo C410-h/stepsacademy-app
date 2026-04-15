@@ -169,8 +169,8 @@ const Loja = () => {
 
         {/* ── Store items grid ─── */}
         {loading ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-44 rounded-xl" />)}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-44 rounded-xl" />)}
           </div>
         ) : filtered.length === 0 ? (
           <Card>
@@ -181,7 +181,7 @@ const Loja = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map(item => {
               const canAfford = gamification.coins >= item.coins_cost;
               return (

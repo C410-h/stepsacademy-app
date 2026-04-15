@@ -12,7 +12,7 @@ const items = [
 
 const BottomNav = () => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card px-1 pb-safe">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-card px-1 pb-safe">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {items.map(({ to, icon: Icon, label }) => (
           <NavLink
