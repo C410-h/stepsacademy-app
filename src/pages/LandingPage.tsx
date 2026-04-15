@@ -367,13 +367,6 @@ const LandingPage = () => {
               >
                 aula grátis
               </button>
-              <Link
-                to="/planos"
-                className="hidden sm:inline-flex items-center px-5 py-2 rounded-full text-[13px] font-bold border-none cursor-pointer transition-transform hover:scale-[1.04]"
-                style={{ background: "#C1FE00", color: "#1D1D1B" }}
-              >
-                matricular-se
-              </Link>
             </>
           )}
         </div>
@@ -470,13 +463,6 @@ const LandingPage = () => {
               >
                 como funciona
               </button>
-              <Link
-                to="/planos"
-                className="inline-flex items-center px-7 py-3 rounded-full text-sm font-bold transition-transform hover:scale-[1.03]"
-                style={{ background: "#C1FE00", color: "#1D1D1B" }}
-              >
-                quero me matricular
-              </Link>
             </div>
           </div>
 
@@ -746,13 +732,6 @@ const LandingPage = () => {
       {/* ─── FOOTER ─────────────────────────────────── */}
       <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
         <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-10" />
-        <Link
-          to="/planos"
-          className="inline-flex items-center px-8 py-3.5 rounded-full font-bold text-sm transition-transform hover:scale-[1.03]"
-          style={{ background: "#C1FE00", color: "#1D1D1B" }}
-        >
-          quero me matricular
-        </Link>
         <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
           © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
         </p>
