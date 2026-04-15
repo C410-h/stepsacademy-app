@@ -289,24 +289,24 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
     // Get completion status view
     const stepIds = stepsData.map(s => s.id);
-    const { data: statusData } = await supabase
+    const { data: statusData } = await (supabase as any)
       .from("step_completion_status")
       .select("step_id, has_slide, has_exercises, is_complete")
       .in("step_id", stepIds);
 
     // Get teacher submissions for these steps
-    const { data: submissionsData } = await supabase
+    const { data: submissionsData } = await (supabase as any)
       .from("content_submissions")
       .select("id, step_id, status, admin_comment")
       .eq("teacher_id", teacherId)
       .in("step_id", stepIds);
 
-    const statusMap = new Map((statusData || []).map(s => [s.step_id, s]));
-    const submissionMap = new Map((submissionsData || []).map(s => [s.step_id, s]));
+    const statusMap = new Map((statusData || []).map((s: any) => [s.step_id, s]));
+    const submissionMap = new Map((submissionsData || []).map((s: any) => [s.step_id, s]));
 
     const enriched: StepInfo[] = stepsData.map(s => {
-      const cs = statusMap.get(s.id);
-      const sub = submissionMap.get(s.id);
+      const cs: any = statusMap.get(s.id);
+      const sub: any = submissionMap.get(s.id);
       let status: StepInfo["status"] = "empty";
       if (cs?.is_complete) status = "complete";
       else if (cs?.has_slide || cs?.has_exercises) status = "partial";
@@ -336,13 +336,13 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
     if (step.submissionId) {
       // Load existing submission files
-      const { data: sfData } = await supabase
+      const { data: sfData } = await (supabase as any)
         .from("submission_files")
         .select("id, material_type, file_url, filename, status, exercises, ai_conversion_status")
         .eq("submission_id", step.submissionId);
 
       if (sfData) {
-        const loaded: FileEntry[] = sfData.map(sf => ({
+        const loaded: FileEntry[] = (sfData as any[]).map(sf => ({
           localId: sf.id,
           materialType: sf.material_type as FileEntry["materialType"],
           file: null,
