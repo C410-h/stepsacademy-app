@@ -73,6 +73,7 @@ self.addEventListener('fetch', event => {
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
+  console.log('[SW] push event received', event.data?.text());
   let data = {};
   try {
     data = event.data?.json() ?? {};
@@ -85,6 +86,10 @@ self.addEventListener('push', (event) => {
       icon: data.icon || '/icon-192.png',
       badge: data.badge || '/icon-192.png',
       data: { url: data.url || '/' },
+    }).then(() => {
+      console.log('[SW] showNotification ok');
+    }).catch(e => {
+      console.error('[SW] showNotification failed:', e);
     })
   );
 });
