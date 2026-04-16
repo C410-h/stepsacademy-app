@@ -583,7 +583,7 @@ const StepByStep = () => {
     setLoading(false);
     await Promise.all([
       loadOrCreateMission(student.id),
-      loadVocabulary(student.level_id),
+      loadVocabulary(student.language_id),
     ]);
   };
 
@@ -608,14 +608,27 @@ const StepByStep = () => {
     setMissionLoading(false);
   };
 
-  const loadVocabulary = async (lid: string | null) => {
-    if (!lid) { setGameState("no_vocab"); return; }
+  const loadVocabulary = async (languageId: string | null) => {
+    if (!languageId) { setGameState("no_vocab"); return; }
+
+    // Busca todos os level_ids do idioma do aluno
+    const { data: levels } = await db
+      .from("levels")
+      .select("id")
+      .eq("language_id", languageId);
+
+    const levelIds = (levels ?? []).map((l: { id: string }) => l.id);
+    if (!levelIds.length) { setGameState("no_vocab"); return; }
+
+    // Busca vocabulário de todos os níveis do idioma
     const { data: allWords } = await db
       .from("vocabulary")
       .select("id, word, translation, example_sentence, difficulty")
-      .eq("level_id", lid).eq("active", true);
+      .in("level_id", levelIds)
+      .eq("active", true);
+
     if (!allWords || allWords.length === 0) { setGameState("no_vocab"); return; }
-    // Shuffle
+
     const shuffled = [...allWords].sort(() => Math.random() - 0.5) as VocabWord[];
     setWords(shuffled);
     pickHangmanWord(shuffled);
