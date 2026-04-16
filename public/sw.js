@@ -73,7 +73,12 @@ self.addEventListener('fetch', event => {
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? {};
+  let data = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    data = { title: event.data?.text() || 'steps academy' };
+  }
   event.waitUntil(
     self.registration.showNotification(data.title || 'steps academy', {
       body: data.body || '',
