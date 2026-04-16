@@ -535,6 +535,220 @@ const FillBlankGame = ({
   );
 };
 
+// ─── Translation game (múltipla escolha) ─────────────────────────────────────
+const TranslationGame = ({
+  words, studentId, mission, onMissionUpdate, onSessionXp,
+}: {
+  words: VocabWord[];
+  studentId: string;
+  mission: DailyMission | null;
+  onMissionUpdate: (m: DailyMission) => void;
+  onSessionXp: (xp: number) => void;
+}) => {
+  const { gamification, refresh: refreshGamification } = useGamification();
+
+  const SESSION_SIZE = Math.min(10, words.length);
+
+  const buildSession = () =>
+    [...words].sort(() => Math.random() - 0.5).slice(0, SESSION_SIZE);
+
+  const buildOptions = (correct: VocabWord, all: VocabWord[]): string[] => {
+    const distractors = all
+      .filter(w => w.id !== correct.id && w.translation)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+      .map(w => w.translation!);
+    return [...distractors, correct.translation!]
+      .sort(() => Math.random() - 0.5);
+  };
+
+  const [session, setSession] = useState<VocabWord[]>(() => buildSession());
+  const [index, setIndex] = useState(0);
+  const [options, setOptions] = useState<string[]>(() => buildOptions(session[0], words));
+  const [selected, setSelected] = useState<string | null>(null);
+  const [results, setResults] = useState({ correct: 0, wrong: 0, xp: 0 });
+  const [done, setDone] = useState(false);
+
+  const current = session[index];
+  const answered = selected !== null;
+
+  const awardXp = useCallback(async (correct: boolean, w: VocabWord) => {
+    const xpGain = correct ? 12 : 2;
+    const coinsGain = correct ? 6 : 0;
+
+    await db.from("student_gamification").update({
+      xp_total: gamification.xp_total + xpGain,
+      coins: gamification.coins + coinsGain,
+      updated_at: new Date().toISOString(),
+    }).eq("student_id", studentId);
+
+    await db.from("xp_events").insert({
+      student_id: studentId,
+      event_type: "stepbystep",
+      xp: xpGain,
+      coins: coinsGain,
+      description: `Tradução ${correct ? "correta" : "errada"}: ${w.word}`,
+    });
+
+    await db.from("stepbystep_attempts").insert({
+      student_id: studentId,
+      vocabulary_id: w.id,
+      exercise_type: "translation",
+      correct,
+      xp_earned: xpGain,
+      mission_id: mission?.id ?? null,
+    });
+
+    onSessionXp(xpGain);
+
+    if (mission && !mission.completed) {
+      const newDone = mission.exercises_done + 1;
+      const nowComplete = newDone >= mission.exercises_total;
+      const missionUpdate: Record<string, unknown> = {
+        exercises_done: newDone,
+        xp_earned: (mission.xp_earned || 0) + xpGain,
+      };
+      if (nowComplete) {
+        missionUpdate.completed = true;
+        missionUpdate.completed_at = new Date().toISOString();
+        await db.from("xp_events").insert({
+          student_id: studentId, event_type: "daily_mission",
+          xp: 50, coins: 25, description: "Missão diária concluída! 🎯",
+        });
+        await db.from("student_gamification").update({
+          xp_total: gamification.xp_total + xpGain + 50,
+          coins: gamification.coins + coinsGain + 25,
+          updated_at: new Date().toISOString(),
+        }).eq("student_id", studentId);
+        onSessionXp(50);
+        missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + 50;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
+      }
+      await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
+      onMissionUpdate({
+        ...mission,
+        exercises_done: newDone,
+        completed: nowComplete || mission.completed,
+        xp_earned: (mission.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
+      });
+    }
+
+    await refreshGamification();
+  }, [gamification, studentId, mission, onMissionUpdate, onSessionXp, refreshGamification]);
+
+  const handleSelect = async (option: string) => {
+    if (answered) return;
+    setSelected(option);
+    const correct = option === current.translation;
+    setResults(prev => ({
+      correct: prev.correct + (correct ? 1 : 0),
+      wrong: prev.wrong + (correct ? 0 : 1),
+      xp: prev.xp + (correct ? 12 : 2),
+    }));
+    await awardXp(correct, current);
+  };
+
+  const handleNext = () => {
+    if (index + 1 >= SESSION_SIZE) {
+      setDone(true);
+      return;
+    }
+    const nextIndex = index + 1;
+    setIndex(nextIndex);
+    setOptions(buildOptions(session[nextIndex], words));
+    setSelected(null);
+  };
+
+  const handleRestart = () => {
+    const newSession = buildSession();
+    setSession(newSession);
+    setIndex(0);
+    setOptions(buildOptions(newSession[0], words));
+    setSelected(null);
+    setResults({ correct: 0, wrong: 0, xp: 0 });
+    setDone(false);
+  };
+
+  if (done) {
+    return (
+      <div className="space-y-4 py-2">
+        <div className="text-center space-y-1">
+          <p className="text-3xl">{results.correct >= SESSION_SIZE * 0.7 ? "🎉" : "💪"}</p>
+          <p className="font-bold">{results.correct}/{SESSION_SIZE} corretas</p>
+          <p className="text-xs text-muted-foreground font-light">+{results.xp} XP ganhos</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+            <p className="font-bold text-green-700">{results.correct}</p>
+            <p className="text-xs text-muted-foreground font-light">acertos</p>
+          </div>
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+            <p className="font-bold text-red-600">{results.wrong}</p>
+            <p className="text-xs text-muted-foreground font-light">erros</p>
+          </div>
+        </div>
+        <Button className="w-full font-bold" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }} onClick={handleRestart}>
+          Jogar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Progresso */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground font-light">
+        <span>{index + 1}/{SESSION_SIZE}</span>
+        <span>+{results.xp} XP</span>
+      </div>
+      <Progress value={((index + 1) / SESSION_SIZE) * 100} className="h-1.5" />
+
+      {/* Palavra */}
+      <div className="py-6 text-center">
+        <p className="text-3xl font-bold tracking-wide">{current.word}</p>
+        {current.example_sentence && answered && (
+          <p className="text-xs text-muted-foreground font-light italic mt-2">"{current.example_sentence}"</p>
+        )}
+      </div>
+
+      {/* Opções */}
+      <div className="grid grid-cols-1 gap-2">
+        {options.map(opt => {
+          const isCorrect = opt === current.translation;
+          const isSelected = opt === selected;
+          return (
+            <button
+              key={opt}
+              onClick={() => handleSelect(opt)}
+              disabled={answered}
+              className={cn(
+                "w-full p-3 rounded-xl border-2 text-sm font-bold text-left transition-all",
+                !answered && "border-border bg-card hover:border-primary hover:bg-primary/5",
+                answered && isCorrect && "border-green-500 bg-green-500/10 text-green-700",
+                answered && isSelected && !isCorrect && "border-red-400 bg-red-500/10 text-red-600",
+                answered && !isSelected && !isCorrect && "border-border bg-card opacity-50",
+              )}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Feedback + próxima */}
+      {answered && (
+        <Button
+          className="w-full font-bold"
+          style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+          onClick={handleNext}
+        >
+          {index + 1 >= SESSION_SIZE ? "Ver resultado →" : "Próxima →"}
+        </Button>
+      )}
+    </div>
+  );
+};
+
 // ─── Game mode tabs ───────────────────────────────────────────────────────────
 type GameMode = "hangman" | "translation" | "fillblank" | "matching" | "scramble" | "clock" | "survival";
 
@@ -906,8 +1120,19 @@ const StepByStep = () => {
                 />
               )}
 
-              {/* Novos modos — placeholder por enquanto */}
-              {(mode === "translation" || mode === "matching" || mode === "scramble" || mode === "clock" || mode === "survival") && (
+              {/* Translation */}
+              {mode === "translation" && studentId && (
+                <TranslationGame
+                  words={words}
+                  studentId={studentId}
+                  mission={mission}
+                  onMissionUpdate={setMission}
+                  onSessionXp={xp => setSessionXp(prev => prev + xp)}
+                />
+              )}
+
+              {/* Placeholder para os modos ainda não implementados */}
+              {(mode === "matching" || mode === "scramble" || mode === "clock" || mode === "survival") && (
                 <div className="py-12 text-center space-y-2">
                   <p className="text-3xl">{MODE_CONFIG.find(m => m.id === mode)?.emoji}</p>
                   <p className="font-bold text-sm">{MODE_CONFIG.find(m => m.id === mode)?.label}</p>
