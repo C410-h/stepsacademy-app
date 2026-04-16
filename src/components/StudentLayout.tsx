@@ -29,7 +29,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
         {/* Logo */}
         <div className="px-5 py-4 border-b">
           <Link to="/">
-            <img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-7 w-auto object-contain" />
+            <img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-10 w-auto object-contain -my-1.5" />
           </Link>
         </div>
 
@@ -84,7 +84,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
 
       {/* ── Mobile Top Header ───────────────────────────────────── */}
       <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-7 w-auto object-contain" /></Link>
+        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-10 w-auto object-contain -my-1.5" /></Link>
         <div className="flex items-center gap-2">
           <LanguageSwitcher />
           {gamification.studentId && (
