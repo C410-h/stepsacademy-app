@@ -1451,6 +1451,270 @@ const ClockGame = ({
   );
 };
 
+// ─── Survival game ────────────────────────────────────────────────────────────
+const SurvivalGame = ({
+  words, studentId, mission, onMissionUpdate, onSessionXp,
+}: {
+  words: VocabWord[];
+  studentId: string;
+  mission: DailyMission | null;
+  onMissionUpdate: (m: DailyMission) => void;
+  onSessionXp: (xp: number) => void;
+}) => {
+  const { gamification, refresh: refreshGamification } = useGamification();
+
+  const MAX_LIVES = 3;
+  const THRESHOLD = 5; // acertos para subir de dificuldade
+
+  const buildOptions = (correct: VocabWord, pool: VocabWord[]): string[] => {
+    const distractors = pool
+      .filter(w => w.id !== correct.id && w.translation)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+      .map(w => w.translation!);
+    return [...distractors, correct.translation!].sort(() => Math.random() - 0.5);
+  };
+
+  const pickWord = (difficulty: number, usedIds: Set<string>, all: VocabWord[]): VocabWord | null => {
+    const pool = all.filter(w => w.difficulty === difficulty && w.translation && !usedIds.has(w.id));
+    if (!pool.length) {
+      // fallback: qualquer palavra não usada
+      const fallback = all.filter(w => w.translation && !usedIds.has(w.id));
+      if (!fallback.length) return null;
+      return fallback[Math.floor(Math.random() * fallback.length)];
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
+  };
+
+  const [difficulty, setDifficulty] = useState(1);
+  const [streak, setStreak] = useState(0); // acertos na dificuldade atual
+  const [lives, setLives] = useState(MAX_LIVES);
+  const [score, setScore] = useState(0);
+  const [usedIds, setUsedIds] = useState<Set<string>>(new Set());
+  const [current, setCurrent] = useState<VocabWord | null>(() => pickWord(1, new Set(), words));
+  const [options, setOptions] = useState<string[]>(() =>
+    current ? buildOptions(current, words) : []
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const [gameOver, setGameOver] = useState(false);
+
+  const answered = selected !== null;
+
+  const awardXp = useCallback(async (correct: boolean, w: VocabWord, diff: number) => {
+    const xpMap: Record<number, number> = { 1: 8, 2: 12, 3: 18 };
+    const xpGain = correct ? (xpMap[diff] ?? 8) : 1;
+    const coinsGain = correct ? Math.floor(xpGain / 2) : 0;
+
+    await db.from("student_gamification").update({
+      xp_total: gamification.xp_total + xpGain,
+      coins: gamification.coins + coinsGain,
+      updated_at: new Date().toISOString(),
+    }).eq("student_id", studentId);
+
+    await db.from("xp_events").insert({
+      student_id: studentId, event_type: "stepbystep",
+      xp: xpGain, coins: coinsGain,
+      description: `Survival ${correct ? "correto" : "errado"} D${diff}: ${w.word}`,
+    });
+
+    await db.from("stepbystep_attempts").insert({
+      student_id: studentId, vocabulary_id: w.id,
+      exercise_type: "survival", correct, xp_earned: xpGain,
+      mission_id: mission?.id ?? null,
+    });
+
+    onSessionXp(xpGain);
+
+    if (mission && !mission.completed) {
+      const newDone = mission.exercises_done + 1;
+      const nowComplete = newDone >= mission.exercises_total;
+      const missionUpdate: Record<string, unknown> = {
+        exercises_done: newDone,
+        xp_earned: (mission.xp_earned || 0) + xpGain,
+      };
+      if (nowComplete) {
+        missionUpdate.completed = true;
+        missionUpdate.completed_at = new Date().toISOString();
+        await db.from("xp_events").insert({
+          student_id: studentId, event_type: "daily_mission",
+          xp: 50, coins: 25, description: "Missão diária concluída! 🎯",
+        });
+        await db.from("student_gamification").update({
+          xp_total: gamification.xp_total + xpGain + 50,
+          coins: gamification.coins + coinsGain + 25,
+          updated_at: new Date().toISOString(),
+        }).eq("student_id", studentId);
+        onSessionXp(50);
+        missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + 50;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
+      }
+      await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
+      onMissionUpdate({
+        ...mission, exercises_done: newDone,
+        completed: nowComplete || mission.completed,
+        xp_earned: (mission.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
+      });
+    }
+
+    await refreshGamification();
+    return xpGain;
+  }, [gamification, studentId, mission, onMissionUpdate, onSessionXp, refreshGamification]);
+
+  const handleSelect = async (option: string) => {
+    if (answered || !current) return;
+    setSelected(option);
+    const correct = option === current.translation;
+
+    await awardXp(correct, current, difficulty);
+
+    if (correct) {
+      const newStreak = streak + 1;
+      const newScore = score + 1;
+      setScore(newScore);
+
+      // Sobe dificuldade após THRESHOLD acertos, máximo difficulty 3
+      if (newStreak >= THRESHOLD && difficulty < 3) {
+        setDifficulty(prev => prev + 1);
+        setStreak(0);
+        toast({ title: `🔥 Nível ${difficulty + 1}!`, description: "Dificuldade aumentou!" });
+      } else {
+        setStreak(newStreak);
+      }
+    } else {
+      const newLives = lives - 1;
+      setLives(newLives);
+      if (newLives <= 0) {
+        setGameOver(true);
+        return;
+      }
+    }
+  };
+
+  const handleNext = () => {
+    if (!current) return;
+    const newUsed = new Set(usedIds).add(current.id);
+    setUsedIds(newUsed);
+    const next = pickWord(difficulty, newUsed, words);
+    if (!next) {
+      setGameOver(true);
+      return;
+    }
+    setCurrent(next);
+    setOptions(buildOptions(next, words));
+    setSelected(null);
+  };
+
+  const handleRestart = () => {
+    const startWord = pickWord(1, new Set(), words);
+    setDifficulty(1);
+    setStreak(0);
+    setLives(MAX_LIVES);
+    setScore(0);
+    setUsedIds(new Set());
+    setCurrent(startWord);
+    setOptions(startWord ? buildOptions(startWord, words) : []);
+    setSelected(null);
+    setGameOver(false);
+  };
+
+  if (gameOver) {
+    return (
+      <div className="space-y-4 py-2">
+        <div className="text-center space-y-1">
+          <p className="text-4xl">💀</p>
+          <p className="font-bold text-lg">{score} {score === 1 ? "acerto" : "acertos"}</p>
+          <p className="text-xs text-muted-foreground font-light">
+            {score >= 15 ? "Lendário! 🏆" : score >= 10 ? "Muito bom! 🔥" : score >= 5 ? "Bom progresso! 💪" : "Continue tentando!"}
+          </p>
+          {difficulty > 1 && (
+            <p className="text-xs text-muted-foreground font-light">
+              Chegou até a dificuldade {difficulty === 3 ? "máxima 🎯" : difficulty}
+            </p>
+          )}
+        </div>
+        <Button className="w-full font-bold" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }} onClick={handleRestart}>
+          Jogar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  if (!current) return null;
+
+  const diffLabel: Record<number, string> = { 1: "A1–A2", 2: "B1", 3: "B2" };
+
+  return (
+    <div className="space-y-4">
+      {/* Header: vidas + score + dificuldade */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          {Array.from({ length: MAX_LIVES }).map((_, i) => (
+            <span key={i} className={cn("text-xl transition-all", i < lives ? "opacity-100" : "opacity-20")}>
+              ❤️
+            </span>
+          ))}
+        </div>
+        <div className="text-center">
+          <p className="text-lg font-bold">{score}</p>
+          <p className="text-xs text-muted-foreground font-light">acertos</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-bold">{diffLabel[difficulty]}</p>
+          <p className="text-xs text-muted-foreground font-light">{streak}/{THRESHOLD} para subir</p>
+        </div>
+      </div>
+
+      {/* Barra de progresso para próximo nível */}
+      {difficulty < 3 && (
+        <Progress value={(streak / THRESHOLD) * 100} className="h-1.5" />
+      )}
+
+      {/* Palavra */}
+      <div className="py-6 text-center">
+        <p className="text-3xl font-bold tracking-wide">{current.word}</p>
+        {current.example_sentence && answered && (
+          <p className="text-xs text-muted-foreground font-light italic mt-2">"{current.example_sentence}"</p>
+        )}
+      </div>
+
+      {/* Opções */}
+      <div className="grid grid-cols-1 gap-2">
+        {options.map(opt => {
+          const isCorrect = opt === current.translation;
+          const isSelected = opt === selected;
+          return (
+            <button
+              key={opt}
+              onClick={() => handleSelect(opt)}
+              disabled={answered}
+              className={cn(
+                "w-full p-3 rounded-xl border-2 text-sm font-bold text-left transition-all",
+                !answered && "border-border bg-card hover:border-primary hover:bg-primary/5",
+                answered && isCorrect && "border-green-500 bg-green-500/10 text-green-700",
+                answered && isSelected && !isCorrect && "border-red-400 bg-red-500/10 text-red-600",
+                answered && !isSelected && !isCorrect && "border-border bg-card opacity-40",
+              )}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Próxima */}
+      {answered && !gameOver && (
+        <Button
+          className="w-full font-bold"
+          style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+          onClick={handleNext}
+        >
+          Próxima →
+        </Button>
+      )}
+    </div>
+  );
+};
+
 // ─── Game mode tabs ───────────────────────────────────────────────────────────
 type GameMode = "hangman" | "translation" | "fillblank" | "matching" | "scramble" | "clock" | "survival";
 
@@ -1866,13 +2130,15 @@ const StepByStep = () => {
                 />
               )}
 
-              {/* Placeholder Survival */}
-              {mode === "survival" && (
-                <div className="py-12 text-center space-y-2">
-                  <p className="text-3xl">💀</p>
-                  <p className="font-bold text-sm">Survival</p>
-                  <p className="text-xs text-muted-foreground font-light">Em breve!</p>
-                </div>
+              {/* Survival */}
+              {mode === "survival" && studentId && (
+                <SurvivalGame
+                  words={words}
+                  studentId={studentId}
+                  mission={mission}
+                  onMissionUpdate={setMission}
+                  onSessionXp={xp => setSessionXp(prev => prev + xp)}
+                />
               )}
 
             </CardContent>
