@@ -318,6 +318,16 @@ const FillBlankGame = ({
   );
 };
 
+// ─── Distractor loader ───────────────────────────────────────────────────────
+const fetchDistractors = async (vocabularyId: string): Promise<string[]> => {
+  const { data } = await db
+    .from("vocabulary_distractors")
+    .select("distractor")
+    .eq("vocabulary_id", vocabularyId)
+    .limit(3);
+  return (data ?? []).map((d: { distractor: string }) => d.distractor);
+};
+
 // ─── Translation game (múltipla escolha) ─────────────────────────────────────
 const TranslationGame = ({
   words, studentId, mission, onMissionUpdate, onSessionXp,
@@ -335,19 +345,30 @@ const TranslationGame = ({
   const buildSession = () =>
     [...words].sort(() => Math.random() - 0.5).slice(0, SESSION_SIZE);
 
-  const buildOptions = (correct: VocabWord, all: VocabWord[]): string[] => {
-    const distractors = all
-      .filter(w => w.id !== correct.id && w.translation)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map(w => w.translation!);
-    return [...distractors, correct.translation!]
-      .sort(() => Math.random() - 0.5);
+  const buildOptions = async (correct: VocabWord, all: VocabWord[]): Promise<string[]> => {
+    const linked = await fetchDistractors(correct.id);
+    let distractors: string[];
+    if (linked.length >= 3) {
+      distractors = linked.slice(0, 3);
+    } else {
+      const needed = 3 - linked.length;
+      const random = all
+        .filter(w => w.id !== correct.id && w.translation && !linked.includes(w.translation!))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, needed)
+        .map(w => w.translation!);
+      distractors = [...linked, ...random];
+    }
+    return [...distractors, correct.translation!].sort(() => Math.random() - 0.5);
   };
 
   const [session, setSession] = useState<VocabWord[]>(() => buildSession());
   const [index, setIndex] = useState(0);
-  const [options, setOptions] = useState<string[]>(() => buildOptions(session[0], words));
+  const [options, setOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    buildOptions(session[0], words).then(setOptions);
+  }, []);
   const [selected, setSelected] = useState<string | null>(null);
   const [results, setResults] = useState({ correct: 0, wrong: 0, xp: 0 });
   const [done, setDone] = useState(false);
@@ -431,22 +452,22 @@ const TranslationGame = ({
     await awardXp(correct, current);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (index + 1 >= SESSION_SIZE) {
       setDone(true);
       return;
     }
     const nextIndex = index + 1;
     setIndex(nextIndex);
-    setOptions(buildOptions(session[nextIndex], words));
+    setOptions(await buildOptions(session[nextIndex], words));
     setSelected(null);
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     const newSession = buildSession();
     setSession(newSession);
     setIndex(0);
-    setOptions(buildOptions(newSession[0], words));
+    setOptions(await buildOptions(newSession[0], words));
     setSelected(null);
     setResults({ correct: 0, wrong: 0, xp: 0 });
     setDone(false);
@@ -1001,12 +1022,20 @@ const ClockGame = ({
   const SESSION_SIZE = Math.min(10, words.filter(w => w.translation).length);
   const TIME_PER_WORD = 10;
 
-  const buildOptions = (correct: VocabWord, all: VocabWord[]): string[] => {
-    const distractors = all
-      .filter(w => w.id !== correct.id && w.translation)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map(w => w.translation!);
+  const buildOptions = async (correct: VocabWord, all: VocabWord[]): Promise<string[]> => {
+    const linked = await fetchDistractors(correct.id);
+    let distractors: string[];
+    if (linked.length >= 3) {
+      distractors = linked.slice(0, 3);
+    } else {
+      const needed = 3 - linked.length;
+      const random = all
+        .filter(w => w.id !== correct.id && w.translation && !linked.includes(w.translation!))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, needed)
+        .map(w => w.translation!);
+      distractors = [...linked, ...random];
+    }
     return [...distractors, correct.translation!].sort(() => Math.random() - 0.5);
   };
 
@@ -1015,7 +1044,11 @@ const ClockGame = ({
 
   const [session] = useState<VocabWord[]>(() => buildSession());
   const [index, setIndex] = useState(0);
-  const [options, setOptions] = useState<string[]>(() => buildOptions(session[0], words));
+  const [options, setOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    buildOptions(session[0], words).then(setOptions);
+  }, []);
   const [timeLeft, setTimeLeft] = useState(TIME_PER_WORD);
   const [selected, setSelected] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
@@ -1110,22 +1143,22 @@ const ClockGame = ({
     await awardXp(correct, current);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (index + 1 >= SESSION_SIZE) {
       setDone(true);
       return;
     }
     const nextIndex = index + 1;
     setIndex(nextIndex);
-    setOptions(buildOptions(session[nextIndex], words));
+    setOptions(await buildOptions(session[nextIndex], words));
     setSelected(null);
     setTimedOut(false);
     setTimeLeft(TIME_PER_WORD);
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     setIndex(0);
-    setOptions(buildOptions(session[0], words));
+    setOptions(await buildOptions(session[0], words));
     setSelected(null);
     setTimedOut(false);
     setTimeLeft(TIME_PER_WORD);
@@ -1249,12 +1282,20 @@ const SurvivalGame = ({
   const MAX_LIVES = 3;
   const THRESHOLD = 5; // acertos para subir de dificuldade
 
-  const buildOptions = (correct: VocabWord, pool: VocabWord[]): string[] => {
-    const distractors = pool
-      .filter(w => w.id !== correct.id && w.translation)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map(w => w.translation!);
+  const buildOptions = async (correct: VocabWord, pool: VocabWord[]): Promise<string[]> => {
+    const linked = await fetchDistractors(correct.id);
+    let distractors: string[];
+    if (linked.length >= 3) {
+      distractors = linked.slice(0, 3);
+    } else {
+      const needed = 3 - linked.length;
+      const random = pool
+        .filter(w => w.id !== correct.id && w.translation && !linked.includes(w.translation!))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, needed)
+        .map(w => w.translation!);
+      distractors = [...linked, ...random];
+    }
     return [...distractors, correct.translation!].sort(() => Math.random() - 0.5);
   };
 
@@ -1275,9 +1316,11 @@ const SurvivalGame = ({
   const [score, setScore] = useState(0);
   const [usedIds, setUsedIds] = useState<Set<string>>(new Set());
   const [current, setCurrent] = useState<VocabWord | null>(() => pickWord(1, new Set(), words));
-  const [options, setOptions] = useState<string[]>(() =>
-    current ? buildOptions(current, words) : []
-  );
+  const [options, setOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (current) buildOptions(current, words).then(setOptions);
+  }, []);
   const [selected, setSelected] = useState<string | null>(null);
   const [gameOver, setGameOver] = useState(false);
 
@@ -1373,7 +1416,7 @@ const SurvivalGame = ({
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!current) return;
     const newUsed = new Set(usedIds).add(current.id);
     setUsedIds(newUsed);
@@ -1383,11 +1426,11 @@ const SurvivalGame = ({
       return;
     }
     setCurrent(next);
-    setOptions(buildOptions(next, words));
+    setOptions(await buildOptions(next, words));
     setSelected(null);
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     const startWord = pickWord(1, new Set(), words);
     setDifficulty(1);
     setStreak(0);
@@ -1395,7 +1438,7 @@ const SurvivalGame = ({
     setScore(0);
     setUsedIds(new Set());
     setCurrent(startWord);
-    setOptions(startWord ? buildOptions(startWord, words) : []);
+    setOptions(startWord ? await buildOptions(startWord, words) : []);
     setSelected(null);
     setGameOver(false);
   };
