@@ -165,6 +165,12 @@ const Admin = () => {
   const [personalMatNote, setPersonalMatNote] = useState("");
   const [addingPersonalMat, setAddingPersonalMat] = useState(false);
 
+  // ── Add language enrollment
+  const [showAddEnrollment, setShowAddEnrollment] = useState(false);
+  const [enrollLangId, setEnrollLangId] = useState("");
+  const [enrollLevelId, setEnrollLevelId] = useState("");
+  const [addingEnrollment, setAddingEnrollment] = useState(false);
+
   // ── Dashboard tab
   const [metrics, setMetrics] = useState<DashMetrics | null>(null);
   const [engagement, setEngagement] = useState<EngagementMetrics | null>(null);
@@ -477,6 +483,27 @@ const Admin = () => {
       .eq("student_id", studentId)
       .order("issued_at", { ascending: false });
     setDrawerCerts(data || []);
+  };
+
+  const handleAddEnrollment = async () => {
+    if (!selectedStudent || !enrollLangId) return;
+    setAddingEnrollment(true);
+    try {
+      const { error } = await supabase.from("student_enrollments" as any).insert({
+        student_id: selectedStudent.id,
+        language_id: enrollLangId,
+        level_id: enrollLevelId || null,
+        status: "active",
+      });
+      if (error) throw error;
+      toast({ title: "Idioma adicionado!", description: "O aluno agora tem acesso a este idioma." });
+      setShowAddEnrollment(false);
+      setEnrollLangId("");
+      setEnrollLevelId("");
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível adicionar o idioma.", variant: "destructive" });
+    }
+    setAddingEnrollment(false);
   };
 
   const issueManualCert = async (studentId?: string) => {
@@ -1443,7 +1470,7 @@ const Admin = () => {
             )}
 
             {/* Student Drawer */}
-            <Sheet open={studentDrawerOpen} onOpenChange={setStudentDrawerOpen}>
+            <Sheet open={studentDrawerOpen} onOpenChange={v => { setStudentDrawerOpen(v); if (!v) { setShowAddEnrollment(false); setEnrollLangId(""); setEnrollLevelId(""); } }}>
               <SheetContent className="w-full sm:max-w-lg lg:max-w-2xl overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>{selectedStudent?.profile?.name || "Aluno"}</SheetTitle>
@@ -1561,6 +1588,65 @@ const Admin = () => {
                         </CardContent>
                       </Card>
                     )}
+                    {/* Adicionar idioma */}
+                    <div className="space-y-3 pt-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Idiomas matriculados</p>
+                      {!showAddEnrollment ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs gap-1.5"
+                          onClick={() => setShowAddEnrollment(true)}
+                        >
+                          <Globe className="h-3.5 w-3.5" />
+                          Adicionar idioma
+                        </Button>
+                      ) : (
+                        <div className="space-y-2 p-2 rounded-lg border bg-muted/30">
+                          <Select value={enrollLangId} onValueChange={v => { setEnrollLangId(v); setEnrollLevelId(""); }}>
+                            <SelectTrigger className="text-xs h-8">
+                              <SelectValue placeholder="Selecionar idioma…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {languages.map(l => (
+                                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {enrollLangId && (
+                            <Select value={enrollLevelId} onValueChange={setEnrollLevelId}>
+                              <SelectTrigger className="text-xs h-8">
+                                <SelectValue placeholder="Selecionar nível (opcional)…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {levels.filter(l => l.language_id === enrollLangId).map(l => (
+                                  <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 text-xs"
+                              disabled={!enrollLangId || addingEnrollment}
+                              onClick={handleAddEnrollment}
+                            >
+                              {addingEnrollment ? "Adicionando…" : "Adicionar"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs"
+                              onClick={() => { setShowAddEnrollment(false); setEnrollLangId(""); setEnrollLevelId(""); }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Certificados do aluno */}
                     <div className="space-y-3 pt-2">
                       <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Certificados</p>

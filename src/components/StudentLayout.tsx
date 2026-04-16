@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Zap, Home, GraduationCap, BarChart3, CircleHelp } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const navItems = [
   { to: "/", icon: Home, label: "Início" },
@@ -55,7 +56,8 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
         </nav>
 
         {/* User card at bottom */}
-        <div className="p-3 border-t">
+        <div className="p-3 border-t space-y-2">
+          <LanguageSwitcher />
           <Link
             to="/perfil"
             className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
@@ -79,10 +81,12 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
         </div>
       </aside>
 
+
       {/* ── Mobile Top Header ───────────────────────────────────── */}
       <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
         <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32" /></Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           {gamification.studentId && (
             <div className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 12%, transparent)" }}>
               <Zap className="h-3.5 w-3.5" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
