@@ -13,6 +13,12 @@ import { toast } from "@/hooks/use-toast";
 import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import {
+  isPushSupported,
+  isPushSubscribed,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/pushNotifications";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -190,7 +196,10 @@ const Perfil = () => {
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [notifications, setNotifications] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushSupported] = useState(() => isPushSupported());
+  const [pushDenied, setPushDenied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -200,6 +209,36 @@ const Perfil = () => {
     if (!authProfile) return;
     loadAll();
   }, [authProfile]);
+
+  // Check current push subscription state
+  useEffect(() => {
+    if (!pushSupported) return;
+    isPushSubscribed().then(setPushEnabled);
+    if (Notification.permission === "denied") setPushDenied(true);
+  }, [pushSupported]);
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (pushLoading) return;
+    setPushLoading(true);
+    if (enabled) {
+      const success = await subscribeToPush(student?.id ?? "");
+      if (success) {
+        setPushEnabled(true);
+        toast({ title: "Notificações ativadas!", description: "Você receberá alertas deste dispositivo." });
+      } else {
+        const denied = Notification.permission === "denied";
+        setPushDenied(denied);
+        if (!denied) toast({ title: "Não foi possível ativar", description: "Tente novamente.", variant: "destructive" });
+      }
+    } else {
+      const success = await unsubscribeFromPush();
+      if (success) {
+        setPushEnabled(false);
+        toast({ title: "Notificações desativadas." });
+      }
+    }
+    setPushLoading(false);
+  };
 
   const loadAll = async () => {
     if (!authProfile) return;
@@ -702,17 +741,32 @@ const Perfil = () => {
           <CardContent className="pt-5 pb-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="notif-toggle" className="text-sm font-medium cursor-pointer">
-                Receber notificações
+                Notificações push
               </Label>
               <Switch
                 id="notif-toggle"
-                checked={notifications}
-                onCheckedChange={setNotifications}
+                checked={pushEnabled}
+                disabled={!pushSupported || pushDenied || pushLoading}
+                onCheckedChange={handlePushToggle}
               />
             </div>
-            <p className="text-xs text-muted-foreground font-light">
-              Integração com notificações push em breve.
-            </p>
+            {!pushSupported && (
+              <p className="text-xs text-muted-foreground font-light">
+                Seu navegador não suporta notificações.
+              </p>
+            )}
+            {pushSupported && pushDenied && (
+              <p className="text-xs text-destructive font-light">
+                Permissão negada. Ative nas configurações do navegador.
+              </p>
+            )}
+            {pushSupported && !pushDenied && (
+              <p className="text-xs text-muted-foreground font-light">
+                {pushEnabled
+                  ? "Notificações ativas neste dispositivo."
+                  : "Receba alertas de aulas e missões diárias."}
+              </p>
+            )}
           </CardContent>
         </Card>
 

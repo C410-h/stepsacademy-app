@@ -70,6 +70,27 @@ self.addEventListener('fetch', event => {
   );
 });
 
+// ─── Push Notifications ───────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() ?? {};
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'steps academy', {
+      body: data.body || '',
+      icon: data.icon || '/icon-192.png',
+      badge: data.badge || '/icon-192.png',
+      data: { url: data.url || '/' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow(event.notification.data.url));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function offlinePage() {
   return new Response(
     `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">

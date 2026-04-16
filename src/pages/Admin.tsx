@@ -266,6 +266,14 @@ const Admin = () => {
   const [notifSettings, setNotifSettings] = useState<any[]>([]);
   const [notifLog, setNotifLog] = useState<any[]>([]);
   const [notifLoading, setNotifLoading] = useState(true);
+
+  // ── Manual push notification modal
+  const [pushModalOpen, setPushModalOpen] = useState(false);
+  const [pushStudentId, setPushStudentId] = useState("all");
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
+  const [pushUrl, setPushUrl] = useState("/");
+  const [sendingPush, setSendingPush] = useState(false);
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
 
   // ── Active tab (controlled, needed for desktop sidebar)
@@ -983,6 +991,40 @@ const Admin = () => {
     toast({ title: "Configuração salva!" });
     setSavingNotif(null);
     loadNotificationSettings();
+  };
+
+  const handleSendPush = async () => {
+    if (!pushTitle.trim() || !pushBody.trim()) return;
+    setSendingPush(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        "https://wxiwldjgxkjqdjlxgmgj.supabase.co/functions/v1/send-push-notification",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            student_id: pushStudentId === "all" ? undefined : pushStudentId,
+            title: pushTitle,
+            body: pushBody,
+            url: pushUrl || "/",
+          }),
+        }
+      );
+      if (!res.ok) throw new Error(await res.text());
+      toast({ title: "Notificação enviada!", description: pushStudentId === "all" ? "Enviada para todos os alunos." : "Enviada para o aluno selecionado." });
+      setPushModalOpen(false);
+      setPushTitle("");
+      setPushBody("");
+      setPushUrl("/");
+      setPushStudentId("all");
+    } catch (e: any) {
+      toast({ title: "Erro ao enviar", description: e?.message ?? "Tente novamente.", variant: "destructive" });
+    }
+    setSendingPush(false);
   };
 
   const handleExportCSV = () => {
@@ -2314,7 +2356,73 @@ const Admin = () => {
 
           {/* ── Tab: Notificações ─────────────────────────────────────────────── */}
           <TabsContent value="notifications" className="space-y-4">
-            <p className="text-sm font-medium text-muted-foreground">Configurações de notificações push</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Configurações de notificações push</p>
+              <Button size="sm" className="gap-1.5" onClick={() => setPushModalOpen(true)}>
+                <Bell className="h-3.5 w-3.5" />
+                Enviar notificação
+              </Button>
+            </div>
+
+            {/* ── Manual push modal ── */}
+            <Dialog open={pushModalOpen} onOpenChange={v => { setPushModalOpen(v); if (!v) { setPushTitle(""); setPushBody(""); setPushUrl("/"); setPushStudentId("all"); } }}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Enviar notificação push</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Destinatário</Label>
+                    <Select value={pushStudentId} onValueChange={setPushStudentId}>
+                      <SelectTrigger className="text-sm">
+                        <SelectValue placeholder="Selecionar aluno…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">📢 Todos os alunos</SelectItem>
+                        {students.filter(s => s.status === "active").map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.profile?.name || "—"}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Título</Label>
+                    <Input
+                      value={pushTitle}
+                      onChange={e => setPushTitle(e.target.value)}
+                      placeholder="steps academy"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Mensagem</Label>
+                    <Textarea
+                      value={pushBody}
+                      onChange={e => setPushBody(e.target.value)}
+                      placeholder="Sua aula está disponível!"
+                      className="text-sm resize-none"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">URL de destino (opcional)</Label>
+                    <Input
+                      value={pushUrl}
+                      onChange={e => setPushUrl(e.target.value)}
+                      placeholder="/"
+                      className="text-sm"
+                    />
+                  </div>
+                  <Button
+                    className="w-full font-bold"
+                    disabled={!pushTitle.trim() || !pushBody.trim() || sendingPush}
+                    onClick={handleSendPush}
+                  >
+                    {sendingPush ? "Enviando…" : "Enviar notificação"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {notifLoading ? (
               <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}</div>
