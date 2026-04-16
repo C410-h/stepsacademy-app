@@ -749,6 +749,216 @@ const TranslationGame = ({
   );
 };
 
+// ─── Matching game (pares) ────────────────────────────────────────────────────
+type MatchCard = { id: string; text: string; side: "word" | "translation"; wordId: string; matched: boolean };
+
+const MatchingGame = ({
+  words, studentId, mission, onMissionUpdate, onSessionXp,
+}: {
+  words: VocabWord[];
+  studentId: string;
+  mission: DailyMission | null;
+  onMissionUpdate: (m: DailyMission) => void;
+  onSessionXp: (xp: number) => void;
+}) => {
+  const { gamification, refresh: refreshGamification } = useGamification();
+
+  const PAIRS = 6;
+
+  const buildSession = () => {
+    const pool = words.filter(w => w.translation).sort(() => Math.random() - 0.5).slice(0, PAIRS);
+    const wordCards: MatchCard[] = pool.map(w => ({
+      id: `w-${w.id}`, text: w.word, side: "word", wordId: w.id, matched: false,
+    }));
+    const translationCards: MatchCard[] = pool
+      .sort(() => Math.random() - 0.5)
+      .map(w => ({
+        id: `t-${w.id}`, text: w.translation!, side: "translation", wordId: w.id, matched: false,
+      }));
+    return { wordCards, translationCards, pool };
+  };
+
+  const [session, setSession] = useState(() => buildSession());
+  const [leftCards, setLeftCards] = useState<MatchCard[]>(session.wordCards);
+  const [rightCards, setRightCards] = useState<MatchCard[]>(session.translationCards);
+  const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
+  const [selectedRight, setSelectedRight] = useState<string | null>(null);
+  const [wrongPair, setWrongPair] = useState<[string, string] | null>(null);
+  const [results, setResults] = useState({ correct: 0, wrong: 0, xp: 0 });
+  const [done, setDone] = useState(false);
+
+  const matchedCount = leftCards.filter(c => c.matched).length;
+
+  const awardXp = useCallback(async (correct: boolean, wordId: string) => {
+    const xpGain = correct ? 10 : 1;
+    const coinsGain = correct ? 5 : 0;
+    const w = session.pool.find(p => p.id === wordId);
+
+    await db.from("student_gamification").update({
+      xp_total: gamification.xp_total + xpGain,
+      coins: gamification.coins + coinsGain,
+      updated_at: new Date().toISOString(),
+    }).eq("student_id", studentId);
+
+    await db.from("xp_events").insert({
+      student_id: studentId, event_type: "stepbystep",
+      xp: xpGain, coins: coinsGain,
+      description: `Pares ${correct ? "correto" : "errado"}: ${w?.word ?? ""}`,
+    });
+
+    await db.from("stepbystep_attempts").insert({
+      student_id: studentId, vocabulary_id: wordId,
+      exercise_type: "matching", correct, xp_earned: xpGain,
+      mission_id: mission?.id ?? null,
+    });
+
+    onSessionXp(xpGain);
+
+    if (mission && !mission.completed) {
+      const newDone = mission.exercises_done + 1;
+      const nowComplete = newDone >= mission.exercises_total;
+      const missionUpdate: Record<string, unknown> = {
+        exercises_done: newDone,
+        xp_earned: (mission.xp_earned || 0) + xpGain,
+      };
+      if (nowComplete) {
+        missionUpdate.completed = true;
+        missionUpdate.completed_at = new Date().toISOString();
+        await db.from("xp_events").insert({
+          student_id: studentId, event_type: "daily_mission",
+          xp: 50, coins: 25, description: "Missão diária concluída! 🎯",
+        });
+        await db.from("student_gamification").update({
+          xp_total: gamification.xp_total + xpGain + 50,
+          coins: gamification.coins + coinsGain + 25,
+          updated_at: new Date().toISOString(),
+        }).eq("student_id", studentId);
+        onSessionXp(50);
+        missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + 50;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
+      }
+      await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
+      onMissionUpdate({
+        ...mission, exercises_done: newDone,
+        completed: nowComplete || mission.completed,
+        xp_earned: (mission.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
+      });
+    }
+
+    await refreshGamification();
+  }, [session, gamification, studentId, mission, onMissionUpdate, onSessionXp, refreshGamification]);
+
+  useEffect(() => {
+    if (!selectedLeft || !selectedRight) return;
+
+    const leftCard = leftCards.find(c => c.id === selectedLeft)!;
+    const rightCard = rightCards.find(c => c.id === selectedRight)!;
+    const correct = leftCard.wordId === rightCard.wordId;
+
+    if (correct) {
+      setLeftCards(prev => prev.map(c => c.id === selectedLeft ? { ...c, matched: true } : c));
+      setRightCards(prev => prev.map(c => c.id === selectedRight ? { ...c, matched: true } : c));
+      setResults(prev => ({ correct: prev.correct + 1, wrong: prev.wrong, xp: prev.xp + 10 }));
+      awardXp(true, leftCard.wordId);
+      setSelectedLeft(null);
+      setSelectedRight(null);
+
+      if (matchedCount + 1 >= PAIRS) {
+        setTimeout(() => setDone(true), 400);
+      }
+    } else {
+      setWrongPair([selectedLeft, selectedRight]);
+      setResults(prev => ({ correct: prev.correct, wrong: prev.wrong + 1, xp: prev.xp + 1 }));
+      awardXp(false, leftCard.wordId);
+      setTimeout(() => {
+        setSelectedLeft(null);
+        setSelectedRight(null);
+        setWrongPair(null);
+      }, 700);
+    }
+  }, [selectedLeft, selectedRight]);
+
+  const handleRestart = () => {
+    const s = buildSession();
+    setSession(s);
+    setLeftCards(s.wordCards);
+    setRightCards(s.translationCards);
+    setSelectedLeft(null);
+    setSelectedRight(null);
+    setWrongPair(null);
+    setResults({ correct: 0, wrong: 0, xp: 0 });
+    setDone(false);
+  };
+
+  if (done) {
+    return (
+      <div className="space-y-4 py-2">
+        <div className="text-center space-y-1">
+          <p className="text-3xl">🎉</p>
+          <p className="font-bold">Todos os pares encontrados!</p>
+          <p className="text-xs text-muted-foreground font-light">
+            {results.wrong === 0 ? "Perfeito — zero erros!" : `${results.wrong} erro${results.wrong > 1 ? "s" : ""} no caminho`}
+          </p>
+          <p className="text-xs text-muted-foreground font-light">+{results.xp} XP ganhos</p>
+        </div>
+        <Button className="w-full font-bold" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }} onClick={handleRestart}>
+          Jogar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  const cardClass = (card: MatchCard, side: "left" | "right") => {
+    const selectedId = side === "left" ? selectedLeft : selectedRight;
+    const isSelected = card.id === selectedId;
+    const isWrong = wrongPair && (wrongPair[0] === card.id || wrongPair[1] === card.id);
+    return cn(
+      "w-full p-3 rounded-xl border-2 text-xs font-bold text-center transition-all",
+      card.matched && "border-green-500 bg-green-500/10 text-green-700 opacity-50 cursor-default",
+      !card.matched && !isSelected && !isWrong && "border-border bg-card hover:border-primary hover:bg-primary/5 cursor-pointer",
+      !card.matched && isSelected && !isWrong && "border-primary bg-primary/10 text-primary",
+      isWrong && "border-red-400 bg-red-500/10 text-red-600",
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-xs text-muted-foreground font-light">
+        <span>{matchedCount}/{PAIRS} pares</span>
+        <span>+{results.xp} XP</span>
+      </div>
+      <Progress value={(matchedCount / PAIRS) * 100} className="h-1.5" />
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
+          {leftCards.map(card => (
+            <button
+              key={card.id}
+              disabled={card.matched || !!wrongPair}
+              onClick={() => !card.matched && setSelectedLeft(prev => prev === card.id ? null : card.id)}
+              className={cardClass(card, "left")}
+            >
+              {card.text}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-2">
+          {rightCards.map(card => (
+            <button
+              key={card.id}
+              disabled={card.matched || !!wrongPair}
+              onClick={() => !card.matched && setSelectedRight(prev => prev === card.id ? null : card.id)}
+              className={cardClass(card, "right")}
+            >
+              {card.text}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Game mode tabs ───────────────────────────────────────────────────────────
 type GameMode = "hangman" | "translation" | "fillblank" | "matching" | "scramble" | "clock" | "survival";
 
@@ -1131,8 +1341,19 @@ const StepByStep = () => {
                 />
               )}
 
+              {/* Matching */}
+              {mode === "matching" && studentId && (
+                <MatchingGame
+                  words={words}
+                  studentId={studentId}
+                  mission={mission}
+                  onMissionUpdate={setMission}
+                  onSessionXp={xp => setSessionXp(prev => prev + xp)}
+                />
+              )}
+
               {/* Placeholder para os modos ainda não implementados */}
-              {(mode === "matching" || mode === "scramble" || mode === "clock" || mode === "survival") && (
+              {(mode === "scramble" || mode === "clock" || mode === "survival") && (
                 <div className="py-12 text-center space-y-2">
                   <p className="text-3xl">{MODE_CONFIG.find(m => m.id === mode)?.emoji}</p>
                   <p className="font-bold text-sm">{MODE_CONFIG.find(m => m.id === mode)?.label}</p>
