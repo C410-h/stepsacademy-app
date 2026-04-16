@@ -562,6 +562,7 @@ const StepByStep = () => {
   const [errors, setErrors] = useState(0);
   const [gameState, setGameState] = useState<"playing" | "won" | "lost" | "no_vocab">("playing");
   const [celebrateWin, setCelebrateWin] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
 
   const [sessionXp, setSessionXp] = useState(0);
   const [mode, setMode] = useState<GameMode>("hangman");
@@ -645,6 +646,7 @@ const StepByStep = () => {
     setErrors(0);
     setGameState("playing");
     setCelebrateWin(false);
+    setHintsUsed(0);
   };
 
   const wordLetters = word ? new Set(word.word.toUpperCase().split("").filter(c => /[A-Z]/.test(c))) : new Set<string>();
@@ -824,6 +826,46 @@ const StepByStep = () => {
                         <p className="text-xs text-muted-foreground font-light mt-1">+3 XP por tentar</p>
                       </div>
                       {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
+                    </div>
+                  )}
+                  {/* Hints */}
+                  {isPlaying && (
+                    <div className="space-y-2">
+                      {/* Hint 1: translation */}
+                      {hintsUsed >= 1 && word?.translation && (
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
+                          <span>💡</span>
+                          <span>Tradução: <span className="font-bold text-foreground">{word.translation}</span></span>
+                        </div>
+                      )}
+                      {/* Hint 2: example sentence */}
+                      {hintsUsed >= 2 && word?.example_sentence && (
+                        <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
+                          <span className="shrink-0">💡</span>
+                          <span className="italic">"{word.example_sentence}"</span>
+                        </div>
+                      )}
+                      {/* Hint button */}
+                      {(() => {
+                        const maxHints = word?.example_sentence ? 2 : (word?.translation ? 1 : 0);
+                        const canHint = hintsUsed < maxHints && errors < MAX_ERRORS - 1;
+                        if (maxHints === 0) return null;
+                        return (
+                          <button
+                            onClick={() => {
+                              if (!canHint) return;
+                              setErrors(e => e + 1);
+                              setHintsUsed(h => h + 1);
+                            }}
+                            disabled={!canHint}
+                            className="w-full text-xs text-muted-foreground border border-dashed border-muted-foreground/30 rounded-lg py-1.5 hover:bg-muted/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {canHint
+                              ? `💡 Ver dica ${hintsUsed + 1} de ${maxHints} (+1 erro)`
+                              : hintsUsed >= maxHints ? "Todas as dicas reveladas" : "Sem dicas disponíveis"}
+                          </button>
+                        );
+                      })()}
                     </div>
                   )}
                   {isPlaying && <Keyboard guessed={guessed} correctLetters={correctLetters} onLetter={handleGuess} disabled={!isPlaying} />}
