@@ -997,24 +997,18 @@ const Admin = () => {
     if (!pushTitle.trim() || !pushBody.trim()) return;
     setSendingPush(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        "https://wxiwldjgxkjqdjlxgmgj.supabase.co/functions/v1/send-push-notification",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            student_id: pushStudentId === "all" ? undefined : pushStudentId,
-            title: pushTitle,
-            body: pushBody,
-            url: pushUrl || "/",
-          }),
-        }
-      );
-      if (!res.ok) throw new Error(await res.text());
+      const { data: fnData, error: fnError } = await supabase.functions.invoke("send-push-notification", {
+        body: {
+          student_id: pushStudentId === "all" ? undefined : pushStudentId,
+          title: pushTitle,
+          body: pushBody,
+          url: pushUrl || "/",
+        },
+      });
+      if (fnError) throw fnError;
+      if (fnData?.sent === 0) {
+        throw new Error(`Sent: 0. Errors: ${JSON.stringify(fnData?.errors ?? fnData?.message ?? "unknown")}`);
+      }
       toast({ title: "Notificação enviada!", description: pushStudentId === "all" ? "Enviada para todos os alunos." : "Enviada para o aluno selecionado." });
       setPushModalOpen(false);
       setPushTitle("");
