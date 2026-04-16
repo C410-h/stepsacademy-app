@@ -536,12 +536,16 @@ const FillBlankGame = ({
 };
 
 // ─── Game mode tabs ───────────────────────────────────────────────────────────
-type GameMode = "hangman" | "flashcard" | "fillblank";
+type GameMode = "hangman" | "translation" | "fillblank" | "matching" | "scramble" | "clock" | "survival";
 
-const MODE_CONFIG: { id: GameMode; label: string; emoji: string }[] = [
-  { id: "hangman", label: "Forca", emoji: "🪓" },
-  { id: "flashcard", label: "Flashcards", emoji: "🃏" },
-  { id: "fillblank", label: "Lacuna", emoji: "✏️" },
+const MODE_CONFIG: { id: GameMode; label: string; emoji: string; desc: string }[] = [
+  { id: "hangman",     emoji: "🪓",  label: "Forca",             desc: "Adivinhe a palavra letra por letra"          },
+  { id: "translation", emoji: "🌐",  label: "Tradução",          desc: "Escolha a tradução correta"                 },
+  { id: "fillblank",   emoji: "✏️",  label: "Lacuna",            desc: "Complete a frase com a palavra certa"       },
+  { id: "matching",    emoji: "🔗",  label: "Pares",             desc: "Conecte cada palavra à sua tradução"        },
+  { id: "scramble",    emoji: "🔀",  label: "Embaralhado",       desc: "Monte a palavra com as letras embaralhadas" },
+  { id: "clock",       emoji: "⏱️",  label: "Contra o Relógio", desc: "10 palavras, 10 segundos cada"             },
+  { id: "survival",    emoji: "💀",  label: "Survival",          desc: "3 vidas — aguenta até onde der"            },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -567,6 +571,7 @@ const StepByStep = () => {
 
   const [sessionXp, setSessionXp] = useState(0);
   const [mode, setMode] = useState<GameMode>("hangman");
+  const [gameSelected, setGameSelected] = useState(false);
 
   const MAX_ERRORS = 6;
 
@@ -778,140 +783,141 @@ const StepByStep = () => {
           </CardContent>
         </Card>
 
-        {/* ── Mode selector ─── */}
-        <div className="grid grid-cols-3 gap-2">
-          {MODE_CONFIG.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id)}
-              className={cn(
-                "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-xs font-bold",
-                mode === m.id
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/30"
-              )}
-            >
-              <span className="text-xl">{m.emoji}</span>
-              <span>{m.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* ── Game area ─── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">
-                {mode === "hangman" && "Forca"}
-                {mode === "flashcard" && "Flashcards"}
-                {mode === "fillblank" && "Preencha a Lacuna"}
-              </CardTitle>
-              {mode === "hangman" && <span className="text-xs text-muted-foreground font-light">{errors}/{MAX_ERRORS} erros</span>}
+        {/* ── Game selector overlay ─── */}
+        {!gameSelected ? (
+          <div className="space-y-3">
+            <p className="text-sm font-bold px-1">Escolha um jogo</p>
+            <div className="grid grid-cols-2 gap-3">
+              {MODE_CONFIG.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => { setMode(m.id); setGameSelected(true); }}
+                  className="flex flex-col items-start gap-1 p-4 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all text-left"
+                >
+                  <span className="text-2xl">{m.emoji}</span>
+                  <span className="text-sm font-bold leading-tight">{m.label}</span>
+                  <span className="text-xs text-muted-foreground font-light leading-tight">{m.desc}</span>
+                </button>
+              ))}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Hangman */}
-            {mode === "hangman" && (
-              gameState === "no_vocab" ? (
-                <div className="py-8 text-center space-y-2">
-                  <p className="font-bold text-sm">Nenhuma palavra cadastrada</p>
-                  <p className="text-xs text-muted-foreground font-light">Peça ao professor para adicionar vocabulário.</p>
+          </div>
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">
+                  {MODE_CONFIG.find(m => m.id === mode)?.emoji}{" "}
+                  {MODE_CONFIG.find(m => m.id === mode)?.label}
+                </CardTitle>
+                <button
+                  onClick={() => setGameSelected(false)}
+                  className="text-xs text-muted-foreground font-light hover:text-foreground transition-colors"
+                >
+                  Trocar jogo
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+
+              {/* Hangman — sem alteração */}
+              {mode === "hangman" && (
+                gameState === "no_vocab" ? (
+                  <div className="py-8 text-center space-y-2">
+                    <p className="font-bold text-sm">Nenhuma palavra cadastrada</p>
+                    <p className="text-xs text-muted-foreground font-light">Peça ao professor para adicionar vocabulário.</p>
+                  </div>
+                ) : (
+                  <>
+                    <HangmanSVG errors={errors} />
+                    {word && <WordDisplay word={word.word} revealed={correctLetters} gameOver={gameState !== "playing"} won={gameState === "won"} />}
+                    {gameState === "won" && (
+                      <div className="space-y-2">
+                        <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
+                          <p className="font-bold text-green-700 text-sm">{celebrateWin ? "🎉 Correto! " : ""}+15 XP +8 🪙</p>
+                        </div>
+                        {word?.translation && <p className="text-xs text-center text-muted-foreground font-light"><span className="font-bold">{word.word}</span> = {word.translation}</p>}
+                        {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
+                      </div>
+                    )}
+                    {gameState === "lost" && (
+                      <div className="space-y-2">
+                        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+                          <p className="font-bold text-red-600 text-sm">A palavra era: <span className="uppercase">{word?.word}</span></p>
+                          <p className="text-xs text-muted-foreground font-light mt-1">+3 XP por tentar</p>
+                        </div>
+                        {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
+                      </div>
+                    )}
+                    {/* Hints */}
+                    {isPlaying && (
+                      <div className="space-y-2">
+                        {hintsUsed >= 1 && word?.translation && (
+                          <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
+                            <span>💡</span>
+                            <span>Tradução: <span className="font-bold text-foreground">{word.translation}</span></span>
+                          </div>
+                        )}
+                        {hintsUsed >= 2 && word?.example_sentence && (
+                          <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
+                            <span className="shrink-0">💡</span>
+                            <span className="italic">"{word.example_sentence}"</span>
+                          </div>
+                        )}
+                        {(() => {
+                          const maxHints = word?.example_sentence ? 2 : (word?.translation ? 1 : 0);
+                          const canHint = hintsUsed < maxHints && errors < MAX_ERRORS - 1;
+                          if (maxHints === 0) return null;
+                          return (
+                            <button
+                              onClick={() => {
+                                if (!canHint) return;
+                                setErrors(e => e + 1);
+                                setHintsUsed(h => h + 1);
+                              }}
+                              disabled={!canHint}
+                              className="w-full text-xs text-muted-foreground border border-dashed border-muted-foreground/30 rounded-lg py-1.5 hover:bg-muted/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {canHint
+                                ? `💡 Ver dica ${hintsUsed + 1} de ${maxHints} (+1 erro)`
+                                : hintsUsed >= maxHints ? "Todas as dicas reveladas" : "Sem dicas disponíveis"}
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    {isPlaying && <Keyboard guessed={guessed} correctLetters={correctLetters} onLetter={handleGuess} disabled={!isPlaying} />}
+                    {(gameState === "won" || gameState === "lost") && (
+                      <Button className="w-full font-bold" style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }} onClick={() => pickHangmanWord(words)}>
+                        {gameState === "won" ? "Próxima palavra →" : "Tentar outra →"}
+                      </Button>
+                    )}
+                  </>
+                )
+              )}
+
+              {/* Fill in the blank — sem alteração */}
+              {mode === "fillblank" && studentId && (
+                <FillBlankGame
+                  words={words}
+                  studentId={studentId}
+                  mission={mission}
+                  onMissionUpdate={setMission}
+                  onSessionXp={xp => setSessionXp(prev => prev + xp)}
+                />
+              )}
+
+              {/* Novos modos — placeholder por enquanto */}
+              {(mode === "translation" || mode === "matching" || mode === "scramble" || mode === "clock" || mode === "survival") && (
+                <div className="py-12 text-center space-y-2">
+                  <p className="text-3xl">{MODE_CONFIG.find(m => m.id === mode)?.emoji}</p>
+                  <p className="font-bold text-sm">{MODE_CONFIG.find(m => m.id === mode)?.label}</p>
+                  <p className="text-xs text-muted-foreground font-light">Em breve!</p>
                 </div>
-              ) : (
-                <>
-                  <HangmanSVG errors={errors} />
-                  {word && <WordDisplay word={word.word} revealed={correctLetters} gameOver={gameState !== "playing"} won={gameState === "won"} />}
-                  {gameState === "won" && (
-                    <div className="space-y-2">
-                      <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
-                        <p className="font-bold text-green-700 text-sm">{celebrateWin ? "🎉 Correto! " : ""}+15 XP +8 🪙</p>
-                      </div>
-                      {word?.translation && <p className="text-xs text-center text-muted-foreground font-light"><span className="font-bold">{word.word}</span> = {word.translation}</p>}
-                      {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
-                    </div>
-                  )}
-                  {gameState === "lost" && (
-                    <div className="space-y-2">
-                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
-                        <p className="font-bold text-red-600 text-sm">A palavra era: <span className="uppercase">{word?.word}</span></p>
-                        <p className="text-xs text-muted-foreground font-light mt-1">+3 XP por tentar</p>
-                      </div>
-                      {word?.example_sentence && <p className="text-xs text-center text-muted-foreground italic font-light">"{word.example_sentence}"</p>}
-                    </div>
-                  )}
-                  {/* Hints */}
-                  {isPlaying && (
-                    <div className="space-y-2">
-                      {/* Hint 1: translation */}
-                      {hintsUsed >= 1 && word?.translation && (
-                        <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
-                          <span>💡</span>
-                          <span>Tradução: <span className="font-bold text-foreground">{word.translation}</span></span>
-                        </div>
-                      )}
-                      {/* Hint 2: example sentence */}
-                      {hintsUsed >= 2 && word?.example_sentence && (
-                        <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
-                          <span className="shrink-0">💡</span>
-                          <span className="italic">"{word.example_sentence}"</span>
-                        </div>
-                      )}
-                      {/* Hint button */}
-                      {(() => {
-                        const maxHints = word?.example_sentence ? 2 : (word?.translation ? 1 : 0);
-                        const canHint = hintsUsed < maxHints && errors < MAX_ERRORS - 1;
-                        if (maxHints === 0) return null;
-                        return (
-                          <button
-                            onClick={() => {
-                              if (!canHint) return;
-                              setErrors(e => e + 1);
-                              setHintsUsed(h => h + 1);
-                            }}
-                            disabled={!canHint}
-                            className="w-full text-xs text-muted-foreground border border-dashed border-muted-foreground/30 rounded-lg py-1.5 hover:bg-muted/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            {canHint
-                              ? `💡 Ver dica ${hintsUsed + 1} de ${maxHints} (+1 erro)`
-                              : hintsUsed >= maxHints ? "Todas as dicas reveladas" : "Sem dicas disponíveis"}
-                          </button>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  {isPlaying && <Keyboard guessed={guessed} correctLetters={correctLetters} onLetter={handleGuess} disabled={!isPlaying} />}
-                  {(gameState === "won" || gameState === "lost") && (
-                    <Button className="w-full font-bold" style={{ background: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' }} onClick={() => pickHangmanWord(words)}>
-                      {gameState === "won" ? "Próxima palavra →" : "Tentar outra →"}
-                    </Button>
-                  )}
-                </>
-              )
-            )}
+              )}
 
-            {/* Flashcards */}
-            {mode === "flashcard" && studentId && (
-              <FlashcardGame
-                words={words}
-                studentId={studentId}
-                mission={mission}
-                onMissionUpdate={setMission}
-                onSessionXp={xp => setSessionXp(prev => prev + xp)}
-              />
-            )}
-
-            {/* Fill in the blank */}
-            {mode === "fillblank" && studentId && (
-              <FillBlankGame
-                words={words}
-                studentId={studentId}
-                mission={mission}
-                onMissionUpdate={setMission}
-                onSessionXp={xp => setSessionXp(prev => prev + xp)}
-              />
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Streak ─── */}
         <Card>
