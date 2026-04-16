@@ -959,6 +959,250 @@ const MatchingGame = ({
   );
 };
 
+// ─── Scramble game (embaralhado) ─────────────────────────────────────────────
+const ScrambleGame = ({
+  words, studentId, mission, onMissionUpdate, onSessionXp,
+}: {
+  words: VocabWord[];
+  studentId: string;
+  mission: DailyMission | null;
+  onMissionUpdate: (m: DailyMission) => void;
+  onSessionXp: (xp: number) => void;
+}) => {
+  const { gamification, refresh: refreshGamification } = useGamification();
+
+  const SESSION_SIZE = Math.min(8, words.filter(w => w.translation).length);
+
+  const scramble = (word: string) =>
+    word.split("").sort(() => Math.random() - 0.5);
+
+  const buildSession = () =>
+    [...words].filter(w => w.translation).sort(() => Math.random() - 0.5).slice(0, SESSION_SIZE);
+
+  const [session] = useState<VocabWord[]>(() => buildSession());
+  const [index, setIndex] = useState(0);
+  const [tiles, setTiles] = useState<string[]>(() => scramble(session[0].word));
+  const [placed, setPlaced] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [results, setResults] = useState({ correct: 0, wrong: 0, xp: 0 });
+  const [done, setDone] = useState(false);
+
+  const current = session[index];
+
+  const awardXp = useCallback(async (correct: boolean, w: VocabWord) => {
+    const xpGain = correct ? 15 : 2;
+    const coinsGain = correct ? 8 : 0;
+
+    await db.from("student_gamification").update({
+      xp_total: gamification.xp_total + xpGain,
+      coins: gamification.coins + coinsGain,
+      updated_at: new Date().toISOString(),
+    }).eq("student_id", studentId);
+
+    await db.from("xp_events").insert({
+      student_id: studentId, event_type: "stepbystep",
+      xp: xpGain, coins: coinsGain,
+      description: `Embaralhado ${correct ? "correto" : "errado"}: ${w.word}`,
+    });
+
+    await db.from("stepbystep_attempts").insert({
+      student_id: studentId, vocabulary_id: w.id,
+      exercise_type: "scramble", correct, xp_earned: xpGain,
+      mission_id: mission?.id ?? null,
+    });
+
+    onSessionXp(xpGain);
+
+    if (mission && !mission.completed) {
+      const newDone = mission.exercises_done + 1;
+      const nowComplete = newDone >= mission.exercises_total;
+      const missionUpdate: Record<string, unknown> = {
+        exercises_done: newDone,
+        xp_earned: (mission.xp_earned || 0) + xpGain,
+      };
+      if (nowComplete) {
+        missionUpdate.completed = true;
+        missionUpdate.completed_at = new Date().toISOString();
+        await db.from("xp_events").insert({
+          student_id: studentId, event_type: "daily_mission",
+          xp: 50, coins: 25, description: "Missão diária concluída! 🎯",
+        });
+        await db.from("student_gamification").update({
+          xp_total: gamification.xp_total + xpGain + 50,
+          coins: gamification.coins + coinsGain + 25,
+          updated_at: new Date().toISOString(),
+        }).eq("student_id", studentId);
+        onSessionXp(50);
+        missionUpdate.xp_earned = (mission.xp_earned || 0) + xpGain + 50;
+        toast({ title: "🎯 Missão concluída!", description: "+50 XP de bônus!" });
+      }
+      await db.from("daily_missions").update(missionUpdate).eq("id", mission.id);
+      onMissionUpdate({
+        ...mission, exercises_done: newDone,
+        completed: nowComplete || mission.completed,
+        xp_earned: (mission.xp_earned || 0) + xpGain + (nowComplete ? 50 : 0),
+      });
+    }
+
+    await refreshGamification();
+  }, [gamification, studentId, mission, onMissionUpdate, onSessionXp, refreshGamification]);
+
+  const handleTileTap = (letter: string, tileIndex: number) => {
+    if (feedback) return;
+    const newTiles = [...tiles];
+    newTiles.splice(tileIndex, 1);
+    const newPlaced = [...placed, letter];
+    setTiles(newTiles);
+    setPlaced(newPlaced);
+
+    // Auto-submit quando todas as letras estiverem colocadas
+    if (newPlaced.length === current.word.length) {
+      const attempt = newPlaced.join("");
+      const correct = attempt.toLowerCase() === current.word.toLowerCase();
+      setFeedback(correct ? "correct" : "wrong");
+      setResults(prev => ({
+        correct: prev.correct + (correct ? 1 : 0),
+        wrong: prev.wrong + (correct ? 0 : 1),
+        xp: prev.xp + (correct ? 15 : 2),
+      }));
+      awardXp(correct, current);
+    }
+  };
+
+  const handleRemovePlaced = (idx: number) => {
+    if (feedback) return;
+    const letter = placed[idx];
+    const newPlaced = [...placed];
+    newPlaced.splice(idx, 1);
+    setPlaced(newPlaced);
+    setTiles(prev => [...prev, letter]);
+  };
+
+  const handleNext = () => {
+    if (index + 1 >= SESSION_SIZE) {
+      setDone(true);
+      return;
+    }
+    const nextIndex = index + 1;
+    setIndex(nextIndex);
+    setTiles(scramble(session[nextIndex].word));
+    setPlaced([]);
+    setFeedback(null);
+  };
+
+  const handleRestart = () => {
+    const s = buildSession();
+    setIndex(0);
+    setTiles(scramble(s[0].word));
+    setPlaced([]);
+    setFeedback(null);
+    setResults({ correct: 0, wrong: 0, xp: 0 });
+    setDone(false);
+  };
+
+  if (done) {
+    return (
+      <div className="space-y-4 py-2">
+        <div className="text-center space-y-1">
+          <p className="text-3xl">{results.correct >= SESSION_SIZE * 0.7 ? "🎉" : "💪"}</p>
+          <p className="font-bold">{results.correct}/{SESSION_SIZE} corretas</p>
+          <p className="text-xs text-muted-foreground font-light">+{results.xp} XP ganhos</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+            <p className="font-bold text-green-700">{results.correct}</p>
+            <p className="text-xs text-muted-foreground font-light">acertos</p>
+          </div>
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+            <p className="font-bold text-red-600">{results.wrong}</p>
+            <p className="text-xs text-muted-foreground font-light">erros</p>
+          </div>
+        </div>
+        <Button className="w-full font-bold" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }} onClick={handleRestart}>
+          Jogar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Progresso */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground font-light">
+        <span>{index + 1}/{SESSION_SIZE}</span>
+        <span>+{results.xp} XP</span>
+      </div>
+      <Progress value={((index + 1) / SESSION_SIZE) * 100} className="h-1.5" />
+
+      {/* Tradução (pista) */}
+      <div className="py-4 text-center space-y-1">
+        <p className="text-xs text-muted-foreground font-light uppercase tracking-widest">Tradução</p>
+        <p className="text-xl font-bold">{current.translation}</p>
+      </div>
+
+      {/* Área de resposta (letras colocadas) */}
+      <div className="min-h-[48px] flex flex-wrap justify-center gap-1.5 p-3 rounded-xl border-2 border-dashed border-border bg-muted/30">
+        {placed.length === 0 && (
+          <p className="text-xs text-muted-foreground font-light self-center">Toque nas letras abaixo</p>
+        )}
+        {placed.map((letter, i) => (
+          <button
+            key={i}
+            onClick={() => handleRemovePlaced(i)}
+            className={cn(
+              "w-9 h-9 rounded-lg text-sm font-bold border-2 transition-all",
+              !feedback && "border-primary bg-primary/10 text-primary hover:bg-primary/20",
+              feedback === "correct" && "border-green-500 bg-green-500/10 text-green-700",
+              feedback === "wrong" && "border-red-400 bg-red-500/10 text-red-600",
+            )}
+          >
+            {letter.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* Feedback */}
+      {feedback && (
+        <div className={cn(
+          "p-3 rounded-xl text-center text-sm font-bold border",
+          feedback === "correct" && "bg-green-500/10 border-green-500/20 text-green-700",
+          feedback === "wrong" && "bg-red-500/10 border-red-400/20 text-red-600",
+        )}>
+          {feedback === "correct"
+            ? `✓ Correto! +15 XP`
+            : `✗ Era "${current.word}" — +2 XP por tentar`}
+        </div>
+      )}
+
+      {/* Tiles disponíveis */}
+      {!feedback && (
+        <div className="flex flex-wrap justify-center gap-1.5">
+          {tiles.map((letter, i) => (
+            <button
+              key={i}
+              onClick={() => handleTileTap(letter, i)}
+              className="w-9 h-9 rounded-lg text-sm font-bold border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all"
+            >
+              {letter.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Próxima */}
+      {feedback && (
+        <Button
+          className="w-full font-bold"
+          style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+          onClick={handleNext}
+        >
+          {index + 1 >= SESSION_SIZE ? "Ver resultado →" : "Próxima →"}
+        </Button>
+      )}
+    </div>
+  );
+};
+
 // ─── Game mode tabs ───────────────────────────────────────────────────────────
 type GameMode = "hangman" | "translation" | "fillblank" | "matching" | "scramble" | "clock" | "survival";
 
@@ -1352,8 +1596,19 @@ const StepByStep = () => {
                 />
               )}
 
+              {/* Scramble */}
+              {mode === "scramble" && studentId && (
+                <ScrambleGame
+                  words={words}
+                  studentId={studentId}
+                  mission={mission}
+                  onMissionUpdate={setMission}
+                  onSessionXp={xp => setSessionXp(prev => prev + xp)}
+                />
+              )}
+
               {/* Placeholder para os modos ainda não implementados */}
-              {(mode === "scramble" || mode === "clock" || mode === "survival") && (
+              {(mode === "clock" || mode === "survival") && (
                 <div className="py-12 text-center space-y-2">
                   <p className="text-3xl">{MODE_CONFIG.find(m => m.id === mode)?.emoji}</p>
                   <p className="font-bold text-sm">{MODE_CONFIG.find(m => m.id === mode)?.label}</p>
