@@ -563,6 +563,7 @@ const StepByStep = () => {
   const [gameState, setGameState] = useState<"playing" | "won" | "lost" | "no_vocab">("playing");
   const [celebrateWin, setCelebrateWin] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [deck, setDeck] = useState<VocabWord[]>([]);
 
   const [sessionXp, setSessionXp] = useState(0);
   const [mode, setMode] = useState<GameMode>("hangman");
@@ -632,16 +633,26 @@ const StepByStep = () => {
 
     const shuffled = [...allWords].sort(() => Math.random() - 0.5) as VocabWord[];
     setWords(shuffled);
-    pickHangmanWord(shuffled);
+    // Seed the deck and pick the first word from it
+    const [first, ...rest] = shuffled;
+    setDeck(rest);
+    setWord(first);
+    setGuessed(new Set());
+    setErrors(0);
+    setGameState("playing");
+    setCelebrateWin(false);
+    setHintsUsed(0);
   };
 
   const pickHangmanWord = (vocab: VocabWord[]) => {
     if (!vocab.length) { setGameState("no_vocab"); return; }
-    const useEasy = Math.random() < 0.7;
-    const pool = vocab.filter(w => useEasy ? w.difficulty === 1 : w.difficulty > 1);
-    const chosen = pool.length ? pool : vocab;
-    const random = chosen[Math.floor(Math.random() * chosen.length)];
-    setWord(random);
+    // Pop from the no-repeat deck; reshuffle when exhausted
+    setDeck(prev => {
+      const remaining = prev.length ? prev : [...vocab].sort(() => Math.random() - 0.5);
+      const [next, ...rest] = remaining;
+      setWord(next);
+      return rest;
+    });
     setGuessed(new Set());
     setErrors(0);
     setGameState("playing");
