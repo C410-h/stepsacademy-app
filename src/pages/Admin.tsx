@@ -378,6 +378,15 @@ const Admin = () => {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
+
+      // Send welcome email — fire-and-forget, failure does not block activation
+      supabase.functions.invoke("send-welcome-email", {
+        body: { user_id: activatingStudent.id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      }).then(({ error: emailErr }) => {
+        if (emailErr) console.warn("send-welcome-email failed (non-blocking):", emailErr);
+      });
+
       toast({ title: "Aluno ativado!", description: `${activatingStudent.name} foi ativado com sucesso.` });
       setActivateDrawerOpen(false);
       setActivatingStudent(null);
