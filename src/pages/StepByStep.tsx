@@ -78,17 +78,34 @@ const Keyboard = ({
 
 const WordDisplay = ({ word, revealed, gameOver, won }: { word: string; revealed: Set<string>; gameOver: boolean; won: boolean }) => {
   const letters = word.toUpperCase().split("");
+  const len = letters.length;
+
+  // Escala dinamicamente com base no comprimento da palavra
+  const tileSize = len <= 6 ? "min-w-[1.75rem]" : len <= 9 ? "min-w-[1.4rem]" : len <= 12 ? "min-w-[1.1rem]" : "min-w-[0.9rem]";
+  const fontSize = len <= 6 ? "text-xl" : len <= 9 ? "text-lg" : len <= 12 ? "text-base" : "text-sm";
+  const gap = len <= 9 ? "gap-1.5" : "gap-1";
+
   return (
-    <div className="flex flex-wrap justify-center gap-2 py-4">
+    <div className={cn("flex flex-nowrap justify-center py-4 px-2 overflow-x-auto", gap)}>
       {letters.map((char, i) => {
         const isLetter = /[A-Z]/.test(char);
         const show = !isLetter || revealed.has(char) || gameOver;
         return (
-          <div key={i} className={cn("flex flex-col items-center", !isLetter && "opacity-40")}>
-            <span className={cn("text-xl font-bold min-w-[1.5rem] text-center", gameOver && !won && !revealed.has(char) && isLetter && "text-red-500")}>
-              {show ? char : " "}
+          <div key={i} className={cn("flex flex-col items-center shrink-0", !isLetter && "opacity-40")}>
+            <span className={cn(
+              "font-bold text-center",
+              tileSize,
+              fontSize,
+              gameOver && !won && !revealed.has(char) && isLetter && "text-red-500"
+            )}>
+              {show ? char : "\u00A0"}
             </span>
-            {isLetter && <div className={cn("h-0.5 w-5 mt-1 rounded", show ? "bg-primary" : "bg-muted-foreground/40")} />}
+            {isLetter && (
+              <div className={cn(
+                "h-0.5 mt-1 rounded w-full",
+                show ? "bg-primary" : "bg-muted-foreground/40"
+              )} />
+            )}
           </div>
         );
       })}
