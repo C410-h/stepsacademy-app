@@ -576,7 +576,7 @@ const StepByStep = () => {
   const loadStudent = async () => {
     if (!profile) return;
     const { data: student } = await supabase
-      .from("students").select("id, level_id").eq("user_id", profile.id).maybeSingle();
+      .from("students").select("id, level_id, language_id").eq("user_id", profile.id).maybeSingle();
     if (!student) { setLoading(false); return; }
     setStudentId(student.id);
     setLevelId(student.level_id);
