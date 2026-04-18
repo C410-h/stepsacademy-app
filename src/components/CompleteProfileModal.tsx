@@ -41,12 +41,29 @@ const formatPhone = (v: string) => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
-// Data máxima: usuário deve ter ao menos 16 anos
-const maxBirthDate = (() => {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - 16);
-  return d.toISOString().split("T")[0];
-})();
+// Máscara DD/MM/AAAA
+const formatBirthDate = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+};
+
+// Converte DD/MM/AAAA → Date (retorna null se inválido)
+const parseBirthDate = (v: string): Date | null => {
+  const parts = v.split("/");
+  if (parts.length !== 3 || parts[2].length !== 4) return null;
+  const [day, month, year] = parts.map(Number);
+  if (!day || !month || !year) return null;
+  const date = new Date(year, month - 1, day);
+  // Verificar se a data é válida (ex: 31/02 não existe)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) return null;
+  return date;
+};
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
@@ -87,10 +104,14 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
     }
 
     if (needs("birth_date")) {
-      if (!birthDate)
-        e.birth_date = "Informe sua data de nascimento.";
-      else if (birthDate > maxBirthDate)
-        e.birth_date = "Você deve ter ao menos 16 anos.";
+      const parsed = parseBirthDate(birthDate);
+      if (!parsed) {
+        e.birth_date = "Data inválida. Use o formato DD/MM/AAAA.";
+      } else {
+        const minDate = new Date();
+        minDate.setFullYear(minDate.getFullYear() - 16);
+        if (parsed > minDate) e.birth_date = "Você deve ter ao menos 16 anos.";
+      }
     }
 
     setErrors(e);
@@ -108,7 +129,11 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
       if (needs("name"))       updates.name       = name.trim();
       if (needs("cpf"))        updates.cpf        = cpf.replace(/\D/g, "");
       if (needs("phone"))      updates.phone      = phone;
-      if (needs("birth_date")) updates.birth_date = birthDate;
+      if (needs("birth_date")) {
+        // Salvar em formato ISO (AAAA-MM-DD) para o banco
+        const [dd, mm, aaaa] = birthDate.split("/");
+        updates.birth_date = `${aaaa}-${mm}-${dd}`;
+      }
 
       const { error } = await (supabase as any)
         .from("profiles")
@@ -228,10 +253,11 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
               <Label htmlFor="cp-birth">Data de nascimento</Label>
               <Input
                 id="cp-birth"
-                type="date"
+                inputMode="numeric"
                 value={birthDate}
-                onChange={e => setBirthDate(e.target.value)}
-                max={maxBirthDate}
+                onChange={e => setBirthDate(formatBirthDate(e.target.value))}
+                placeholder="DD/MM/AAAA"
+                maxLength={10}
               />
               {errors.birth_date && (
                 <p className="text-xs text-destructive">{errors.birth_date}</p>
