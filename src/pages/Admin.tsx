@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { AdminCommandPalette } from "@/components/AdminCommandPalette";
 import AdminApprovalsTab from "@/components/AdminApprovalsTab";
+import AdminContentByStepTab from "@/components/AdminContentByStepTab";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -1977,6 +1978,7 @@ const Admin = () => {
                 <TabsTrigger value="vocabulary" className="shrink-0 text-xs px-3 py-1.5">Vocabulário</TabsTrigger>
                 <TabsTrigger value="exercises" className="shrink-0 text-xs px-3 py-1.5">Exercícios da Aula</TabsTrigger>
                 <TabsTrigger value="approvals" className="shrink-0 text-xs px-3 py-1.5">Aprovações</TabsTrigger>
+                <TabsTrigger value="step_content" className="shrink-0 text-xs px-3 py-1.5">Por Passo</TabsTrigger>
               </TabsList>
 
               {/* Sub-tab: Materiais */}
@@ -2344,6 +2346,11 @@ const Admin = () => {
               {/* Sub-tab: Aprovações */}
               <TabsContent value="approvals" className="mt-3">
                 <AdminApprovalsTab />
+              </TabsContent>
+
+              {/* Sub-tab: Conteúdo por Passo */}
+              <TabsContent value="step_content" className="mt-3">
+                <AdminContentByStepTab />
               </TabsContent>
             </Tabs>
           </TabsContent>

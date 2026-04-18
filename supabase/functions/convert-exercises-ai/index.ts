@@ -1,157 +1,146 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+const EXTRACTION_PROMPT = `Você é um assistente pedagógico especializado em criar exercícios de idiomas.
+Analise o documento abaixo e extraia ou crie exercícios no formato JSON.
+
+Retorne APENAS um array JSON válido, sem nenhum texto adicional, sem markdown, sem backticks:
+[
+  {
+    "type": "fill_blank" | "association" | "rewrite" | "dialogue" | "production",
+    "question": "texto da pergunta",
+    "options": ["opção1", "opção2", "opção3", "opção4"] ou null,
+    "answer": "resposta correta",
+    "explanation": "explicação opcional"
+  }
+]`;
+
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let submissionFileId: string | undefined;
+
   try {
-    const { fileUrl, submissionFileId } = await req.json();
+    const body = await req.json();
+    const { fileUrl, submissionFileId: sfId } = body;
+    submissionFileId = sfId;
 
     if (!fileUrl) {
-      return new Response(JSON.stringify({ error: "fileUrl is required" }), {
+      return new Response(JSON.stringify({ error: "fileUrl é obrigatório" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Fetch the file content (PDF/DOC)
-    const fileRes = await fetch(fileUrl);
-    if (!fileRes.ok) {
-      throw new Error(`Could not fetch file: ${fileRes.status}`);
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY não configurada");
+
+    // Supabase client para atualizar status
+    const sb = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Atualiza status → converting
+    if (submissionFileId) {
+      await sb.from("submission_files")
+        .update({ ai_conversion_status: "converting" })
+        .eq("id", submissionFileId);
     }
 
-    // Get file as base64 (for PDF) or text (for plain text)
-    const contentType = fileRes.headers.get("content-type") || "";
-    let fileContent: string;
-    let isBase64 = false;
+    // Fetch do arquivo
+    const fileRes = await fetch(fileUrl);
+    if (!fileRes.ok) throw new Error(`Falha ao buscar arquivo: ${fileRes.status}`);
 
-    if (contentType.includes("pdf") || fileUrl.endsWith(".pdf")) {
+    const contentType = fileRes.headers.get("content-type") || "";
+    const isPdf = contentType.includes("pdf") || fileUrl.toLowerCase().endsWith(".pdf");
+
+    let parts: any[];
+
+    if (isPdf) {
+      // PDF → inline_data base64 para o Gemini
       const buffer = await fileRes.arrayBuffer();
       const uint8 = new Uint8Array(buffer);
-      // Convert to base64
       let binary = "";
       for (let i = 0; i < uint8.length; i++) {
         binary += String.fromCharCode(uint8[i]);
       }
-      fileContent = btoa(binary);
-      isBase64 = true;
-    } else {
-      fileContent = await fileRes.text();
-    }
-
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not configured");
-
-    // Build the Anthropic API request
-    const messages: any[] = [];
-
-    if (isBase64) {
-      messages.push({
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: fileContent,
-            },
+      const base64 = btoa(binary);
+      parts = [
+        {
+          inline_data: {
+            mime_type: "application/pdf",
+            data: base64,
           },
-          {
-            type: "text",
-            text: `Analise este documento e extraia todos os exercícios de idioma que encontrar.
-
-Para cada exercício, retorne um objeto JSON com os campos:
-- type: "fill_blank" (preencher lacuna), "association" (associar/ligar), ou "open_answer" (resposta aberta)
-- question: o enunciado ou frase com ___ para lacunas
-- options: string com opções separadas por vírgula (apenas para association)
-- answer: a resposta correta. Para association, use o formato "A=B,C=D"
-- explanation: explicação da resposta (opcional, pode ser vazio)
-
-Retorne APENAS um JSON válido no formato:
-{"exercises": [...]}
-
-Não inclua nenhum texto fora do JSON.`,
-          },
-        ],
-      });
+        },
+        { text: EXTRACTION_PROMPT + "\n\nExtrai os exercícios do documento acima." },
+      ];
     } else {
-      messages.push({
-        role: "user",
-        content: `Analise este conteúdo de exercícios de idioma e extraia todos os exercícios.
-
-CONTEÚDO:
-${fileContent}
-
-Para cada exercício, retorne um objeto JSON com os campos:
-- type: "fill_blank" (preencher lacuna), "association" (associar/ligar), ou "open_answer" (resposta aberta)
-- question: o enunciado ou frase com ___ para lacunas
-- options: string com opções separadas por vírgula (apenas para association)
-- answer: a resposta correta. Para association, use o formato "A=B,C=D"
-- explanation: explicação da resposta (opcional, pode ser vazio)
-
-Retorne APENAS um JSON válido no formato:
-{"exercises": [...]}
-
-Não inclua nenhum texto fora do JSON.`,
-      });
+      // DOCX, TXT e outros → extrai texto bruto
+      let text: string;
+      try {
+        const raw = await fileRes.text();
+        // Remove tags XML (docx é um zip com XML internamente)
+        text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 30000);
+      } catch {
+        text = "[Conteúdo não pôde ser extraído]";
+      }
+      parts = [{ text: `${EXTRACTION_PROMPT}\n\nDocumento:\n${text}` }];
     }
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 4096,
-        messages,
-      }),
-    });
-
-    if (!anthropicRes.ok) {
-      const err = await anthropicRes.text();
-      throw new Error(`Anthropic API error: ${err}`);
-    }
-
-    const anthropicData = await anthropicRes.json();
-    const rawText = anthropicData.content?.[0]?.text || "{}";
-
-    // Parse JSON from response
-    let parsed: { exercises: any[] };
-    try {
-      // Sometimes the model wraps in ```json ... ```
-      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) ||
-        rawText.match(/```\s*([\s\S]*?)```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : rawText;
-      parsed = JSON.parse(jsonStr.trim());
-    } catch {
-      throw new Error("Anthropic returned invalid JSON: " + rawText.slice(0, 200));
-    }
-
-    const exercises = parsed.exercises || [];
-
-    // Update submission_files with AI conversion status
+    // Atualiza status → processing
     if (submissionFileId) {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const sb = createClient(supabaseUrl, supabaseKey);
+      await sb.from("submission_files")
+        .update({ ai_conversion_status: "processing" })
+        .eq("id", submissionFileId);
+    }
 
-      await sb
-        .from("submission_files")
-        .update({
-          exercises,
-          ai_conversion_status: "done",
-        })
+    // Chama Gemini
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 4000,
+          },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const err = await geminiRes.text();
+      throw new Error(`Gemini API error: ${err}`);
+    }
+
+    const geminiData = await geminiRes.json();
+    const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+
+    // Parse da resposta
+    let exercises: any[];
+    try {
+      const cleaned = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      exercises = Array.isArray(parsed) ? parsed : (parsed.exercises || []);
+    } catch {
+      throw new Error("Gemini retornou JSON inválido: " + rawText.slice(0, 200));
+    }
+
+    // Salva resultado e atualiza status → done
+    if (submissionFileId) {
+      await sb.from("submission_files")
+        .update({ exercises, ai_conversion_status: "done" })
         .eq("id", submissionFileId);
     }
 
@@ -159,7 +148,22 @@ Não inclua nenhum texto fora do JSON.`,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("convert-exercises-ai error:", error);
+    console.error("[convert-exercises-ai] erro:", error.message);
+
+    // Atualiza status → failed
+    if (submissionFileId) {
+      try {
+        const sb = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
+        await sb.from("submission_files")
+          .update({ ai_conversion_status: "failed" })
+          .eq("id", submissionFileId);
+      } catch { /* ignore */ }
+    }
+
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

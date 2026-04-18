@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +15,7 @@ import {
   FileText, Headphones, BookOpen, PenLine, Mic,
   Upload, Plus, Trash2, Send, Save, ChevronRight,
   CheckCircle2, AlertCircle, Clock, XCircle, Loader2, Globe,
+  Library, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -233,6 +235,146 @@ function AudioRecorder({
   );
 }
 
+// ── Exercise Bank Picker ──────────────────────────────────────────────────────
+
+interface BankExercise {
+  id: string;
+  type: string;
+  question: string;
+  options: any;
+  answer: string;
+  explanation: string | null;
+}
+
+function ExerciseBankPicker({
+  open,
+  onOpenChange,
+  levelId,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  levelId: string | null;
+  onSelect: (exercises: ExerciseItem[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [results, setResults] = useState<BankExercise[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const search = useCallback(async () => {
+    setLoading(true);
+    let q = (supabase as any)
+      .from("exercise_bank")
+      .select("id, type, question, options, answer, explanation")
+      .eq("active", true)
+      .order("times_used", { ascending: false })
+      .limit(40);
+    if (levelId) q = q.eq("level_id", levelId);
+    if (typeFilter !== "all") q = q.eq("type", typeFilter);
+    if (query.trim()) q = q.ilike("question", `%${query.trim()}%`);
+    const { data } = await q;
+    setResults(data || []);
+    setLoading(false);
+  }, [levelId, typeFilter, query]);
+
+  useEffect(() => { if (open) { search(); setSelected(new Set()); } }, [open, search]);
+
+  const toggle = (id: string) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const confirm = () => {
+    const chosen = results.filter(r => selected.has(r.id));
+    onSelect(chosen.map(e => ({
+      localId: newLocalId(),
+      type: e.type as ExerciseItem["type"],
+      question: e.question,
+      options: Array.isArray(e.options) ? e.options.join(",") : (e.options || ""),
+      answer: e.answer,
+      explanation: e.explanation || "",
+    })));
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Banco de Exercícios</DialogTitle>
+        </DialogHeader>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por enunciado…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && search()}
+              className="pl-8 text-xs h-9"
+            />
+          </div>
+          <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); }}>
+            <SelectTrigger className="w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              <SelectItem value="fill_blank">Preencher lacuna</SelectItem>
+              <SelectItem value="association">Associação</SelectItem>
+              <SelectItem value="open_answer">Resposta aberta</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : results.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-8">
+              Nenhum exercício encontrado.
+            </p>
+          ) : results.map(ex => (
+            <button
+              key={ex.id}
+              onClick={() => toggle(ex.id)}
+              className={cn(
+                "w-full text-left p-3 rounded-lg border text-xs transition-colors",
+                selected.has(ex.id)
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/30"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-muted-foreground uppercase text-[10px]">{ex.type}</span>
+                {selected.has(ex.id) && <CheckCircle2 className="h-3 w-3 text-primary ml-auto" />}
+              </div>
+              <p className="font-medium line-clamp-2">{ex.question}</p>
+              <p className="text-muted-foreground font-light mt-0.5 truncate">→ {ex.answer}</p>
+            </button>
+          ))}
+        </div>
+        <div className="pt-2 border-t flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={confirm}
+            disabled={selected.size === 0}
+          >
+            Adicionar {selected.size > 0 ? `(${selected.size})` : "selecionados"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const TeacherContentTab = ({ teacherId }: Props) => {
@@ -249,6 +391,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [currentSubmissionId, setCurrentSubmissionId] = useState<string | null>(null);
+  const [bankPickerEntryId, setBankPickerEntryId] = useState<string | null>(null);
 
   // Load languages and levels once
   useEffect(() => {
@@ -590,6 +733,21 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         })}
       </div>
 
+      {/* Exercise Bank Picker */}
+      <ExerciseBankPicker
+        open={bankPickerEntryId !== null}
+        onOpenChange={open => { if (!open) setBankPickerEntryId(null); }}
+        levelId={levelId}
+        onSelect={exs => {
+          if (!bankPickerEntryId) return;
+          const entry = files.find(f => f.localId === bankPickerEntryId);
+          if (entry) {
+            updateFile(bankPickerEntryId, { exercises: [...(entry.exercises || []), ...exs] });
+          }
+          setBankPickerEntryId(null);
+        }}
+      />
+
       {/* Step drawer */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col overflow-y-auto">
@@ -684,6 +842,15 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                         )}
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setBankPickerEntryId(entry.localId)}
+                      className="w-full gap-1.5 text-xs"
+                    >
+                      <Library className="h-3.5 w-3.5" />
+                      Buscar no banco de exercícios
+                    </Button>
                     <ExerciseEditor
                       exercises={entry.exercises || []}
                       onChange={exs => updateFile(entry.localId, { exercises: exs })}

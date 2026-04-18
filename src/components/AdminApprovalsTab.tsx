@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,8 @@ interface Submission {
   teacherName: string;
   stepNumber: number;
   stepId: string;
+  levelId: string;
+  languageId: string;
   languageName: string;
   levelCode: string;
   files: SubmissionFile[];
@@ -68,6 +71,7 @@ const DELIVERY_MAP: Record<string, string> = {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const AdminApprovalsTab = () => {
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +95,7 @@ const AdminApprovalsTab = () => {
           id, number,
           units!steps_unit_id_fkey(
             levels!units_level_id_fkey(
-              code,
+              id, code, language_id,
               languages!levels_language_id_fkey(name)
             )
           )
@@ -110,6 +114,8 @@ const AdminApprovalsTab = () => {
         teacherName: s.teachers?.profiles?.name || "Professor",
         stepNumber: s.steps?.number || 0,
         stepId: s.steps?.id || "",
+        levelId: s.steps?.units?.levels?.id || "",
+        languageId: s.steps?.units?.levels?.language_id || "",
         languageName: s.steps?.units?.levels?.languages?.name || "",
         levelCode: s.steps?.units?.levels?.code || "",
         files: s.submission_files || [],
@@ -130,20 +136,39 @@ const AdminApprovalsTab = () => {
       const delivery = DELIVERY_MAP[file.material_type] || "during";
 
       if (file.material_type === "exercise" && file.exercises && file.exercises.length > 0) {
+        const parseOptions = (e: any) =>
+          e.type === "association" && e.options
+            ? (typeof e.options === "string" ? e.options.split(",") : e.options)
+            : null;
+
         // Insert exercises into lesson_exercises
         const exerciseRows = file.exercises.map((e: any) => ({
           step_id: submission.stepId,
           type: e.type,
           question: e.question,
-          options: e.type === "association" && e.options
-            ? (typeof e.options === "string" ? e.options.split(",") : e.options)
-            : null,
+          options: parseOptions(e),
           answer: e.answer,
           explanation: e.explanation || null,
           active: true,
         }));
         const { error: exErr } = await supabase.from("lesson_exercises").insert(exerciseRows);
         if (exErr) throw new Error(`Erro ao inserir exercícios: ${exErr.message}`);
+
+        // Also insert into exercise_bank for reuse
+        if (submission.languageId && submission.levelId) {
+          const bankRows = file.exercises.map((e: any) => ({
+            language_id: submission.languageId,
+            level_id: submission.levelId,
+            type: e.type,
+            question: e.question,
+            options: parseOptions(e),
+            answer: e.answer,
+            explanation: e.explanation || null,
+            approved_by: profile?.id || null,
+            active: true,
+          }));
+          await (supabase as any).from("exercise_bank").insert(bankRows);
+        }
       } else if (file.file_url) {
         // Check for existing material of same type in this step → version history
         const { data: existing } = await supabase
@@ -252,7 +277,12 @@ const AdminApprovalsTab = () => {
     try {
       await (supabase as any)
         .from("content_submissions")
-        .update({ status: "rejected", admin_comment: comment })
+        .update({
+          status: "rejected",
+          admin_comment: comment,
+          reviewed_by: profile?.id || null,
+          reviewed_at: new Date().toISOString(),
+        })
         .eq("id", submission.id);
       await (supabase as any)
         .from("submission_files")
@@ -286,7 +316,11 @@ const AdminApprovalsTab = () => {
     else if (!anyPending && anyRejected) newStatus = "rejected";
 
     if (!anyPending || allApproved) {
-      await (supabase as any).from("content_submissions").update({ status: newStatus }).eq("id", submission.id);
+      await (supabase as any).from("content_submissions").update({
+        status: newStatus,
+        reviewed_by: profile?.id || null,
+        reviewed_at: new Date().toISOString(),
+      }).eq("id", submission.id);
     }
   };
 
