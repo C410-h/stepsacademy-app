@@ -37,7 +37,11 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
       .select("name, phone, cpf, birth_date")
       .eq("id", profile.id)
       .single()
-      .then(({ data }: { data: any }) => {
+      .then(({ data, error }: { data: any; error: any }) => {
+        if (error) {
+          console.error("[StudentLayout] profile check:", error.message);
+          return;
+        }
         if (!data) return;
         const missing: MissingField[] = [];
         if (!data.name?.trim())   missing.push("name");
