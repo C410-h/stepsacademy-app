@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import BottomNav from "./BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
@@ -9,6 +9,8 @@ import { Zap, Home, GraduationCap, BarChart3, CircleHelp, X } from "lucide-react
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import CompleteProfileModal, { MissingField } from "@/components/CompleteProfileModal";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { to: "/", icon: Home, label: "Início" },
@@ -23,7 +25,28 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
   const { gamification } = useGamification();
   const { showPaymentAlert, diasOverdue, isCorporate } = usePaymentAlert();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [missingFields, setMissingFields] = useState<MissingField[]>([]);
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+
+  // Verifica campos faltando no perfil — apenas para alunos
+  useEffect(() => {
+    if (!profile || profile.role !== "student") return;
+
+    (supabase as any)
+      .from("profiles")
+      .select("name, phone, cpf, birth_date")
+      .eq("id", profile.id)
+      .single()
+      .then(({ data }: { data: any }) => {
+        if (!data) return;
+        const missing: MissingField[] = [];
+        if (!data.name?.trim())   missing.push("name");
+        if (!data.cpf?.trim())    missing.push("cpf");
+        if (!data.phone?.trim())  missing.push("phone");
+        if (!data.birth_date)     missing.push("birth_date");
+        setMissingFields(missing);
+      });
+  }, [profile?.id]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -133,6 +156,15 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
 
       {/* ── Mobile Bottom Nav ───────────────────────────────────── */}
       <BottomNav />
+
+      {/* ── Complete Profile Modal ──────────────────────────────── */}
+      {missingFields.length > 0 && (
+        <CompleteProfileModal
+          open={missingFields.length > 0}
+          missingFields={missingFields}
+          onComplete={() => setMissingFields([])}
+        />
+      )}
     </div>
   );
 };
