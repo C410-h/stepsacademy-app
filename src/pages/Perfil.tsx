@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PAYMENT_ENABLED } from "@/lib/featureFlags";
@@ -287,7 +287,7 @@ const SubscriptionCard = ({ subscription }: { subscription: SubscriptionInfo }) 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const Perfil = () => {
-  const { profile: authProfile } = useAuth();
+  const { profile: authProfile, signOut } = useAuth();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [student, setStudent] = useState<StudentInfo | null>(null);
@@ -926,6 +926,16 @@ const Perfil = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* ── Sair ── */}
+        <Button
+          variant="ghost"
+          className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 font-medium"
+          onClick={signOut}
+        >
+          <LogOut className="h-4 w-4" />
+          Sair da conta
+        </Button>
 
       </div>
     </StudentLayout>
