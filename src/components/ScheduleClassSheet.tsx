@@ -194,7 +194,30 @@ const ScheduleClassSheet = ({ open, onOpenChange, students }: Props) => {
     try {
       const endTime = addMinutes(startTime, duration);
 
+      // Garante token fresco antes de chamar a Edge Function.
+      // Se o access_token estiver expirado, refreshSession() o renova.
+      // Passamos o token explicitamente para evitar que o cliente use
+      // um token vencido em memória após redirecionamentos OAuth.
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      let accessToken = session?.access_token;
+
+      if (!accessToken || sessionError) {
+        // Tenta renovar
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        accessToken = refreshed.session?.access_token;
+      }
+
+      if (!accessToken) {
+        toast({
+          title: "Sessão expirada",
+          description: "Faça login novamente para continuar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("google-calendar", {
+        headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           action: "create_class_event",
           payload: {

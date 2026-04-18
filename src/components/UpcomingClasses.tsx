@@ -88,7 +88,17 @@ const UpcomingClasses = () => {
       if (isMounted.current) setTeacherName(teacherProfile?.name || "Professor");
 
       // 5. Chamar Edge Function usando o Calendar do professor
+      // Garante token fresco para evitar 401 por JWT expirado
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        session = refreshed.session;
+      }
+      const accessToken = session?.access_token;
+      if (!accessToken) return;
+
       const { data } = await supabase.functions.invoke("google-calendar", {
+        headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           action: "list_student_events",
           payload: {
