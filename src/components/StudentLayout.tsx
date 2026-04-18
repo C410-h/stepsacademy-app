@@ -5,7 +5,7 @@ import { useGamification } from "@/contexts/GamificationContext";
 import { usePaymentAlert } from "@/contexts/PaymentAlertContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Zap, Home, GraduationCap, Trophy, User, X } from "lucide-react";
+import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -16,7 +16,7 @@ const navItems = [
   { to: "/", icon: Home, label: "Início" },
   { to: "/aula", icon: GraduationCap, label: "Aula" },
   { to: "/step-by-step", icon: Zap, label: "Step by Step" },
-  { to: "/ranking", icon: Trophy, label: "Ranking" },
+  { to: "/progresso", icon: BarChart3, label: "Progresso" },
   { to: "/perfil", icon: User, label: "Perfil" },
 ];
 
@@ -124,11 +124,12 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
               <span className="text-xs font-bold" style={{ color: "var(--theme-primary)" }}>{gamification.xp_total} XP</span>
             </div>
           )}
-          <Link to="/perfil">
-            <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">{initials}</AvatarFallback>
-            </Avatar>
+          <Link
+            to="/ajuda"
+            aria-label="Ajuda"
+            className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <CircleHelp className="h-5 w-5" />
           </Link>
         </div>
       </header>
