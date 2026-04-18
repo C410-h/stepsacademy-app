@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import TeacherLayout from "@/components/TeacherLayout";
 import TeacherContentTab from "@/components/TeacherContentTab";
+import TeacherUpcomingClasses from "@/components/TeacherUpcomingClasses";
 import ScheduleClassSheet from "@/components/ScheduleClassSheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic, FileText, CalendarPlus } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic, FileText, CalendarPlus, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RecordingRow {
@@ -415,9 +416,12 @@ const Teacher = () => {
     <TeacherLayout>
       <div className="space-y-4">
         <Tabs defaultValue="students">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="students" className="gap-1.5">
-              <Users className="h-4 w-4" />Meus Alunos
+              <Users className="h-4 w-4" />Alunos
+            </TabsTrigger>
+            <TabsTrigger value="agenda" className="gap-1.5">
+              <CalendarDays className="h-4 w-4" />Agenda
             </TabsTrigger>
             <TabsTrigger value="content" className="gap-1.5">
               <FileText className="h-4 w-4" />Conteúdo
@@ -656,6 +660,29 @@ const Teacher = () => {
             ))}
           </div>
         )}
+          </TabsContent>
+
+          {/* ── Tab: Agenda ───────────────────────────────────────────────── */}
+          <TabsContent value="agenda" className="space-y-4 mt-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold">Próximas aulas</h2>
+                <p className="text-sm text-muted-foreground font-light mt-1">
+                  Eventos dos próximos 30 dias no seu Google Calendar
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="gap-2 shrink-0"
+                onClick={() => setScheduleOpen(true)}
+                disabled={students.length === 0}
+              >
+                <CalendarPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Agendar aula</span>
+                <span className="sm:hidden">Agendar</span>
+              </Button>
+            </div>
+            <TeacherUpcomingClasses />
           </TabsContent>
 
           {/* ── Tab: Conteúdo ─────────────────────────────────────────────── */}

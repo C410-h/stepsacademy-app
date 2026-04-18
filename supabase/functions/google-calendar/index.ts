@@ -7,7 +7,6 @@ const corsHeaders = {
 }
 
 // Resposta de erro sempre como 200 + { error } para que o cliente leia a mensagem real
-// (respostas 4xx são interceptadas pela infra do Supabase antes de chegar ao client)
 const errResponse = (msg: string) =>
   new Response(JSON.stringify({ error: msg }), {
     status: 200,
@@ -29,7 +28,7 @@ async function resolveAccessToken(
   if (error || !prof) throw new Error('Perfil não encontrado')
   if (!prof.google_refresh_token) throw new Error('Google Calendar não conectado. Faça login com Google.')
 
-  // google_token_expires_at é bigint (Unix ms). Se ainda válido, retorna access token atual.
+  // google_token_expires_at é bigint (Unix ms)
   const expiresAt = prof.google_token_expires_at ? new Date(Number(prof.google_token_expires_at)) : new Date(0)
   if (expiresAt > new Date() && prof.google_access_token) return prof.google_access_token
 
@@ -47,13 +46,33 @@ async function resolveAccessToken(
   const tokenData = await tokenRes.json()
   if (!tokenData.access_token) throw new Error('Falha ao renovar token do Google')
 
-  // Salvar como bigint (Unix ms), não ISO string
+  // Salvar como bigint (Unix ms)
   await supabase.from('profiles').update({
     google_access_token: tokenData.access_token,
     google_token_expires_at: Date.now() + (tokenData.expires_in ?? 3600) * 1000,
   }).eq('id', profileId)
 
   return tokenData.access_token
+}
+
+// ── Listagem de eventos do Google Calendar ────────────────────────────────────
+
+async function fetchCalendarEvents(
+  accessToken: string,
+  filterFn: (e: any) => boolean,
+  mapFn: (e: any) => any,
+): Promise<any[]> {
+  const now = new Date().toISOString()
+  const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+    `timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(future)}` +
+    `&singleEvents=true&orderBy=startTime&maxResults=50`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
+  const data = await res.json()
+  return (data.items || []).filter(filterFn).map(mapFn)
 }
 
 // ── Handler principal ──────────────────────────────────────────────────────────
@@ -68,14 +87,15 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     )
 
-    // 1. Autenticar chamador via JWT
+    // 1. Autenticar chamador via JWT (manual — verify_jwt desabilitado na infra)
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return errResponse('Não autorizado')
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-    if (authError || !user) return errResponse('Usuário não autenticado')
+    const token = authHeader.replace('Bearer ', '')
+    if (!token || token === 'undefined' || token === 'null') return errResponse('Token inválido')
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) return errResponse('Usuário não autenticado: ' + (authError?.message ?? 'sem usuário'))
 
     // 2. Parsear body
     const { action, payload } = await req.json()
@@ -87,36 +107,52 @@ serve(async (req) => {
       const calendarOwner = teacher_id ?? user.id
       const accessToken = await resolveAccessToken(supabase, calendarOwner)
 
-      const now = new Date().toISOString()
-      const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-
-      const res = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-        `timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(future)}` +
-        `&singleEvents=true&orderBy=startTime&maxResults=50`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-      const data = await res.json()
-
-      const events = (data.items || [])
-        .filter((e: any) =>
-          e.attendees?.some((a: any) => a.email === student_email)
-        )
-        .map((e: any) => ({
+      const events = await fetchCalendarEvents(
+        accessToken,
+        (e) => e.attendees?.some((a: any) => a.email === student_email),
+        (e) => ({
           id: e.id,
           title: e.summary,
           start: e.start?.dateTime || e.start?.date,
           end: e.end?.dateTime || e.end?.date,
           meet_link: e.hangoutLink || null,
           description: e.description || null,
-        }))
+        }),
+      )
 
       return new Response(JSON.stringify({ events }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // ── AÇÃO 2: Criar novo evento de aula ─────────────────────────────────────
+    // ── AÇÃO 2: Listar próximos eventos do professor ───────────────────────────
+    if (action === 'list_teacher_events') {
+      const accessToken = await resolveAccessToken(supabase, user.id)
+
+      // Retorna apenas eventos com attendees (eventos de aula criados pelo sistema)
+      const events = await fetchCalendarEvents(
+        accessToken,
+        (e) => (e.attendees?.length ?? 0) > 0,
+        (e) => ({
+          id: e.id,
+          title: e.summary,
+          start: e.start?.dateTime || e.start?.date,
+          end: e.end?.dateTime || e.end?.date,
+          meet_link: e.hangoutLink || null,
+          description: e.description || null,
+          attendees: (e.attendees || []).map((a: any) => ({
+            email: a.email,
+            name: a.displayName || null,
+          })),
+        }),
+      )
+
+      return new Response(JSON.stringify({ events }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── AÇÃO 3: Criar novo evento de aula ─────────────────────────────────────
     if (action === 'create_class_event') {
       const { student_user_id, student_name, start_datetime, end_datetime, language } = payload
 
@@ -176,6 +212,7 @@ serve(async (req) => {
         start: created.start?.dateTime,
         end: created.end?.dateTime,
         html_link: created.htmlLink,
+        student_email,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
