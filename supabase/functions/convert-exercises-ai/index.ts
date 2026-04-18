@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const EXTRACTION_PROMPT = `Você é um assistente pedagógico especializado em criar exercícios de idiomas.
+const BASE_PROMPT = `Você é um assistente pedagógico especializado em criar exercícios de idiomas.
 Analise o documento abaixo e extraia ou crie exercícios no formato JSON.
 
 Retorne APENAS um array JSON válido, sem nenhum texto adicional, sem markdown, sem backticks:
@@ -29,15 +29,31 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { fileUrl, submissionFileId: sfId } = body;
+    const {
+      // new params
+      slide_url,
+      raw_document_url,
+      teacher_instructions,
+      // legacy support
+      fileUrl: legacyFileUrl,
+      submissionFileId: sfId,
+    } = body;
     submissionFileId = sfId;
 
+    const fileUrl: string | undefined = slide_url || raw_document_url || legacyFileUrl;
+
     if (!fileUrl) {
-      return new Response(JSON.stringify({ error: "fileUrl é obrigatório" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Forneça slide_url ou raw_document_url" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
+    // Build final prompt, injecting teacher instructions if provided
+    const instructionsNote = teacher_instructions
+      ? `\n\nInstruções do professor: ${teacher_instructions}`
+      : "";
+    const EXTRACTION_PROMPT = BASE_PROMPT + instructionsNote;
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY não configurada");
@@ -46,7 +62,7 @@ Deno.serve(async (req: Request) => {
     const sb = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
+      { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
     // Atualiza status → converting
@@ -116,7 +132,7 @@ Deno.serve(async (req: Request) => {
             maxOutputTokens: 4000,
           },
         }),
-      }
+      },
     );
 
     if (!geminiRes.ok) {
@@ -156,7 +172,7 @@ Deno.serve(async (req: Request) => {
         const sb = createClient(
           Deno.env.get("SUPABASE_URL")!,
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-          { auth: { autoRefreshToken: false, persistSession: false } }
+          { auth: { autoRefreshToken: false, persistSession: false } },
         );
         await sb.from("submission_files")
           .update({ ai_conversion_status: "failed" })

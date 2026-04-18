@@ -51,8 +51,10 @@ interface FileEntry {
   // exercises attached to this file entry (for exercise type)
   exercises?: ExerciseItem[];
   // AI conversion
-  aiStatus?: "idle" | "converting" | "done" | "error";
+  aiStatus?: "idle" | "converting" | "done" | "confirmed" | "error";
   aiResult?: ExerciseItem[];
+  aiFonte?: "slide" | "documento";
+  aiInstrucoes?: string;
   uploadedFileUrl?: string | null;
 }
 
@@ -495,7 +497,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
           exercises: sf.exercises
             ? (sf.exercises as any[]).map(e => ({ ...e, localId: newLocalId() }))
             : [],
-          aiStatus: sf.ai_conversion_status === "done" ? "done" : "idle",
+          aiStatus: sf.ai_conversion_status === "done" ? "confirmed" : "idle",
         }));
         setFiles(loaded);
       }
@@ -537,17 +539,32 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     updateFile(localId, { file: f, filename: f.name, previewUrl: url });
   };
 
-  // ── AI conversion ───────────────────────────────────────────────────────────
+  // ── AI generation ────────────────────────────────────────────────────────────
 
-  const convertWithAI = async (entry: FileEntry) => {
-    if (!entry.uploadedFileUrl) {
-      toast({ title: "Salve o rascunho primeiro para fazer a conversão AI.", variant: "destructive" });
+  const gerarExerciciosIA = async (entry: FileEntry) => {
+    const slideUrl = entry.aiFonte === "slide"
+      ? files.find(f => f.materialType === "slide" && f.uploadedFileUrl)?.uploadedFileUrl ?? null
+      : null;
+    const rawDocUrl = entry.aiFonte === "documento" ? (entry.uploadedFileUrl ?? null) : null;
+
+    if (entry.aiFonte === "slide" && !slideUrl) {
+      toast({ title: "Slide não encontrado. Adicione e salve um slide primeiro.", variant: "destructive" });
       return;
     }
+    if (entry.aiFonte === "documento" && !rawDocUrl) {
+      toast({ title: "Salve o rascunho primeiro para que o documento seja enviado.", variant: "destructive" });
+      return;
+    }
+
     updateFile(entry.localId, { aiStatus: "converting" });
     try {
       const { data, error } = await supabase.functions.invoke("convert-exercises-ai", {
-        body: { fileUrl: entry.uploadedFileUrl, submissionFileId: entry.localId },
+        body: {
+          slide_url: slideUrl,
+          raw_document_url: rawDocUrl,
+          teacher_instructions: entry.aiInstrucoes || null,
+          submissionFileId: entry.localId,
+        },
       });
       if (error || !data?.exercises) throw new Error(error?.message || "Sem resultado");
       const aiExs: ExerciseItem[] = (data.exercises as any[]).map(e => ({
@@ -559,11 +576,25 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         explanation: e.explanation || "",
       }));
       updateFile(entry.localId, { aiStatus: "done", aiResult: aiExs, exercises: aiExs });
-      toast({ title: "IA converteu os exercícios com sucesso!" });
+      toast({ title: "IA gerou os exercícios! Revise e confirme." });
     } catch (e: any) {
       updateFile(entry.localId, { aiStatus: "error" });
-      toast({ title: "Erro na conversão AI", description: e.message, variant: "destructive" });
+      toast({ title: "Erro na geração de exercícios", description: e.message, variant: "destructive" });
     }
+  };
+
+  const confirmExercises = async (localId: string) => {
+    const entry = files.find(f => f.localId === localId);
+    if (!entry || !entry.exercises?.length) return;
+    // Persist to DB if this is an existing row (UUID format)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(localId)) {
+      await (supabase as any)
+        .from("submission_files")
+        .update({ exercises: entry.exercises, ai_conversion_status: "done" })
+        .eq("id", localId);
+    }
+    updateFile(localId, { aiStatus: "confirmed" });
+    toast({ title: "Exercícios confirmados!" });
   };
 
   // ── Upload single file to storage ───────────────────────────────────────────
@@ -782,7 +813,9 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
           <div className="flex-1 space-y-4 p-4 overflow-y-auto">
             {/* Existing file entries */}
-            {files.map((entry, i) => (
+            {(() => {
+              const slideDisponivel = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
+              return files.map((entry, i) => (
               <div key={entry.localId} className="border rounded-lg p-3 space-y-3 bg-muted/20">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-bold">
@@ -813,35 +846,122 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                   </div>
                 ) : entry.materialType === "exercise" ? (
                   <div className="space-y-3">
-                    {/* Upload PDF for AI */}
-                    <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
-                      <Upload className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs font-medium">{entry.filename || "Enviar PDF de exercícios (opcional)"}</p>
-                        <p className="text-[10px] text-muted-foreground">A IA converte automaticamente</p>
-                      </div>
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx"
-                        className="hidden"
-                        onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
-                      />
-                    </label>
-                    {entry.file && entry.aiStatus !== "done" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => convertWithAI(entry)}
-                        disabled={entry.aiStatus === "converting"}
-                        className="w-full gap-1.5 text-xs"
-                      >
-                        {entry.aiStatus === "converting" ? (
-                          <><Loader2 className="h-3.5 w-3.5 animate-spin" />Convertendo…</>
-                        ) : (
-                          "Converter com IA"
+
+                    {/* ── IA: fonte + instruções + gerar ── */}
+                    {(entry.aiStatus === "idle" || entry.aiStatus === "error") && (
+                      <div className="space-y-2 border rounded-lg p-3 bg-muted/10">
+                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Gerar com IA</p>
+
+                        {/* Source selector */}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <Button
+                            size="sm"
+                            variant={entry.aiFonte === "slide" ? "default" : "outline"}
+                            onClick={() => updateFile(entry.localId, { aiFonte: "slide" })}
+                            disabled={!slideDisponivel}
+                            className="text-xs h-8"
+                            title={!slideDisponivel ? "Adicione e salve um slide primeiro" : undefined}
+                          >
+                            Slide da aula
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={entry.aiFonte === "documento" ? "default" : "outline"}
+                            onClick={() => updateFile(entry.localId, { aiFonte: "documento" })}
+                            className="text-xs h-8"
+                          >
+                            Upload de documento
+                          </Button>
+                        </div>
+
+                        {/* Document upload when "documento" selected */}
+                        {entry.aiFonte === "documento" && (
+                          <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
+                            <Upload className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{entry.filename || "Enviar PDF / DOCX"}</p>
+                              {entry.file && !entry.uploadedFileUrl && (
+                                <p className="text-[10px] text-amber-500">Salve o rascunho antes de gerar</p>
+                              )}
+                            </div>
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx"
+                              className="hidden"
+                              onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
+                            />
+                          </label>
                         )}
-                      </Button>
+
+                        {/* Teacher instructions */}
+                        <Textarea
+                          placeholder="Instruções para a IA (opcional): ex. criar 5 exercícios de lacuna, focar em verbos irregulares…"
+                          value={entry.aiInstrucoes || ""}
+                          onChange={e => updateFile(entry.localId, { aiInstrucoes: e.target.value })}
+                          rows={2}
+                          className="text-xs"
+                        />
+
+                        {entry.aiStatus === "error" && (
+                          <p className="text-xs text-destructive">Falha na geração. Verifique as configurações e tente novamente.</p>
+                        )}
+
+                        <Button
+                          size="sm"
+                          onClick={() => gerarExerciciosIA(entry)}
+                          disabled={!entry.aiFonte || (entry.aiFonte === "documento" && !entry.file && !entry.uploadedFileUrl)}
+                          className="w-full text-xs gap-1.5"
+                        >
+                          Gerar exercícios com IA
+                        </Button>
+                      </div>
                     )}
+
+                    {/* ── Converting: skeleton ── */}
+                    {entry.aiStatus === "converting" && (
+                      <div className="border rounded-lg p-3 space-y-2 bg-muted/10">
+                        <Skeleton className="h-3 w-2/5" />
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-3/4" />
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <p className="text-xs text-muted-foreground text-center pt-1">
+                          Analisando o conteúdo e criando exercícios…
+                        </p>
+                      </div>
+                    )}
+
+                    {/* ── Done: review banner ── */}
+                    {entry.aiStatus === "done" && (
+                      <div className="flex items-center gap-2 px-1">
+                        <Badge variant="secondary" className="text-[10px] gap-1 py-0.5">
+                          <CheckCircle2 className="h-3 w-3 text-lime-600" />
+                          {(entry.exercises || []).length} exercícios gerados
+                        </Badge>
+                        <button
+                          onClick={() => updateFile(entry.localId, { aiStatus: "idle", aiResult: undefined })}
+                          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground underline"
+                        >
+                          Gerar novamente
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── Confirmed: small indicator ── */}
+                    {entry.aiStatus === "confirmed" && (
+                      <div className="flex items-center gap-1.5 px-1">
+                        <CheckCircle2 className="h-3 w-3 text-lime-600 shrink-0" />
+                        <span className="text-[10px] text-muted-foreground">Exercícios confirmados pela IA</span>
+                        <button
+                          onClick={() => updateFile(entry.localId, { aiStatus: "idle" })}
+                          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground underline"
+                        >
+                          Gerar novamente
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── Bank picker button ── */}
                     <Button
                       size="sm"
                       variant="outline"
@@ -851,10 +971,24 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                       <Library className="h-3.5 w-3.5" />
                       Buscar no banco de exercícios
                     </Button>
+
+                    {/* ── Editable exercise list ── */}
                     <ExerciseEditor
                       exercises={entry.exercises || []}
                       onChange={exs => updateFile(entry.localId, { exercises: exs })}
                     />
+
+                    {/* ── Confirm button (visible only in "done" state) ── */}
+                    {entry.aiStatus === "done" && (entry.exercises || []).length > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={() => confirmExercises(entry.localId)}
+                        className="w-full text-xs gap-1.5"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Confirmar exercícios
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   /* slide / grammar / vocab — file upload */
@@ -870,7 +1004,8 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                   </label>
                 )}
               </div>
-            ))}
+              ));
+            })()}
 
             {/* Add type buttons */}
             <div className="space-y-1.5">
