@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { signInWithGoogle } from "@/contexts/AuthContext";
+import { signInWithGoogle, useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,12 @@ const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const navigate = useNavigate();
+  const { session } = useAuth();
+
+  // Se já há sessão ativa, redireciona sem empilhar /login no histórico
+  useEffect(() => {
+    if (session) navigate("/", { replace: true });
+  }, [session]);
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
@@ -50,7 +56,7 @@ const Login = () => {
     if (error) {
       toast({ title: "Erro ao entrar", description: "E-mail ou senha incorretos. Tente novamente.", variant: "destructive" });
     } else {
-      navigate("/");
+      navigate("/", { replace: true });
     }
   };
 
