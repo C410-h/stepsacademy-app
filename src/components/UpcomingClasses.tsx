@@ -43,6 +43,7 @@ const UpcomingClasses = () => {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<ClassEvent[]>([]);
   const [teacherName, setTeacherName] = useState<string>("");
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   const isMounted = useRef(true);
 
   const load = useCallback(async () => {
@@ -108,7 +109,10 @@ const UpcomingClasses = () => {
         },
       });
 
-      if (isMounted.current) setEvents(data?.events || []);
+      if (isMounted.current) {
+        setEvents(data?.events || []);
+        setDebugInfo({ student_email_used: data?.student_email_used, attendees: data?.debug_attendees });
+      }
     } catch {
       // Erros silenciosos — exibe estado vazio
       if (isMounted.current) setEvents([]);
@@ -153,6 +157,15 @@ const UpcomingClasses = () => {
             <p className="text-sm text-muted-foreground font-light">
               Nenhuma aula agendada nos próximos 30 dias.
             </p>
+            {/* DEBUG TEMPORÁRIO — remover após diagnóstico */}
+            {debugInfo && (
+              <div className="mt-2 text-left text-[10px] bg-muted rounded p-2 w-full break-all">
+                <p><b>email usado:</b> {debugInfo.student_email_used}</p>
+                {debugInfo.attendees?.map((ev: any, i: number) => (
+                  <p key={i}><b>{ev.title}</b>: {ev.attendees?.join(", ") || "sem attendees"}</p>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
