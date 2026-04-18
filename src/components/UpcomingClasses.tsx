@@ -51,56 +51,20 @@ const UpcomingClasses = () => {
 
     setLoading(true);
     try {
-      // 1. Buscar student.id
-      const { data: student, error: studentErr } = await supabase
-        .from("students")
-        .select("id")
-        .eq("user_id", profile.id)
+      // 1. Resolver professor via função SECURITY DEFINER (sem tocar em RLS das tabelas)
+      const { data: teacherInfo, error: tiErr } = await supabase
+        .rpc("get_my_teacher_info", { p_uid: profile.id })
         .maybeSingle();
 
       if (!isMounted.current) return;
-      if (!student) {
-        setDebugInfo({ step: "student not found", error: studentErr?.message, profile_id: profile.id });
+      if (!teacherInfo) {
+        setDebugInfo({ step: "teacher info not found", error: tiErr?.message, profile_id: profile.id });
         return;
       }
 
-      // 2. Buscar teacher via teacher_students
-      const { data: ts, error: tsErr } = await (supabase as any)
-        .from("teacher_students")
-        .select("teacher_id")
-        .eq("student_id", student.id)
-        .limit(1)
-        .maybeSingle();
+      if (isMounted.current) setTeacherName(teacherInfo.teacher_name || "Professor");
 
-      if (!isMounted.current) return;
-      if (!ts) {
-        setDebugInfo({ step: "teacher_students not found", error: tsErr?.message, student_id: student.id });
-        return;
-      }
-
-      // 3. Resolver user_id do professor (= profiles.id onde ficam os tokens)
-      const { data: teacher, error: teacherErr } = await (supabase as any)
-        .from("teachers")
-        .select("user_id")
-        .eq("id", ts.teacher_id)
-        .maybeSingle();
-
-      if (!isMounted.current) return;
-      if (!teacher) {
-        setDebugInfo({ step: "teacher not found", error: teacherErr?.message, teacher_id: ts.teacher_id });
-        return;
-      }
-
-      // 4. Nome do professor para exibir nos cards
-      const { data: teacherProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", teacher.user_id)
-        .maybeSingle();
-
-      if (isMounted.current) setTeacherName(teacherProfile?.name || "Professor");
-
-      // 5. Chamar Edge Function usando o Calendar do professor
+      // 2. Chamar Edge Function usando o Calendar do professor
       // Garante token fresco para evitar 401 por JWT expirado
       let { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
@@ -109,7 +73,7 @@ const UpcomingClasses = () => {
       }
       const accessToken = session?.access_token;
       if (!accessToken) {
-        setDebugInfo({ step: "no access token", teacher_user_id: teacher.user_id });
+        setDebugInfo({ step: "no access token", teacher_user_id: teacherInfo.teacher_user_id });
         return;
       }
 
@@ -119,7 +83,7 @@ const UpcomingClasses = () => {
           action: "list_student_events",
           payload: {
             student_email: user.email,
-            teacher_id: teacher.user_id, // profiles.id do professor
+            teacher_id: teacherInfo.teacher_user_id,
           },
         },
       });
