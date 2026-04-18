@@ -37,7 +37,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como acesso minha aula ao vivo?",
           answer:
-            "No seu Dashboard, você vê as próximas aulas agendadas. Clique em "Entrar na aula" para abrir o Google Meet direto pelo app. O link também chega no seu email quando a aula é agendada.",
+            "No seu Dashboard, você vê as próximas aulas agendadas. Clique em 'Entrar na aula' para abrir o Google Meet direto pelo app. O link também chega no seu email quando a aula é agendada.",
         },
         {
           question: "Como vejo meu progresso?",
@@ -52,7 +52,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Onde ficam os materiais da aula?",
           answer:
-            "Acesse a aba "Aula" no menu inferior. Lá você encontra os slides, fichas de gramática, listas de vocabulário e exercícios organizados por step.",
+            "Acesse a aba 'Aula' no menu inferior. Lá você encontra os slides, fichas de gramática, listas de vocabulário e exercícios organizados por step.",
         },
         {
           question: "O que são os Steps?",
@@ -62,7 +62,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Posso refazer os exercícios?",
           answer:
-            "Sim. Clique em "Refazer" em qualquer exercício para praticar novamente. O XP só é contabilizado na primeira vez que você responde — revisões não geram XP adicional.",
+            "Sim. Clique em 'Refazer' em qualquer exercício para praticar novamente. O XP só é contabilizado na primeira vez que você responde — revisões não geram XP adicional.",
         },
       ],
     },
@@ -107,7 +107,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como conecto minha conta Google?",
           answer:
-            "Acesse /login e clique em "Entrar com Google". Ao conectar, suas próximas aulas aparecem automaticamente no Dashboard com link do Meet.",
+            "Acesse /login e clique em 'Entrar com Google'. Ao conectar, suas próximas aulas aparecem automaticamente no Dashboard com link do Meet.",
         },
         {
           question: "Como recebo notificações?",
@@ -145,7 +145,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como marco uma aula como concluída?",
           answer:
-            "Na ficha do aluno, clique em "Marcar aula concluída". O sistema avança o aluno para o próximo step automaticamente e libera os materiais correspondentes.",
+            "Na ficha do aluno, clique em 'Marcar aula concluída'. O sistema avança o aluno para o próximo step automaticamente e libera os materiais correspondentes.",
         },
         {
           question: "Como avanço um aluno de nível?",
@@ -160,12 +160,12 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como agendar uma aula pelo app?",
           answer:
-            "No seu painel, clique em "Agendar aula". Busque o aluno pelo nome, selecione data, horário e duração. O app cria o evento no Google Calendar automaticamente com link do Meet e envia convite ao aluno.",
+            "No seu painel, clique em 'Agendar aula'. Busque o aluno pelo nome, selecione data, horário e duração. O app cria o evento no Google Calendar automaticamente com link do Meet e envia convite ao aluno.",
         },
         {
           question: "Preciso conectar minha conta Google?",
           answer:
-            "Sim. Para agendar aulas pelo app, faça login com o botão "Entrar com Google" na tela de login. Isso conecta seu Google Calendar à plataforma.",
+            "Sim. Para agendar aulas pelo app, faça login com o botão 'Entrar com Google' na tela de login. Isso conecta seu Google Calendar à plataforma.",
         },
         {
           question: "O aluno recebe o convite automaticamente?",
@@ -213,17 +213,17 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como cadastro um novo aluno?",
           answer:
-            "No Admin → Alunos, clique em "Novo aluno" para gerar um token de cadastro. Envie o link para o aluno — ele cria a conta em 3 passos sem precisar de pagamento enquanto o gateway estiver inativo.",
+            "No Admin → Alunos, clique em 'Novo aluno' para gerar um token de cadastro. Envie o link para o aluno — ele cria a conta em 3 passos sem precisar de pagamento enquanto o gateway estiver inativo.",
         },
         {
           question: "Como cadastro um professor?",
           answer:
-            "No Admin → Professores, clique em "Novo professor" e preencha os dados. O professor recebe o acesso por email.",
+            "No Admin → Professores, clique em 'Novo professor' e preencha os dados. O professor recebe o acesso por email.",
         },
         {
           question: "Como crio uma turma?",
           answer:
-            "No Admin → Turmas, clique em "Nova turma", defina o nome, idioma, professor responsável e aloque os alunos.",
+            "No Admin → Turmas, clique em 'Nova turma', defina o nome, idioma, professor responsável e aloque os alunos.",
         },
       ],
     },
@@ -243,7 +243,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como marco um aluno como corporativo?",
           answer:
-            "Na ficha do aluno, ative a opção "Corporativo". Alunos corporativos são isentos do fluxo de pagamento — a empresa paga por fora.",
+            "Na ficha do aluno, ative a opção 'Corporativo'. Alunos corporativos são isentos do fluxo de pagamento — a empresa paga por fora.",
         },
       ],
     },
@@ -253,7 +253,7 @@ const HELP_CONTENT: Record<string, HelpSection[]> = {
         {
           question: "Como envio uma notificação para os alunos?",
           answer:
-            "No Admin → Notificações, clique em "Nova notificação", defina o título, mensagem e destinatário (aluno específico ou todos) e envie.",
+            "No Admin → Notificações, clique em 'Nova notificação', defina o título, mensagem e destinatário (aluno específico ou todos) e envie.",
         },
         {
           question: "Como acompanho o progresso geral da escola?",
