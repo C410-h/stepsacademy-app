@@ -52,32 +52,44 @@ const UpcomingClasses = () => {
     setLoading(true);
     try {
       // 1. Buscar student.id
-      const { data: student } = await supabase
+      const { data: student, error: studentErr } = await supabase
         .from("students")
         .select("id")
         .eq("user_id", profile.id)
         .maybeSingle();
 
-      if (!student || !isMounted.current) return;
+      if (!isMounted.current) return;
+      if (!student) {
+        setDebugInfo({ step: "student not found", error: studentErr?.message, profile_id: profile.id });
+        return;
+      }
 
       // 2. Buscar teacher via teacher_students
-      const { data: ts } = await (supabase as any)
+      const { data: ts, error: tsErr } = await (supabase as any)
         .from("teacher_students")
         .select("teacher_id")
         .eq("student_id", student.id)
         .limit(1)
         .maybeSingle();
 
-      if (!ts || !isMounted.current) return;
+      if (!isMounted.current) return;
+      if (!ts) {
+        setDebugInfo({ step: "teacher_students not found", error: tsErr?.message, student_id: student.id });
+        return;
+      }
 
       // 3. Resolver user_id do professor (= profiles.id onde ficam os tokens)
-      const { data: teacher } = await (supabase as any)
+      const { data: teacher, error: teacherErr } = await (supabase as any)
         .from("teachers")
         .select("user_id")
         .eq("id", ts.teacher_id)
         .maybeSingle();
 
-      if (!teacher || !isMounted.current) return;
+      if (!isMounted.current) return;
+      if (!teacher) {
+        setDebugInfo({ step: "teacher not found", error: teacherErr?.message, teacher_id: ts.teacher_id });
+        return;
+      }
 
       // 4. Nome do professor para exibir nos cards
       const { data: teacherProfile } = await supabase
@@ -96,9 +108,12 @@ const UpcomingClasses = () => {
         session = refreshed.session;
       }
       const accessToken = session?.access_token;
-      if (!accessToken) return;
+      if (!accessToken) {
+        setDebugInfo({ step: "no access token", teacher_user_id: teacher.user_id });
+        return;
+      }
 
-      const { data } = await supabase.functions.invoke("google-calendar", {
+      const { data, error: fnErr } = await supabase.functions.invoke("google-calendar", {
         headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           action: "list_student_events",
@@ -111,11 +126,19 @@ const UpcomingClasses = () => {
 
       if (isMounted.current) {
         setEvents(data?.events || []);
-        setDebugInfo({ student_email_used: data?.student_email_used, attendees: data?.debug_attendees });
+        setDebugInfo({
+          step: "fn called",
+          fn_error: fnErr?.message,
+          data_error: data?.error,
+          student_email_used: data?.student_email_used,
+          attendees: data?.debug_attendees,
+        });
       }
-    } catch {
-      // Erros silenciosos — exibe estado vazio
-      if (isMounted.current) setEvents([]);
+    } catch (err: any) {
+      if (isMounted.current) {
+        setEvents([]);
+        setDebugInfo({ step: "exception", error: err?.message });
+      }
     } finally {
       if (isMounted.current) setLoading(false);
     }
@@ -158,14 +181,24 @@ const UpcomingClasses = () => {
               Nenhuma aula agendada nos próximos 30 dias.
             </p>
             {/* DEBUG TEMPORÁRIO — remover após diagnóstico */}
-            {debugInfo && (
-              <div className="mt-2 text-left text-[10px] bg-muted rounded p-2 w-full break-all">
-                <p><b>email usado:</b> {debugInfo.student_email_used}</p>
-                {debugInfo.attendees?.map((ev: any, i: number) => (
-                  <p key={i}><b>{ev.title}</b>: {ev.attendees?.join(", ") || "sem attendees"}</p>
-                ))}
-              </div>
-            )}
+            <div className="mt-2 text-left text-[10px] bg-muted rounded p-2 w-full break-all">
+              {debugInfo ? (
+                <>
+                  <p><b>step:</b> {debugInfo.step}</p>
+                  {debugInfo.error && <p><b>error:</b> {debugInfo.error}</p>}
+                  {debugInfo.fn_error && <p><b>fn_error:</b> {debugInfo.fn_error}</p>}
+                  {debugInfo.data_error && <p><b>data_error:</b> {debugInfo.data_error}</p>}
+                  {debugInfo.profile_id && <p><b>profile_id:</b> {debugInfo.profile_id}</p>}
+                  {debugInfo.student_id && <p><b>student_id:</b> {debugInfo.student_id}</p>}
+                  {debugInfo.student_email_used && <p><b>email usado:</b> {debugInfo.student_email_used}</p>}
+                  {debugInfo.attendees?.map((ev: any, i: number) => (
+                    <p key={i}><b>{ev.title}</b>: {ev.attendees?.join(", ") || "sem attendees"}</p>
+                  ))}
+                </>
+              ) : (
+                <p><b>debugInfo:</b> null (load() não chegou ao fim)</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
