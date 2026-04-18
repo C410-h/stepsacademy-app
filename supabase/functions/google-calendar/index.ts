@@ -107,20 +107,43 @@ serve(async (req) => {
       const calendarOwner = teacher_id ?? user.id
       const accessToken = await resolveAccessToken(supabase, calendarOwner)
 
-      const events = await fetchCalendarEvents(
-        accessToken,
-        (e) => e.attendees?.some((a: any) => a.email === student_email),
-        (e) => ({
+      const normalizedStudentEmail = student_email?.toLowerCase().trim()
+
+      const now = new Date().toISOString()
+      const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      const calRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+        `timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(future)}` +
+        `&singleEvents=true&orderBy=startTime&maxResults=50`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+      const calData = await calRes.json()
+      const allItems = calData.items || []
+
+      // Debug: retorna attendees de todos os eventos para diagnóstico
+      const debug_attendees = allItems.map((e: any) => ({
+        title: e.summary,
+        start: e.start?.dateTime,
+        attendees: (e.attendees || []).map((a: any) => a.email),
+      }))
+
+      // Filtro case-insensitive para cobrir eventuais normalizações do Google
+      const events = allItems
+        .filter((e: any) =>
+          e.attendees?.some((a: any) =>
+            a.email?.toLowerCase().trim() === normalizedStudentEmail
+          )
+        )
+        .map((e: any) => ({
           id: e.id,
           title: e.summary,
           start: e.start?.dateTime || e.start?.date,
           end: e.end?.dateTime || e.end?.date,
           meet_link: e.hangoutLink || null,
           description: e.description || null,
-        }),
-      )
+        }))
 
-      return new Response(JSON.stringify({ events }), {
+      return new Response(JSON.stringify({ events, debug_attendees, student_email_used: student_email }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
