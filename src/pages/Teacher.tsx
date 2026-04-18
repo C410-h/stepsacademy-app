@@ -497,7 +497,9 @@ const Teacher = () => {
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Marcar aula concluída
+                      {student.currentStepNumber
+                        ? `Concluir Passo ${student.currentStepNumber}`
+                        : "Marcar aula concluída"}
                     </>
                   )}
                 </Button>

@@ -6,6 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Resposta de erro sempre como 200 + { error } para que o cliente leia a mensagem real
+// (respostas 4xx são interceptadas pela infra do Supabase antes de chegar ao client)
+const errResponse = (msg: string) =>
+  new Response(JSON.stringify({ error: msg }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+
 // ── Renovação de access token ──────────────────────────────────────────────────
 
 async function resolveAccessToken(
@@ -21,8 +29,9 @@ async function resolveAccessToken(
   if (error || !prof) throw new Error('Perfil não encontrado')
   if (!prof.google_refresh_token) throw new Error('Google Calendar não conectado. Faça login com Google.')
 
-  const expiresAt = new Date(prof.google_token_expires_at || 0)
-  if (expiresAt > new Date()) return prof.google_access_token
+  // google_token_expires_at é bigint (Unix ms). Se ainda válido, retorna access token atual.
+  const expiresAt = prof.google_token_expires_at ? new Date(Number(prof.google_token_expires_at)) : new Date(0)
+  if (expiresAt > new Date() && prof.google_access_token) return prof.google_access_token
 
   // Token expirado — renovar via refresh_token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -38,9 +47,10 @@ async function resolveAccessToken(
   const tokenData = await tokenRes.json()
   if (!tokenData.access_token) throw new Error('Falha ao renovar token do Google')
 
+  // Salvar como bigint (Unix ms), não ISO string
   await supabase.from('profiles').update({
     google_access_token: tokenData.access_token,
-    google_token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+    google_token_expires_at: Date.now() + (tokenData.expires_in ?? 3600) * 1000,
   }).eq('id', profileId)
 
   return tokenData.access_token
@@ -54,27 +64,26 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false } }
     )
 
     // 1. Autenticar chamador via JWT
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Não autorizado')
+    if (!authHeader) return errResponse('Não autorizado')
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(
       authHeader.replace('Bearer ', '')
     )
-    if (authError || !user) throw new Error('Usuário não autenticado')
+    if (authError || !user) return errResponse('Usuário não autenticado')
 
-    // 2. Parsear body antes de decidir qual token usar
+    // 2. Parsear body
     const { action, payload } = await req.json()
 
     // ── AÇÃO 1: Listar próximos eventos do aluno ───────────────────────────────
     if (action === 'list_student_events') {
       const { student_email, teacher_id } = payload
 
-      // Quando teacher_id fornecido, usa tokens do professor (não do aluno chamador)
-      // Isso permite que o aluno consulte o Calendar do seu professor
       const calendarOwner = teacher_id ?? user.id
       const accessToken = await resolveAccessToken(supabase, calendarOwner)
 
@@ -89,7 +98,6 @@ serve(async (req) => {
       )
       const data = await res.json()
 
-      // Filtra apenas eventos onde o e-mail do aluno é participante
       const events = (data.items || [])
         .filter((e: any) =>
           e.attendees?.some((a: any) => a.email === student_email)
@@ -112,10 +120,9 @@ serve(async (req) => {
     if (action === 'create_class_event') {
       const { student_user_id, student_name, start_datetime, end_datetime, language } = payload
 
-      // Usa tokens do chamador (professor logado)
       const accessToken = await resolveAccessToken(supabase, user.id)
 
-      // Resolver e-mail do aluno via auth.admin (service role)
+      // Resolver e-mail do aluno
       let student_email: string | undefined = payload.student_email
       if (!student_email && student_user_id) {
         const { data: { user: studentUser }, error: userErr } =
@@ -159,6 +166,10 @@ serve(async (req) => {
       )
       const created = await res.json()
 
+      if (!created.id) {
+        throw new Error(`Google Calendar recusou o evento: ${created.error?.message ?? JSON.stringify(created)}`)
+      }
+
       return new Response(JSON.stringify({
         event_id: created.id,
         meet_link: created.hangoutLink,
@@ -170,12 +181,9 @@ serve(async (req) => {
       })
     }
 
-    throw new Error(`Ação desconhecida: ${action}`)
+    return errResponse(`Ação desconhecida: ${action}`)
 
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return errResponse(err.message ?? 'Erro interno')
   }
 })

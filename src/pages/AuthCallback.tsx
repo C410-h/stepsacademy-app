@@ -25,7 +25,8 @@ const AuthCallback = () => {
           .update({
             ...(providerToken && { google_access_token: providerToken }),
             ...(providerRefreshToken && { google_refresh_token: providerRefreshToken }),
-            google_token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+            // bigint: Unix timestamp em milissegundos (não ISO string)
+            google_token_expires_at: Date.now() + 3600 * 1000,
           })
           .eq("id", uid);
       }
