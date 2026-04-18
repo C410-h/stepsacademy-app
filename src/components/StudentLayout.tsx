@@ -5,7 +5,7 @@ import { useGamification } from "@/contexts/GamificationContext";
 import { usePaymentAlert } from "@/contexts/PaymentAlertContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Zap, Home, GraduationCap, BarChart3, CircleHelp, X } from "lucide-react";
+import { Zap, Home, GraduationCap, Trophy, User, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -16,8 +16,8 @@ const navItems = [
   { to: "/", icon: Home, label: "Início" },
   { to: "/aula", icon: GraduationCap, label: "Aula" },
   { to: "/step-by-step", icon: Zap, label: "Step by Step" },
-  { to: "/progresso", icon: BarChart3, label: "Progresso" },
-  { to: "/ajuda", icon: CircleHelp, label: "Ajuda" },
+  { to: "/ranking", icon: Trophy, label: "Ranking" },
+  { to: "/perfil", icon: User, label: "Perfil" },
 ];
 
 const StudentLayout = ({ children }: { children: ReactNode }) => {

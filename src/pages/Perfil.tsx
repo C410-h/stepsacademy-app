@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PAYMENT_ENABLED } from "@/lib/featureFlags";
 import { differenceInDays } from "date-fns";
@@ -877,6 +878,20 @@ const Perfil = () => {
 
         {/* ── Theme switcher ── */}
         <ThemeSwitcher />
+
+        {/* ── Central de Ajuda ── */}
+        <Card className="rounded-xl">
+          <CardContent className="p-0">
+            <Link
+              to="/ajuda"
+              className="flex items-center gap-3 px-4 py-4 hover:bg-muted/50 transition-colors rounded-xl"
+            >
+              <HelpCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium flex-1">Central de Ajuda</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </Link>
+          </CardContent>
+        </Card>
 
         {/* ── Notifications toggle ── */}
         <Card className="rounded-xl">
