@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import TeacherLayout from "@/components/TeacherLayout";
 import TeacherContentTab from "@/components/TeacherContentTab";
+import ScheduleClassSheet from "@/components/ScheduleClassSheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic, FileText } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users, Mic, FileText, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RecordingRow {
@@ -55,6 +56,7 @@ const Teacher = () => {
   const { toast } = useToast();
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentCard[]>([]);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState<string | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
@@ -425,11 +427,23 @@ const Teacher = () => {
           {/* ── Tab: Alunos ──────────────────────────────────────────────── */}
           <TabsContent value="students" className="space-y-6 mt-4">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">Meus Alunos</h1>
-          <p className="text-sm text-muted-foreground font-light mt-1">
-            {students.length} {students.length === 1 ? "aluno vinculado" : "alunos vinculados"}
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Meus Alunos</h1>
+            <p className="text-sm text-muted-foreground font-light mt-1">
+              {students.length} {students.length === 1 ? "aluno vinculado" : "alunos vinculados"}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="gap-2 shrink-0"
+            onClick={() => setScheduleOpen(true)}
+            disabled={students.length === 0}
+          >
+            <CalendarPlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Agendar aula</span>
+            <span className="sm:hidden">Agendar</span>
+          </Button>
         </div>
 
         {/* Empty state */}
@@ -654,6 +668,17 @@ const Teacher = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ScheduleClassSheet
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        students={students.map((s) => ({
+          studentId: s.studentId,
+          userId: s.userId,
+          name: s.name,
+          languageName: s.languageName,
+        }))}
+      />
     </TeacherLayout>
   );
 };

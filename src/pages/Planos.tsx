@@ -7,13 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { Check, ArrowLeft, ArrowRight, Copy } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { PAYMENT_ENABLED } from "@/lib/featureFlags";
 
 interface Plan {
   id: string;
@@ -21,7 +21,7 @@ interface Plan {
   price_cents: number;
   billing_cycle: string; // 'monthly' | 'quarterly' | 'semiannual'
   features: string[]; // JSONB array
-  active: boolean;
+  is_active: boolean;
   order_index: number;
 }
 
@@ -47,11 +47,7 @@ const Planos = () => {
   const [idioma, setIdioma] = useState("");
 
   // Step 2
-  const [payMethod, setPayMethod] = useState<"pix" | "card" | "boleto">("pix");
-  const [cardNum, setCardNum] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [cardExp, setCardExp] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
+  const [payMethod] = useState<"pix">("pix");
 
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -61,8 +57,8 @@ const Planos = () => {
   const loadPlans = async () => {
     const { data } = await (supabase as any)
       .from("payment_plans")
-      .select("id, name, price_cents, billing_cycle, features, active, order_index")
-      .eq("active", true)
+      .select("id, name, price_cents, billing_cycle, features, is_active, order_index")
+      .eq("is_active", true)
       .order("order_index");
     setPlans(data || []);
     setLoading(false);
@@ -72,8 +68,6 @@ const Planos = () => {
     setSelectedPlan(plan);
     setStep(1);
     setNome(""); setEmail(""); setWhatsapp(""); setIdioma("");
-    setPayMethod("pix");
-    setCardNum(""); setCardName(""); setCardExp(""); setCardCvv("");
     setDialogOpen(true);
   };
 
@@ -146,21 +140,31 @@ const Planos = () => {
         <p className="text-sm font-light text-white/60">Sem taxa de matrícula · cancele quando quiser</p>
       </div>
 
+      {/* Badge "Em breve" quando pagamento desabilitado */}
+      {!PAYMENT_ENABLED && (
+        <div className="flex justify-center mb-4">
+          <span className="px-4 py-1.5 rounded-full text-xs font-bold border border-white/20 text-white/60 bg-white/5">
+            Em breve — cadastros via WhatsApp por enquanto
+          </span>
+        </div>
+      )}
+
       {/* Plans grid */}
       {loading ? (
         <div className="max-w-4xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-5 pb-16">
           {[1,2,3].map(i => <Skeleton key={i} className="h-64 rounded-2xl" />)}
         </div>
       ) : (
-        <div className="max-w-4xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-5 pb-16">
+        <div className={cn(
+          "max-w-4xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-5 pb-16",
+          !PAYMENT_ENABLED && "opacity-50 pointer-events-none select-none"
+        )}>
           {plans.map(plan => {
             const isFeatured = plan.order_index === 3;
             return (
               <div key={plan.id} className={cn(
                 "relative rounded-2xl p-6 space-y-5 flex flex-col",
-                isFeatured
-                  ? "border-2 scale-[1.03]"
-                  : "border border-white/10"
+                isFeatured ? "border-2 scale-[1.03]" : "border border-white/10"
               )}
               style={{
                 background: isFeatured ? "rgba(193,254,0,0.06)" : "rgba(255,255,255,0.04)",
@@ -185,14 +189,15 @@ const Planos = () => {
                   ))}
                 </ul>
                 <Button
-                  onClick={() => openModal(plan)}
+                  onClick={PAYMENT_ENABLED ? () => openModal(plan) : undefined}
+                  disabled={!PAYMENT_ENABLED}
                   className="w-full font-bold rounded-xl"
                   style={isFeatured
                     ? { background: "#C1FE00", color: "#1D1D1B" }
                     : { background: "rgba(255,255,255,0.1)", color: "#fff" }
                   }
                 >
-                  Escolher plano
+                  {PAYMENT_ENABLED ? "Escolher plano" : "Em breve"}
                 </Button>
               </div>
             );
@@ -273,71 +278,29 @@ const Planos = () => {
             </div>
           )}
 
-          {/* Step 2 — Payment (UI only) */}
+          {/* Step 2 — Payment PIX */}
           {step === 2 && (
             <div className="space-y-4">
-              <Tabs value={payMethod} onValueChange={v => setPayMethod(v as any)}>
-                <TabsList className="w-full">
-                  <TabsTrigger value="pix" className="flex-1 text-xs">PIX</TabsTrigger>
-                  <TabsTrigger value="card" className="flex-1 text-xs">Cartão</TabsTrigger>
-                  <TabsTrigger value="boleto" className="flex-1 text-xs">Boleto</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="pix" className="space-y-3 pt-3">
-                  {/* Placeholder QR */}
-                  <div className="flex justify-center">
-                    <div className="w-36 h-36 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                      <div className="text-center space-y-1">
-                        <p className="text-3xl">📱</p>
-                        <p className="text-[10px] text-muted-foreground font-light">QR Code</p>
-                      </div>
+              {/* PIX info */}
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <div className="w-36 h-36 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                    <div className="text-center space-y-1">
+                      <p className="text-3xl">📱</p>
+                      <p className="text-[10px] text-muted-foreground font-light">QR Code</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Input readOnly value="steps.academy@pix.example.com" className="text-xs font-mono" />
-                    <Button size="icon" variant="outline" onClick={copyPix}>
-                      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-light text-center">
-                    O pagamento via PIX será processado pelo Asaas após confirmação da matrícula.
-                  </p>
-                </TabsContent>
-
-                <TabsContent value="card" className="space-y-3 pt-3">
-                  <div>
-                    <Label className="text-xs">Número do cartão</Label>
-                    <Input value={cardNum} onChange={e => setCardNum(e.target.value)} placeholder="0000 0000 0000 0000" className="mt-1 font-mono" maxLength={19} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Nome no cartão</Label>
-                    <Input value={cardName} onChange={e => setCardName(e.target.value)} placeholder="NOME COMPLETO" className="mt-1 uppercase" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Validade</Label>
-                      <Input value={cardExp} onChange={e => setCardExp(e.target.value)} placeholder="MM/AA" className="mt-1 font-mono" maxLength={5} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">CVV</Label>
-                      <Input value={cardCvv} onChange={e => setCardCvv(e.target.value)} placeholder="123" className="mt-1 font-mono" maxLength={4} type="password" />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-light">
-                    Os dados do cartão serão processados com segurança via Asaas após confirmação.
-                  </p>
-                </TabsContent>
-
-                <TabsContent value="boleto" className="space-y-3 pt-3">
-                  <div className="p-4 rounded-xl border bg-muted/40 space-y-2 text-center">
-                    <p className="text-3xl">🧾</p>
-                    <p className="text-sm font-bold">Boleto bancário</p>
-                    <p className="text-xs text-muted-foreground font-light">
-                      O boleto será gerado após confirmação da matrícula e tem vencimento em 3 dias úteis.
-                    </p>
-                  </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value="steps.academy@pix.example.com" className="text-xs font-mono" />
+                  <Button size="icon" variant="outline" onClick={copyPix}>
+                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground font-light text-center">
+                  Pagamento exclusivo via PIX. Nossa equipe confirmará sua matrícula em até 24h.
+                </p>
+              </div>
 
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(1)} className="gap-2 flex-1">

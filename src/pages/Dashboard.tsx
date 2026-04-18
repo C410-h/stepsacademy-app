@@ -10,6 +10,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Video, BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
+import UpcomingClasses from "@/components/UpcomingClasses";
 
 interface StudentData {
   id: string;
@@ -251,6 +252,9 @@ const Dashboard = () => {
               Entrar na aula
             </Button>
           )}
+
+          {/* Próximas aulas via Google Calendar */}
+          <UpcomingClasses />
         </div>
 
         {/* ── Column 2: Aula atual ── */}

@@ -19,6 +19,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { AdminCommandPalette } from "@/components/AdminCommandPalette";
 import AdminApprovalsTab from "@/components/AdminApprovalsTab";
 import AdminContentByStepTab from "@/components/AdminContentByStepTab";
+import AdminPaymentsTab from "@/components/AdminPaymentsTab";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -2554,94 +2555,7 @@ const Admin = () => {
 
           {/* ── Tab: Pagamentos ──────────────────────────────────────────────── */}
           <TabsContent value="payments" className="space-y-5">
-            {/* Metric cards */}
-            {(() => {
-              const pending = payments.filter(p => p.status === "pending");
-              const paidThisMonth = payments.filter(p => p.status === "paid" && p.paid_at && new Date(p.paid_at).getMonth() === new Date().getMonth());
-              const today = payments.filter(p => new Date(p.created_at).toDateString() === new Date().toDateString());
-              return (
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: "Pendentes", value: pending.length, color: "text-yellow-600" },
-                    { label: "Pagos este mês", value: paidThisMonth.length, color: "text-green-600" },
-                    { label: "Leads hoje", value: today.length, color: "text-primary" },
-                  ].map(m => (
-                    <Card key={m.label}>
-                      <CardContent className="py-3 text-center">
-                        <p className={`text-2xl font-black ${m.color}`}>{m.value}</p>
-                        <p className="text-[10px] text-muted-foreground font-light">{m.label}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* Filter */}
-            <div className="flex gap-2 flex-wrap">
-              {(["all", "pending", "paid", "failed"] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setPaymentFilter(f)}
-                  className={cn("px-3 py-1 rounded-full text-xs font-bold border transition-all",
-                    paymentFilter === f ? "bg-primary text-primary-foreground border-transparent" : "border-border text-muted-foreground hover:border-primary/40"
-                  )}
-                >
-                  {f === "all" ? "Todos" : f === "pending" ? "Pendente" : f === "paid" ? "Pago" : "Falhou"}
-                </button>
-              ))}
-            </div>
-
-            {/* Payments list */}
-            <div className="space-y-3">
-              {payments
-                .filter(p => paymentFilter === "all" || p.status === paymentFilter)
-                .map(pay => (
-                  <Card key={pay.id}>
-                    <CardContent className="py-4 space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm truncate">{pay.lead_name || "—"}</p>
-                          <p className="text-xs text-muted-foreground font-light truncate">{pay.lead_email || "—"}</p>
-                          <p className="text-xs text-muted-foreground font-light">{pay.lead_language || "—"} · {plansMap[pay.plan_id || ""] || "—"}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-bold text-sm">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((pay.amount_cents || 0) / 100)}</p>
-                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                            pay.status === "paid" ? "bg-green-100 text-green-700" :
-                            pay.status === "failed" ? "bg-red-100 text-red-700" :
-                            "bg-yellow-100 text-yellow-700"
-                          )}>
-                            {pay.status === "paid" ? "Pago" : pay.status === "failed" ? "Falhou" : "Pendente"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-light">
-                        <span>{pay.payment_method?.toUpperCase() || "—"} · {new Date(pay.created_at).toLocaleDateString("pt-BR")}</span>
-                        {pay.paid_at && <span>Pago em {new Date(pay.paid_at).toLocaleDateString("pt-BR")}</span>}
-                      </div>
-                      {pay.status === "pending" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full text-xs"
-                          disabled={markingPaid === pay.id}
-                          onClick={() => markAsPaid(pay.id)}
-                        >
-                          {markingPaid === pay.id ? "Marcando..." : "✓ Marcar como pago"}
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              {payments.filter(p => paymentFilter === "all" || p.status === paymentFilter).length === 0 && (
-                <Card>
-                  <CardContent className="py-10 text-center text-sm text-muted-foreground font-light">
-                    Nenhum pagamento encontrado.
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            <AdminPaymentsTab />
           </TabsContent>
 
           {/* ── Tab: Cadastros ──────────────────────────────────────────────── */}

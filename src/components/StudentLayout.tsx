@@ -1,9 +1,11 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import BottomNav from "./BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
+import { usePaymentAlert } from "@/contexts/PaymentAlertContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Zap, Home, GraduationCap, BarChart3, CircleHelp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Zap, Home, GraduationCap, BarChart3, CircleHelp, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -19,6 +21,8 @@ const navItems = [
 const StudentLayout = ({ children }: { children: ReactNode }) => {
   const { profile } = useAuth();
   const { gamification } = useGamification();
+  const { showPaymentAlert, diasOverdue, isCorporate } = usePaymentAlert();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
 
   return (
@@ -101,6 +105,24 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
           </Link>
         </div>
       </header>
+
+      {/* ── Payment Alert Banner ────────────────────────────────── */}
+      {showPaymentAlert && !isCorporate && !bannerDismissed && (
+        <div className="lg:pl-56">
+          <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 flex items-center gap-3">
+            <span className="text-sm text-destructive flex-1">
+              Seu pagamento está em atraso há {diasOverdue} {diasOverdue === 1 ? "dia" : "dias"}. Regularize para continuar acessando.
+            </span>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="shrink-0 text-destructive/60 hover:text-destructive transition-colors p-1 rounded"
+              aria-label="Fechar aviso"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Content ────────────────────────────────────────── */}
       <main className="pb-20 lg:pb-0 lg:pl-56">

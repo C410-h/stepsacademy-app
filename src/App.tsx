@@ -27,7 +27,9 @@ import Loja from "./pages/Loja";
 import Certificado from "./pages/Certificado";
 import Planos from "./pages/Planos";
 import Cadastro from "./pages/Cadastro";
+import AuthCallback from "./pages/AuthCallback";
 import AguardandoAtivacao from "./pages/AguardandoAtivacao";
+import AcessoSuspensoPage from "./pages/AcessoSuspensoPage";
 import NotFound from "./pages/NotFound";
 import { Navigate } from "react-router-dom";
 
@@ -55,6 +57,7 @@ const App = () => (
             <GamificationProvider>
               <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/" element={<HomeRedirect />} />
@@ -75,6 +78,7 @@ const App = () => (
               <Route path="/planos" element={<Planos />} />
               <Route path="/cadastro" element={<Cadastro />} />
               <Route path="/aguardando-ativacao" element={<AguardandoAtivacao />} />
+              <Route path="/acesso-suspenso" element={<AcessoSuspensoPage />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
             </GamificationProvider>

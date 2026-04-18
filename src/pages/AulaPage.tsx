@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 interface StudentInfo {
   id: string;
   current_step_id: string | null;
+  levelId: string | null;
+  unitId: string | null;
   stepNumber: number;
   stepTitle: string | null;
   totalSteps: number;
@@ -31,6 +33,25 @@ interface StudentInfo {
   levelName: string;
   languageName: string;
   meetLink: string | null;
+}
+
+interface VocabWord {
+  id: string;
+  word: string;
+  translation: string;
+  example_sentence: string | null;
+  part_of_speech: string;
+  difficulty: number;
+  created_at: string;
+}
+
+interface GrammarRule {
+  id: string;
+  title: string;
+  explanation: string;
+  examples: { sentence: string; translation: string; highlight: string }[] | null;
+  tip: string | null;
+  order_index: number;
 }
 
 interface Material {
@@ -526,6 +547,8 @@ const AulaPage = () => {
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [vocabulary, setVocabulary] = useState<VocabWord[]>([]);
+  const [grammar, setGrammar] = useState<GrammarRule[]>([]);
   const [attemptMap, setAttemptMap] = useState<AttemptMap>({});
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -544,10 +567,10 @@ const AulaPage = () => {
     const { data: raw } = await supabase
       .from("students")
       .select(`
-        id, current_step_id, onboarding_completed,
+        id, current_step_id, level_id, onboarding_completed,
         levels!students_level_id_fkey(name, code, total_steps),
         languages!students_language_id_fkey(name),
-        steps!students_current_step_id_fkey(number, title)
+        steps!students_current_step_id_fkey(number, title, unit_id)
       `)
       .eq("user_id", profile.id)
       .single();
@@ -578,6 +601,8 @@ const AulaPage = () => {
     setStudent({
       id: s.id,
       current_step_id: s.current_step_id,
+      levelId: s.level_id || null,
+      unitId: s.steps?.unit_id || null,
       stepNumber: s.steps?.number || 0,
       stepTitle: s.steps?.title || null,
       totalSteps: s.levels?.total_steps || 40,
@@ -590,11 +615,15 @@ const AulaPage = () => {
     if (!s.current_step_id) { setLoading(false); return; }
 
     // Parallel data fetching
-    const [stepRes, exercisesRes, accessesRes, personalRes] = await Promise.all([
+    const [stepRes, exercisesRes, accessesRes, personalRes, vocabRes, grammarRes] = await Promise.all([
       supabase.from("materials").select("id, title, type, delivery, file_url").eq("step_id", s.current_step_id).eq("active", true),
       (supabase as any).from("lesson_exercises").select("id, type, question, options, answer, explanation, order_index").eq("step_id", s.current_step_id).eq("active", true).order("order_index"),
       supabase.from("material_accesses").select("material_id").eq("student_id", s.id),
       supabase.from("student_materials").select("material_id, materials(id, title, type, delivery, file_url)").eq("student_id", s.id).eq("is_personal", true),
+      s.level_id && s.steps?.unit_id
+        ? (supabase as any).from("vocabulary").select("id, word, translation, example_sentence, part_of_speech, difficulty, created_at").eq("level_id", s.level_id).eq("unit_id", s.steps.unit_id).eq("active", true).order("word")
+        : Promise.resolve({ data: [] }),
+      (supabase as any).from("step_grammar").select("id, title, explanation, examples, tip, order_index").eq("step_id", s.current_step_id).eq("active", true).order("order_index"),
     ]);
 
     // Fetch attempts for current step exercises (for resume + XP dedup)
@@ -621,6 +650,8 @@ const AulaPage = () => {
     }
     setMaterials(combined);
     setExercises((exercisesRes.data as Exercise[]) || []);
+    setVocabulary((vocabRes.data as VocabWord[]) || []);
+    setGrammar((grammarRes.data as GrammarRule[]) || []);
     setLoading(false);
   };
 
@@ -727,6 +758,108 @@ const AulaPage = () => {
             </Card>
           ) : (
             <ExercisesEngine exercises={exercises} studentId={student.id} initialAttempts={attemptMap} />
+          )}
+        </CollapsibleSection>
+
+        {/* ── Vocabulário da Aula ── */}
+        <CollapsibleSection
+          title="Vocabulário da Aula"
+          badge={vocabulary.length > 0 ? `${vocabulary.length}` : undefined}
+          defaultOpen={false}
+        >
+          {vocabulary.length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="text-sm text-muted-foreground font-light">Nenhum vocabulário cadastrado para esta aula ainda.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {vocabulary.map(word => {
+                const isNew = new Date(word.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                const posLabels: Record<string, string> = {
+                  noun: "subs.", verb: "verbo", adjective: "adj.", adverb: "adv.",
+                  expression: "expr.", other: "outro",
+                };
+                return (
+                  <Card key={word.id}>
+                    <CardContent className="py-3 px-4 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-sm">{word.word}</p>
+                          <p className="text-xs text-muted-foreground font-light">{word.translation}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-light">
+                            {posLabels[word.part_of_speech] || word.part_of_speech}
+                          </Badge>
+                          {isNew && (
+                            <Badge className="text-[10px] px-1.5 py-0" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}>
+                              Novo
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {word.example_sentence && (
+                        <p className="text-xs text-muted-foreground italic font-light">{word.example_sentence}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </CollapsibleSection>
+
+        {/* ── Gramática da Aula ── */}
+        <CollapsibleSection
+          title="Gramática da Aula"
+          badge={grammar.length > 0 ? `${grammar.length} regr${grammar.length !== 1 ? "as" : "a"}` : undefined}
+          defaultOpen={false}
+        >
+          {grammar.length === 0 ? (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="text-sm text-muted-foreground font-light">Nenhuma regra gramatical cadastrada para esta aula ainda.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {grammar.map(rule => (
+                <Card key={rule.id}>
+                  <CardContent className="pt-4 pb-4 space-y-2">
+                    <p className="font-bold text-sm">{rule.title}</p>
+                    <p className="text-sm font-light text-muted-foreground leading-relaxed">{rule.explanation}</p>
+                    {rule.examples && rule.examples.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        {rule.examples.map((ex, i) => (
+                          <div key={i} className="border-l-2 pl-3" style={{ borderColor: "var(--theme-accent)" }}>
+                            <p
+                              className="text-sm"
+                              dangerouslySetInnerHTML={{
+                                __html: ex.highlight && ex.sentence
+                                  ? ex.sentence.replace(
+                                      new RegExp(`(${ex.highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
+                                      '<mark style="background:color-mix(in srgb, var(--theme-accent) 25%, transparent);padding:0 2px;border-radius:2px">$1</mark>'
+                                    )
+                                  : (ex.sentence || ""),
+                              }}
+                            />
+                            <p className="text-xs text-muted-foreground font-light">{ex.translation}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {rule.tip && (
+                      <div className="flex items-start gap-1.5 bg-muted/50 rounded-lg p-2.5 text-xs font-light text-muted-foreground">
+                        <span className="shrink-0">💡</span>
+                        <span>{rule.tip}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </CollapsibleSection>
 

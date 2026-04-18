@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,18 +12,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileText, Headphones, BookOpen, PenLine, Mic,
-  Upload, Plus, Trash2, Send, Save, ChevronRight,
+  Upload, Plus, Trash2, Save, ChevronRight,
   CheckCircle2, AlertCircle, Clock, XCircle, Loader2, Globe,
-  Library, Search,
+  Library, Search, Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type GenerateType = "exercises" | "vocabulary" | "grammar";
+
 interface StepInfo {
   id: string;
   number: number;
   title: string | null;
+  unitId: string | null;
   status: "complete" | "partial" | "empty";
   submissionId: string | null;
   submissionStatus: string | null;
@@ -33,11 +35,35 @@ interface StepInfo {
 
 interface ExerciseItem {
   localId: string;
-  type: "fill_blank" | "association" | "open_answer";
+  type: "fill_blank" | "association" | "open_answer" | "rewrite" | "production" | "dialogue";
   question: string;
-  options: string; // comma-separated for association
+  options: string; // comma-separated; for association: "left=right,left2=right2"
   answer: string;
   explanation: string;
+}
+
+interface VocabItem {
+  localId: string;
+  word: string;
+  translation: string;
+  example_sentence: string;
+  part_of_speech: "noun" | "verb" | "adjective" | "adverb" | "expression" | "other";
+  difficulty: 1 | 2 | 3;
+  distractors: [string, string, string];
+}
+
+interface GrammarExample {
+  sentence: string;
+  translation: string;
+  highlight: string;
+}
+
+interface GrammarItem {
+  localId: string;
+  title: string;
+  explanation: string;
+  examples: GrammarExample[];
+  tip: string;
 }
 
 interface FileEntry {
@@ -46,15 +72,16 @@ interface FileEntry {
   file: File | null;
   filename: string;
   previewUrl: string | null;
-  // for audio recording
   isRecording?: boolean;
-  // exercises attached to this file entry (for exercise type)
   exercises?: ExerciseItem[];
-  // AI conversion
   aiStatus?: "idle" | "converting" | "done" | "confirmed" | "error";
   aiResult?: ExerciseItem[];
   aiFonte?: "slide" | "documento";
   aiInstrucoes?: string;
+  aiGenerate?: GenerateType[];
+  aiVocabulary?: VocabItem[];
+  aiGrammar?: GrammarItem[];
+  aiReviewTab?: GenerateType;
   uploadedFileUrl?: string | null;
 }
 
@@ -76,7 +103,7 @@ const STATUS_COLORS: Record<string, string> = {
 const statusLabel: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   draft: { label: "Rascunho", icon: <Save className="h-3 w-3" />, variant: "secondary" },
   pending: { label: "Aguardando aprovação", icon: <Clock className="h-3 w-3" />, variant: "default" },
-  approved: { label: "Aprovado", icon: <CheckCircle2 className="h-3 w-3" />, variant: "outline" },
+  approved: { label: "Publicado", icon: <CheckCircle2 className="h-3 w-3" />, variant: "outline" },
   rejected: { label: "Rejeitado", icon: <XCircle className="h-3 w-3" />, variant: "destructive" },
   partial: { label: "Parcialmente aprovado", icon: <AlertCircle className="h-3 w-3" />, variant: "secondary" },
 };
@@ -86,7 +113,7 @@ const TYPE_LABELS: Record<string, string> = {
   audio: "Áudio",
   grammar: "Gramática (PDF)",
   vocab: "Vocabulário (PDF)",
-  exercise: "Exercícios",
+  exercise: "Conteúdo com IA",
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -97,11 +124,29 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   exercise: <PenLine className="h-4 w-4" />,
 };
 
+const GENERATE_LABELS: Record<GenerateType, string> = {
+  exercises: "Exercícios",
+  vocabulary: "Vocabulário",
+  grammar: "Gramática",
+};
+
 function newLocalId() {
   return Math.random().toString(36).slice(2);
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+function formatOptionsForDb(ex: ExerciseItem): any {
+  if (!ex.options?.trim()) return null;
+  if (ex.type === "association") {
+    return ex.options.split(",").map(pair => {
+      const eq = pair.indexOf("=");
+      if (eq === -1) return { left: pair.trim(), right: "" };
+      return { left: pair.slice(0, eq).trim(), right: pair.slice(eq + 1).trim() };
+    });
+  }
+  return ex.options.split(",").map(o => o.trim()).filter(Boolean);
+}
+
+// ── ExerciseEditor ────────────────────────────────────────────────────────────
 
 function ExerciseEditor({
   exercises,
@@ -137,10 +182,13 @@ function ExerciseEditor({
               <SelectItem value="fill_blank">Preencher lacuna</SelectItem>
               <SelectItem value="association">Associação</SelectItem>
               <SelectItem value="open_answer">Resposta aberta</SelectItem>
+              <SelectItem value="rewrite">Reescrita</SelectItem>
+              <SelectItem value="production">Produção</SelectItem>
+              <SelectItem value="dialogue">Diálogo</SelectItem>
             </SelectContent>
           </Select>
           <Textarea
-            placeholder="Enunciado / Frase com ___ para lacuna"
+            placeholder="Enunciado / Frase com [___] para lacuna"
             value={ex.question}
             onChange={e => updateEx(ex.localId, { question: e.target.value })}
             rows={2}
@@ -148,14 +196,18 @@ function ExerciseEditor({
           />
           {ex.type === "association" && (
             <Input
-              placeholder="Opções separadas por vírgula (ex: cat,dog,bird)"
+              placeholder="Pares (ex: cat=gato,dog=cachorro)"
               value={ex.options}
               onChange={e => updateEx(ex.localId, { options: e.target.value })}
               className="text-xs h-8"
             />
           )}
           <Input
-            placeholder={ex.type === "fill_blank" ? "Resposta correta" : ex.type === "association" ? "Pares corretos (ex: cat=gato,dog=cachorro)" : "Resposta esperada / critério"}
+            placeholder={
+              ex.type === "fill_blank" ? "Resposta correta" :
+              ex.type === "association" ? "Pares corretos (ex: cat=gato,dog=cachorro)" :
+              "Resposta esperada / critério"
+            }
             value={ex.answer}
             onChange={e => updateEx(ex.localId, { answer: e.target.value })}
             className="text-xs h-8"
@@ -175,11 +227,200 @@ function ExerciseEditor({
   );
 }
 
-function AudioRecorder({
-  onRecorded,
+// ── VocabEditor ───────────────────────────────────────────────────────────────
+
+function VocabEditor({
+  vocab,
+  onChange,
 }: {
-  onRecorded: (blob: Blob, url: string) => void;
+  vocab: VocabItem[];
+  onChange: (v: VocabItem[]) => void;
 }) {
+  const update = (localId: string, patch: Partial<VocabItem>) =>
+    onChange(vocab.map(v => v.localId === localId ? { ...v, ...patch } : v));
+  const remove = (localId: string) => onChange(vocab.filter(v => v.localId !== localId));
+  const add = () => onChange([...vocab, {
+    localId: newLocalId(), word: "", translation: "", example_sentence: "",
+    part_of_speech: "noun", difficulty: 1, distractors: ["", "", ""],
+  }]);
+
+  return (
+    <div className="space-y-3">
+      {vocab.map((item, i) => (
+        <div key={item.localId} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground">Palavra {i + 1}</span>
+            <button onClick={() => remove(item.localId)} className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="Palavra"
+              value={item.word}
+              onChange={e => update(item.localId, { word: e.target.value })}
+              className="text-xs h-8 font-bold"
+            />
+            <Input
+              placeholder="Tradução"
+              value={item.translation}
+              onChange={e => update(item.localId, { translation: e.target.value })}
+              className="text-xs h-8"
+            />
+          </div>
+          <Textarea
+            placeholder="Frase de exemplo"
+            value={item.example_sentence}
+            onChange={e => update(item.localId, { example_sentence: e.target.value })}
+            rows={2}
+            className="text-xs"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={item.part_of_speech}
+              onValueChange={v => update(item.localId, { part_of_speech: v as VocabItem["part_of_speech"] })}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="noun">Substantivo</SelectItem>
+                <SelectItem value="verb">Verbo</SelectItem>
+                <SelectItem value="adjective">Adjetivo</SelectItem>
+                <SelectItem value="adverb">Advérbio</SelectItem>
+                <SelectItem value="expression">Expressão</SelectItem>
+                <SelectItem value="other">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(item.difficulty)}
+              onValueChange={v => update(item.localId, { difficulty: Number(v) as 1 | 2 | 3 })}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Básico</SelectItem>
+                <SelectItem value="2">Intermediário</SelectItem>
+                <SelectItem value="3">Avançado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-bold">Distratores (respostas erradas)</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {([0, 1, 2] as const).map(idx => (
+                <Input
+                  key={idx}
+                  placeholder={`Distrator ${idx + 1}`}
+                  value={item.distractors[idx] || ""}
+                  onChange={e => {
+                    const d = [...item.distractors] as [string, string, string];
+                    d[idx] = e.target.value;
+                    update(item.localId, { distractors: d });
+                  }}
+                  className="text-xs h-8"
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+      <Button size="sm" variant="outline" onClick={add} className="w-full text-xs gap-1.5">
+        <Plus className="h-3.5 w-3.5" />Adicionar palavra
+      </Button>
+    </div>
+  );
+}
+
+// ── GrammarEditor ─────────────────────────────────────────────────────────────
+
+function GrammarEditor({
+  grammar,
+  onChange,
+}: {
+  grammar: GrammarItem[];
+  onChange: (g: GrammarItem[]) => void;
+}) {
+  const update = (localId: string, patch: Partial<GrammarItem>) =>
+    onChange(grammar.map(g => g.localId === localId ? { ...g, ...patch } : g));
+  const remove = (localId: string) => onChange(grammar.filter(g => g.localId !== localId));
+  const add = () => onChange([...grammar, {
+    localId: newLocalId(), title: "", explanation: "", examples: [], tip: "",
+  }]);
+
+  const addExample = (localId: string) => {
+    const item = grammar.find(g => g.localId === localId);
+    if (!item) return;
+    update(localId, { examples: [...item.examples, { sentence: "", translation: "", highlight: "" }] });
+  };
+  const updateExample = (localId: string, exIdx: number, patch: Partial<GrammarExample>) => {
+    const item = grammar.find(g => g.localId === localId);
+    if (!item) return;
+    update(localId, { examples: item.examples.map((e, i) => i === exIdx ? { ...e, ...patch } : e) });
+  };
+  const removeExample = (localId: string, exIdx: number) => {
+    const item = grammar.find(g => g.localId === localId);
+    if (!item) return;
+    update(localId, { examples: item.examples.filter((_, i) => i !== exIdx) });
+  };
+
+  return (
+    <div className="space-y-3">
+      {grammar.map((item, i) => (
+        <div key={item.localId} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground">Regra {i + 1}</span>
+            <button onClick={() => remove(item.localId)} className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <Input
+            placeholder="Título da regra gramatical"
+            value={item.title}
+            onChange={e => update(item.localId, { title: e.target.value })}
+            className="text-xs h-8 font-bold"
+          />
+          <Textarea
+            placeholder="Explicação didática"
+            value={item.explanation}
+            onChange={e => update(item.localId, { explanation: e.target.value })}
+            rows={3}
+            className="text-xs"
+          />
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-bold">Exemplos</p>
+            {item.examples.map((ex, exIdx) => (
+              <div key={exIdx} className="border rounded p-2 space-y-1.5 bg-background/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Exemplo {exIdx + 1}</span>
+                  <button onClick={() => removeExample(item.localId, exIdx)} className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+                <Input placeholder="Frase no idioma" value={ex.sentence} onChange={e => updateExample(item.localId, exIdx, { sentence: e.target.value })} className="text-xs h-7" />
+                <Input placeholder="Tradução" value={ex.translation} onChange={e => updateExample(item.localId, exIdx, { translation: e.target.value })} className="text-xs h-7" />
+                <Input placeholder="Trecho a destacar" value={ex.highlight} onChange={e => updateExample(item.localId, exIdx, { highlight: e.target.value })} className="text-xs h-7" />
+              </div>
+            ))}
+            <Button size="sm" variant="ghost" onClick={() => addExample(item.localId)} className="w-full text-xs gap-1 h-7">
+              <Plus className="h-3 w-3" />Adicionar exemplo
+            </Button>
+          </div>
+          <Input
+            placeholder="💡 Dica prática (opcional)"
+            value={item.tip}
+            onChange={e => update(item.localId, { tip: e.target.value })}
+            className="text-xs h-8"
+          />
+        </div>
+      ))}
+      <Button size="sm" variant="outline" onClick={add} className="w-full text-xs gap-1.5">
+        <Plus className="h-3.5 w-3.5" />Adicionar regra gramatical
+      </Button>
+    </div>
+  );
+}
+
+// ── AudioRecorder ─────────────────────────────────────────────────────────────
+
+function AudioRecorder({ onRecorded }: { onRecorded: (blob: Blob, url: string) => void }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const mediaRef = useRef<MediaRecorder | null>(null);
@@ -214,7 +455,8 @@ function AudioRecorder({
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const fmt = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   return (
     <div className="flex items-center gap-3">
@@ -237,7 +479,7 @@ function AudioRecorder({
   );
 }
 
-// ── Exercise Bank Picker ──────────────────────────────────────────────────────
+// ── ExerciseBankPicker ────────────────────────────────────────────────────────
 
 interface BankExercise {
   id: string;
@@ -249,10 +491,7 @@ interface BankExercise {
 }
 
 function ExerciseBankPicker({
-  open,
-  onOpenChange,
-  levelId,
-  onSelect,
+  open, onOpenChange, levelId, onSelect,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -296,7 +535,9 @@ function ExerciseBankPicker({
       localId: newLocalId(),
       type: e.type as ExerciseItem["type"],
       question: e.question,
-      options: Array.isArray(e.options) ? e.options.join(",") : (e.options || ""),
+      options: Array.isArray(e.options)
+        ? e.options.map((o: any) => typeof o === "object" && o.left ? `${o.left}=${o.right}` : String(o)).join(",")
+        : (e.options || ""),
       answer: e.answer,
       explanation: e.explanation || "",
     })));
@@ -320,7 +561,7 @@ function ExerciseBankPicker({
               className="pl-8 text-xs h-9"
             />
           </div>
-          <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); }}>
+          <Select value={typeFilter} onValueChange={v => setTypeFilter(v)}>
             <SelectTrigger className="w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os tipos</SelectItem>
@@ -336,18 +577,14 @@ function ExerciseBankPicker({
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : results.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-8">
-              Nenhum exercício encontrado.
-            </p>
+            <p className="text-xs text-muted-foreground text-center py-8">Nenhum exercício encontrado.</p>
           ) : results.map(ex => (
             <button
               key={ex.id}
               onClick={() => toggle(ex.id)}
               className={cn(
                 "w-full text-left p-3 rounded-lg border text-xs transition-colors",
-                selected.has(ex.id)
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted/30"
+                selected.has(ex.id) ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"
               )}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -360,16 +597,95 @@ function ExerciseBankPicker({
           ))}
         </div>
         <div className="pt-2 border-t flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpenChange(false)}>
-            Cancelar
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button size="sm" className="flex-1" onClick={confirm} disabled={selected.size === 0}>
+            Adicionar {selected.size > 0 ? `(${selected.size})` : "selecionados"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── PublishDialog ─────────────────────────────────────────────────────────────
+
+function PublishDialog({
+  open, onOpenChange, exercises, vocabulary, grammar, hasSlide, hasAudio, onPublish, publishing,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  exercises: ExerciseItem[];
+  vocabulary: VocabItem[];
+  grammar: GrammarItem[];
+  hasSlide: boolean;
+  hasAudio: boolean;
+  onPublish: () => void;
+  publishing: boolean;
+}) {
+  const total = exercises.length + vocabulary.length + grammar.length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Revisar e publicar</DialogTitle>
+        </DialogHeader>
+
+        {total === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">
+            Nenhum conteúdo gerado ainda. Volte e gere o conteúdo antes de publicar.
+          </p>
+        ) : (
+          <div className="space-y-3 text-sm">
+            {exercises.length > 0 && (
+              <div className="space-y-0.5">
+                <p className="font-bold text-xs text-muted-foreground uppercase tracking-wide">Exercícios</p>
+                <p className="font-light">{exercises.length} exercício{exercises.length !== 1 ? "s" : ""}</p>
+              </div>
+            )}
+            {vocabulary.length > 0 && (
+              <div className="space-y-0.5">
+                <p className="font-bold text-xs text-muted-foreground uppercase tracking-wide">Vocabulário</p>
+                <p className="font-light">{vocabulary.length} palavra{vocabulary.length !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-muted-foreground">
+                  {vocabulary.slice(0, 6).map(v => v.word).join(", ")}{vocabulary.length > 6 ? "…" : ""}
+                </p>
+              </div>
+            )}
+            {grammar.length > 0 && (
+              <div className="space-y-0.5">
+                <p className="font-bold text-xs text-muted-foreground uppercase tracking-wide">Gramática</p>
+                {grammar.map((g, i) => (
+                  <p key={i} className="text-xs font-light">• {g.title || `Regra ${i + 1}`}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t pt-3">
+              <p className="font-bold text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Arquivos</p>
+              <div className="flex gap-4">
+                <span className={cn("text-xs", hasSlide ? "text-foreground" : "text-muted-foreground/50")}>
+                  {hasSlide ? "✅" : "⚠️"} Slide
+                </span>
+                <span className={cn("text-xs", hasAudio ? "text-foreground" : "text-muted-foreground/50")}>
+                  {hasAudio ? "✅" : "⚠️"} Áudio
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1 text-sm" onClick={() => onOpenChange(false)}>
+            ← Voltar e editar
           </Button>
           <Button
-            size="sm"
-            className="flex-1"
-            onClick={confirm}
-            disabled={selected.size === 0}
+            className="flex-1 text-sm gap-1.5"
+            onClick={onPublish}
+            disabled={publishing || total === 0}
           >
-            Adicionar {selected.size > 0 ? `(${selected.size})` : "selecionados"}
+            {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+            Publicar tudo
           </Button>
         </div>
       </DialogContent>
@@ -391,21 +707,20 @@ const TeacherContentTab = ({ teacherId }: Props) => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [saving, setSaving] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [currentSubmissionId, setCurrentSubmissionId] = useState<string | null>(null);
   const [bankPickerEntryId, setBankPickerEntryId] = useState<string | null>(null);
 
-  // Load languages and levels once
+  // Load languages and levels
   useEffect(() => {
-    const loadOptions = async () => {
-      const [{ data: langs }, { data: lvls }] = await Promise.all([
-        supabase.from("languages").select("id, name").order("name"),
-        supabase.from("levels").select("id, name, code, language_id").order("code"),
-      ]);
+    Promise.all([
+      supabase.from("languages").select("id, name").order("name"),
+      supabase.from("levels").select("id, name, code, language_id").order("code"),
+    ]).then(([{ data: langs }, { data: lvls }]) => {
       setLanguages(langs || []);
       setLevels(lvls || []);
-    };
-    loadOptions();
+    });
   }, []);
 
   // ── Load steps ──────────────────────────────────────────────────────────────
@@ -414,8 +729,6 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     if (!languageId || !levelId) { setLoading(false); return; }
     setLoading(true);
 
-    // Get all steps for this level via units join
-    // steps → unit_id → units.level_id → levels.language_id
     const { data: unitsData } = await supabase
       .from("units")
       .select("id")
@@ -426,25 +739,25 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
     const { data: stepsData } = await supabase
       .from("steps")
-      .select("id, number, title")
+      .select("id, number, title, unit_id")
       .in("unit_id", unitIds)
       .order("number", { ascending: true });
 
     if (!stepsData) { setLoading(false); return; }
 
-    // Get completion status view
     const stepIds = stepsData.map(s => s.id);
-    const { data: statusData } = await (supabase as any)
-      .from("step_completion_status")
-      .select("step_id, has_slide, has_exercises, is_complete")
-      .in("step_id", stepIds);
 
-    // Get teacher submissions for these steps
-    const { data: submissionsData } = await (supabase as any)
-      .from("content_submissions")
-      .select("id, step_id, status, admin_comment")
-      .eq("teacher_id", teacherId)
-      .in("step_id", stepIds);
+    const [{ data: statusData }, { data: submissionsData }] = await Promise.all([
+      (supabase as any)
+        .from("step_completion_status")
+        .select("step_id, has_slide, has_exercises, is_complete")
+        .in("step_id", stepIds),
+      (supabase as any)
+        .from("content_submissions")
+        .select("id, step_id, status, admin_comment")
+        .eq("teacher_id", teacherId)
+        .in("step_id", stepIds),
+    ]);
 
     const statusMap = new Map((statusData || []).map((s: any) => [s.step_id, s]));
     const submissionMap = new Map((submissionsData || []).map((s: any) => [s.step_id, s]));
@@ -459,6 +772,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         id: s.id,
         number: s.number,
         title: s.title,
+        unitId: (s as any).unit_id || null,
         status,
         submissionId: sub?.id || null,
         submissionStatus: sub?.status || null,
@@ -480,25 +794,50 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     setCurrentSubmissionId(step.submissionId);
 
     if (step.submissionId) {
-      // Load existing submission files
       const { data: sfData } = await (supabase as any)
         .from("submission_files")
         .select("id, material_type, file_url, filename, status, exercises, ai_conversion_status")
         .eq("submission_id", step.submissionId);
 
       if (sfData) {
-        const loaded: FileEntry[] = (sfData as any[]).map(sf => ({
-          localId: sf.id,
-          materialType: sf.material_type as FileEntry["materialType"],
-          file: null,
-          filename: sf.filename || "",
-          previewUrl: sf.file_url,
-          uploadedFileUrl: sf.file_url,
-          exercises: sf.exercises
-            ? (sf.exercises as any[]).map(e => ({ ...e, localId: newLocalId() }))
-            : [],
-          aiStatus: sf.ai_conversion_status === "done" ? "confirmed" : "idle",
-        }));
+        const loaded: FileEntry[] = (sfData as any[]).map(sf => {
+          const raw = sf.exercises;
+          let exercises: ExerciseItem[] = [];
+          let aiVocabulary: VocabItem[] | undefined;
+          let aiGrammar: GrammarItem[] | undefined;
+          let aiGenerate: GenerateType[] | undefined;
+
+          if (Array.isArray(raw)) {
+            exercises = raw.map(e => ({ ...e, localId: newLocalId() }));
+          } else if (raw && typeof raw === "object") {
+            exercises = (raw.exercises || []).map((e: any) => ({ ...e, localId: newLocalId() }));
+            aiVocabulary = (raw.vocabulary || []).map((v: any) => ({ ...v, localId: newLocalId() }));
+            aiGrammar = (raw.grammar || []).map((g: any) => ({ ...g, localId: newLocalId() }));
+            aiGenerate = [
+              ...(exercises.length > 0 ? ["exercises" as GenerateType] : []),
+              ...(aiVocabulary && aiVocabulary.length > 0 ? ["vocabulary" as GenerateType] : []),
+              ...(aiGrammar && aiGrammar.length > 0 ? ["grammar" as GenerateType] : []),
+            ];
+          }
+
+          const aiStatus = sf.ai_conversion_status === "done" ? "confirmed" :
+            sf.ai_conversion_status === "failed" ? "error" : "idle";
+
+          return {
+            localId: sf.id,
+            materialType: sf.material_type as FileEntry["materialType"],
+            file: null,
+            filename: sf.filename || "",
+            previewUrl: sf.file_url,
+            uploadedFileUrl: sf.file_url,
+            exercises,
+            aiVocabulary,
+            aiGrammar,
+            aiGenerate,
+            aiStatus,
+            aiReviewTab: aiGenerate?.[0] || "exercises",
+          };
+        });
         setFiles(loaded);
       }
     }
@@ -519,15 +858,15 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         previewUrl: null,
         exercises: type === "exercise" ? [] : undefined,
         aiStatus: type === "exercise" ? "idle" : undefined,
+        aiGenerate: type === "exercise" ? ["exercises", "vocabulary", "grammar"] : undefined,
       },
     ]);
   };
 
   const updateFile = (localId: string, patch: Partial<FileEntry>) =>
-    setFiles(prev => prev.map(f => (f.localId === localId ? { ...f, ...patch } : f)));
+    setFiles(prev => prev.map(f => f.localId === localId ? { ...f, ...patch } : f));
 
-  const removeFile = (localId: string) =>
-    setFiles(prev => prev.filter(f => f.localId !== localId));
+  const removeFile = (localId: string) => setFiles(prev => prev.filter(f => f.localId !== localId));
 
   const handleFileSelect = (localId: string, file: File) => {
     const url = URL.createObjectURL(file);
@@ -541,14 +880,14 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
   // ── AI generation ────────────────────────────────────────────────────────────
 
-  const gerarExerciciosIA = async (entry: FileEntry) => {
+  const gerarConteudoIA = async (entry: FileEntry) => {
     const slideUrl = entry.aiFonte === "slide"
       ? files.find(f => f.materialType === "slide" && f.uploadedFileUrl)?.uploadedFileUrl ?? null
       : null;
     const rawDocUrl = entry.aiFonte === "documento" ? (entry.uploadedFileUrl ?? null) : null;
 
     if (entry.aiFonte === "slide" && !slideUrl) {
-      toast({ title: "Slide não encontrado. Adicione e salve um slide primeiro.", variant: "destructive" });
+      toast({ title: "Slide não encontrado. Adicione e salve o slide primeiro.", variant: "destructive" });
       return;
     }
     if (entry.aiFonte === "documento" && !rawDocUrl) {
@@ -558,54 +897,83 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
     updateFile(entry.localId, { aiStatus: "converting" });
     try {
+      const generate = (entry.aiGenerate?.length ? entry.aiGenerate : ["exercises"]) as string[];
       const { data, error } = await supabase.functions.invoke("convert-exercises-ai", {
         body: {
           slide_url: slideUrl,
           raw_document_url: rawDocUrl,
           teacher_instructions: entry.aiInstrucoes || null,
-          submissionFileId: entry.localId,
+          submissionFileId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.localId)
+            ? entry.localId : undefined,
+          generate,
+          step_id: selectedStep?.id,
+          level_id: levelId,
+          unit_id: selectedStep?.unitId,
         },
       });
-      if (error || !data?.exercises) throw new Error(error?.message || "Sem resultado");
-      const aiExs: ExerciseItem[] = (data.exercises as any[]).map(e => ({
+      if (error) throw new Error(error?.message || "Sem resultado");
+
+      const aiExs: ExerciseItem[] = ((data?.exercises || []) as any[]).map(e => ({
         localId: newLocalId(),
-        type: e.type || "open_answer",
+        type: (["fill_blank","association","rewrite","dialogue","production"].includes(e.type) ? e.type : "production") as ExerciseItem["type"],
         question: e.question || "",
-        options: Array.isArray(e.options) ? e.options.join(",") : (e.options || ""),
+        options: Array.isArray(e.options)
+          ? e.options.map((o: any) =>
+              typeof o === "object" && o.left ? `${o.left}=${o.right}` : String(o)
+            ).join(",")
+          : (e.options || ""),
         answer: e.answer || "",
         explanation: e.explanation || "",
       }));
-      updateFile(entry.localId, { aiStatus: "done", aiResult: aiExs, exercises: aiExs });
-      toast({ title: "IA gerou os exercícios! Revise e confirme." });
+
+      const aiVocab: VocabItem[] = ((data?.vocabulary || []) as any[]).map(v => ({
+        localId: newLocalId(),
+        word: v.word || "",
+        translation: v.translation || "",
+        example_sentence: v.example_sentence || "",
+        part_of_speech: (v.part_of_speech || "other") as VocabItem["part_of_speech"],
+        difficulty: (v.difficulty || 1) as 1 | 2 | 3,
+        distractors: (v.distractors?.slice(0, 3) || ["", "", ""]) as [string, string, string],
+      }));
+
+      const aiGram: GrammarItem[] = ((data?.grammar || []) as any[]).map(g => ({
+        localId: newLocalId(),
+        title: g.title || "",
+        explanation: g.explanation || "",
+        examples: (g.examples || []).map((ex: any) => ({
+          sentence: ex.sentence || "",
+          translation: ex.translation || "",
+          highlight: ex.highlight || "",
+        })),
+        tip: g.tip || "",
+      }));
+
+      const firstTab: GenerateType = generate.includes("exercises") ? "exercises"
+        : generate.includes("vocabulary") ? "vocabulary" : "grammar";
+
+      updateFile(entry.localId, {
+        aiStatus: "done",
+        exercises: aiExs,
+        aiVocabulary: aiVocab,
+        aiGrammar: aiGram,
+        aiReviewTab: firstTab,
+        aiGenerate: generate as GenerateType[],
+      });
+      toast({ title: `IA gerou o conteúdo! Revise as ${generate.length} seção${generate.length > 1 ? "ões" : "ão"} antes de publicar.` });
     } catch (e: any) {
       updateFile(entry.localId, { aiStatus: "error" });
-      toast({ title: "Erro na geração de exercícios", description: e.message, variant: "destructive" });
+      toast({ title: "Erro na geração de conteúdo", description: e.message, variant: "destructive" });
     }
   };
 
-  const confirmExercises = async (localId: string) => {
-    const entry = files.find(f => f.localId === localId);
-    if (!entry || !entry.exercises?.length) return;
-    // Persist to DB if this is an existing row (UUID format)
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(localId)) {
-      await (supabase as any)
-        .from("submission_files")
-        .update({ exercises: entry.exercises, ai_conversion_status: "done" })
-        .eq("id", localId);
-    }
-    updateFile(localId, { aiStatus: "confirmed" });
-    toast({ title: "Exercícios confirmados!" });
-  };
-
-  // ── Upload single file to storage ───────────────────────────────────────────
+  // ── Upload single file ──────────────────────────────────────────────────────
 
   const uploadFile = async (entry: FileEntry): Promise<string | null> => {
     if (!entry.file) return entry.uploadedFileUrl || null;
     const bucket = entry.materialType === "audio" ? "audios" : "materials";
-    const folder =
-      entry.materialType === "audio"
-        ? `audios/submissions/${teacherId}/${selectedStep!.id}`
-        : `submissions/${teacherId}/${selectedStep!.id}/${entry.materialType}`;
+    const folder = entry.materialType === "audio"
+      ? `audios/submissions/${teacherId}/${selectedStep!.id}`
+      : `submissions/${teacherId}/${selectedStep!.id}/${entry.materialType}`;
     const ext = entry.file.name.split(".").pop();
     const path = `${folder}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from(bucket).upload(path, entry.file, { upsert: true });
@@ -633,26 +1001,33 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         setCurrentSubmissionId(submissionId);
       }
 
-      // Upload files and upsert submission_files
       for (const entry of files) {
         const fileUrl = await uploadFile(entry);
-        const payload = {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.localId);
+
+        const aiPayload = entry.materialType === "exercise" && entry.aiStatus === "done"
+          ? {
+              exercises: {
+                exercises: entry.exercises || [],
+                vocabulary: entry.aiVocabulary || [],
+                grammar: entry.aiGrammar || [],
+              },
+              ai_conversion_status: "done",
+            }
+          : {};
+
+        const payload: any = {
           submission_id: submissionId,
           material_type: entry.materialType,
           file_url: fileUrl,
           filename: entry.filename,
           status: "pending",
-          exercises: entry.exercises && entry.exercises.length > 0 ? entry.exercises.map(e => ({
-            type: e.type, question: e.question, options: e.options, answer: e.answer, explanation: e.explanation,
-          })) : null,
-          ai_conversion_status: entry.aiStatus === "done" ? "done" : null,
+          ...aiPayload,
         };
 
-        if (entry.localId.length === 36 && /^[0-9a-f-]+$/.test(entry.localId)) {
-          // Existing DB row — update
+        if (isUuid) {
           await supabase.from("submission_files").update(payload).eq("id", entry.localId);
         } else {
-          // New row — insert
           const { data: sf } = await supabase.from("submission_files").insert(payload).select("id").single();
           if (sf) updateFile(entry.localId, { localId: sf.id, uploadedFileUrl: fileUrl ?? undefined });
         }
@@ -668,30 +1043,153 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     }
   };
 
-  // ── Submit for approval ─────────────────────────────────────────────────────
+  // ── Publish all ─────────────────────────────────────────────────────────────
 
-  const submitForApproval = async () => {
-    if (!selectedStep || files.length === 0) {
-      toast({ title: "Adicione pelo menos um arquivo antes de enviar.", variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
+  const publishAll = async () => {
+    if (!selectedStep) return;
+    setPublishing(true);
     try {
-      await saveDraft();
-      if (!currentSubmissionId) throw new Error("Submissão não criada");
+      // 1. Ensure submission exists
+      let submissionId = currentSubmissionId;
+      if (!submissionId) {
+        const { data: sub, error } = await supabase
+          .from("content_submissions")
+          .insert({ teacher_id: teacherId, step_id: selectedStep.id, status: "draft" })
+          .select("id")
+          .single();
+        if (error || !sub) throw new Error(error?.message || "Erro ao criar submissão");
+        submissionId = sub.id;
+        setCurrentSubmissionId(submissionId);
+      }
+
+      // 2. Upload pending files
+      for (const entry of files) {
+        if (!entry.file && entry.uploadedFileUrl) continue; // already uploaded
+        const fileUrl = await uploadFile(entry);
+        if (fileUrl) {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.localId);
+          const payload = {
+            submission_id: submissionId,
+            material_type: entry.materialType,
+            file_url: fileUrl,
+            filename: entry.filename,
+            status: "approved",
+          };
+          if (isUuid) {
+            await supabase.from("submission_files").update({ file_url: fileUrl, status: "approved" }).eq("id", entry.localId);
+          } else {
+            const { data: sf } = await supabase.from("submission_files").insert(payload).select("id").single();
+            if (sf) updateFile(entry.localId, { localId: sf.id, uploadedFileUrl: fileUrl });
+          }
+          updateFile(entry.localId, { uploadedFileUrl: fileUrl });
+        }
+      }
+
+      // 3. Find AI content entry
+      const aiEntry = files.find(f => f.materialType === "exercise" && f.aiStatus === "done");
+
+      if (aiEntry) {
+        // 4. Insert exercises → lesson_exercises + exercise_bank
+        const exercises = aiEntry.exercises || [];
+        if (exercises.length > 0) {
+          const VALID_EX_TYPES = ["fill_blank","association","rewrite","dialogue","production"];
+          const lessonExInserts = exercises.map((ex, i) => ({
+            step_id: selectedStep.id,
+            type: VALID_EX_TYPES.includes(ex.type) ? ex.type : "production",
+            question: ex.question,
+            options: formatOptionsForDb(ex),
+            answer: ex.answer,
+            explanation: ex.explanation || null,
+            order_index: i + 1,
+            active: true,
+          }));
+          const { error: leErr } = await (supabase as any).from("lesson_exercises").insert(lessonExInserts);
+          if (leErr) console.error("lesson_exercises insert:", leErr);
+
+          if (levelId) {
+            const bankInserts = exercises.map(ex => ({
+              level_id: levelId,
+              type: ex.type,
+              question: ex.question,
+              options: formatOptionsForDb(ex),
+              answer: ex.answer,
+              explanation: ex.explanation || null,
+              active: true,
+              times_used: 1,
+            }));
+            await (supabase as any).from("exercise_bank").insert(bankInserts);
+          }
+        }
+
+        // 5. Insert vocabulary + distractors
+        const vocab = aiEntry.aiVocabulary || [];
+        for (const v of vocab) {
+          if (!v.word.trim()) continue;
+          const { data: vocabRow } = await (supabase as any).from("vocabulary").insert({
+            level_id: levelId,
+            unit_id: selectedStep.unitId || null,
+            word: v.word,
+            translation: v.translation,
+            example_sentence: v.example_sentence || null,
+            part_of_speech: v.part_of_speech,
+            difficulty: v.difficulty,
+            active: true,
+          }).select("id").single();
+
+          if (vocabRow?.id) {
+            const distractors = v.distractors.filter(Boolean).map(d => ({
+              vocabulary_id: vocabRow.id,
+              distractor: d,
+            }));
+            if (distractors.length > 0) {
+              await (supabase as any).from("vocabulary_distractors").insert(distractors);
+            }
+          }
+        }
+
+        // 6. Insert grammar rules
+        const grammar = aiEntry.aiGrammar || [];
+        for (let i = 0; i < grammar.length; i++) {
+          const g = grammar[i];
+          if (!g.title.trim()) continue;
+          await (supabase as any).from("step_grammar").insert({
+            step_id: selectedStep.id,
+            title: g.title,
+            explanation: g.explanation,
+            examples: g.examples,
+            tip: g.tip || null,
+            order_index: i + 1,
+            active: true,
+            created_by: teacherId,
+          });
+        }
+      }
+
+      // 7. Mark submission as approved
       await supabase
         .from("content_submissions")
-        .update({ status: "pending", submitted_at: new Date().toISOString() })
-        .eq("id", currentSubmissionId);
-      toast({ title: "Enviado para aprovação!", description: "O admin será notificado." });
+        .update({ status: "approved", submitted_at: new Date().toISOString() })
+        .eq("id", submissionId);
+
+      toast({ title: "Conteúdo publicado com sucesso! Os alunos já podem acessar." });
+      setPublishDialogOpen(false);
       setSheetOpen(false);
       await loadSteps();
     } catch (e: any) {
-      toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" });
+      toast({ title: "Erro ao publicar", description: e.message, variant: "destructive" });
     } finally {
-      setSubmitting(false);
+      setPublishing(false);
     }
   };
+
+  // ── Derived for dialog ──────────────────────────────────────────────────────
+
+  const aiEntry = files.find(f => f.materialType === "exercise" && f.aiStatus === "done");
+  const dialogExercises = aiEntry?.exercises || [];
+  const dialogVocab = aiEntry?.aiVocabulary || [];
+  const dialogGrammar = aiEntry?.aiGrammar || [];
+  const hasSlide = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
+  const hasAudio = files.some(f => f.materialType === "audio" && !!f.uploadedFileUrl);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -730,325 +1228,384 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         </div>
       ) : (
         <>
-      {/* Step list */}
-      <div className="space-y-1.5">
-        {steps.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">Nenhum passo encontrado para este nível.</p>
-        )}
-        {steps.map(step => {
-          const sub = step.submissionStatus;
-          const statusInfo = sub ? statusLabel[sub] : null;
-          return (
-            <button
-              key={step.id}
-              onClick={() => openStep(step)}
-              className="w-full flex items-center gap-3 p-3 rounded-lg border bg-card hover:border-primary/30 hover:bg-muted/30 transition-colors text-left"
-            >
-              {/* Semaphore dot */}
-              <div className={cn("h-3 w-3 rounded-full shrink-0", STATUS_COLORS[step.status])} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold truncate">Passo {step.number}{step.title ? ` — ${step.title}` : ""}</p>
-                {statusInfo && (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-muted-foreground">{statusInfo.icon}</span>
-                    <span className="text-xs text-muted-foreground">{statusInfo.label}</span>
+          {/* Step list */}
+          <div className="space-y-1.5">
+            {steps.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">Nenhum passo encontrado para este nível.</p>
+            )}
+            {steps.map(step => {
+              const sub = step.submissionStatus;
+              const statusInfo = sub ? statusLabel[sub] : null;
+              return (
+                <button
+                  key={step.id}
+                  onClick={() => openStep(step)}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border bg-card hover:border-primary/30 hover:bg-muted/30 transition-colors text-left"
+                >
+                  <div className={cn("h-3 w-3 rounded-full shrink-0", STATUS_COLORS[step.status])} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate">
+                      Passo {step.number}{step.title ? ` — ${step.title}` : ""}
+                    </p>
+                    {statusInfo && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-muted-foreground">{statusInfo.icon}</span>
+                        <span className="text-xs text-muted-foreground">{statusInfo.label}</span>
+                      </div>
+                    )}
+                    {step.adminComment && sub === "rejected" && (
+                      <p className="text-xs text-destructive mt-0.5 truncate">"{step.adminComment}"</p>
+                    )}
                   </div>
-                )}
-                {step.adminComment && sub === "rejected" && (
-                  <p className="text-xs text-destructive mt-0.5 truncate">"{step.adminComment}"</p>
-                )}
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            </button>
-          );
-        })}
-      </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Exercise Bank Picker */}
-      <ExerciseBankPicker
-        open={bankPickerEntryId !== null}
-        onOpenChange={open => { if (!open) setBankPickerEntryId(null); }}
-        levelId={levelId}
-        onSelect={exs => {
-          if (!bankPickerEntryId) return;
-          const entry = files.find(f => f.localId === bankPickerEntryId);
-          if (entry) {
-            updateFile(bankPickerEntryId, { exercises: [...(entry.exercises || []), ...exs] });
-          }
-          setBankPickerEntryId(null);
-        }}
-      />
+          {/* Exercise Bank Picker */}
+          <ExerciseBankPicker
+            open={bankPickerEntryId !== null}
+            onOpenChange={open => { if (!open) setBankPickerEntryId(null); }}
+            levelId={levelId}
+            onSelect={exs => {
+              if (!bankPickerEntryId) return;
+              const entry = files.find(f => f.localId === bankPickerEntryId);
+              if (entry) updateFile(bankPickerEntryId, { exercises: [...(entry.exercises || []), ...exs] });
+              setBankPickerEntryId(null);
+            }}
+          />
 
-      {/* Step drawer */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>
-              Passo {selectedStep?.number}{selectedStep?.title ? ` — ${selectedStep.title}` : ""}
-            </SheetTitle>
-          </SheetHeader>
+          {/* Publish Dialog */}
+          <PublishDialog
+            open={publishDialogOpen}
+            onOpenChange={setPublishDialogOpen}
+            exercises={dialogExercises}
+            vocabulary={dialogVocab}
+            grammar={dialogGrammar}
+            hasSlide={hasSlide}
+            hasAudio={hasAudio}
+            onPublish={publishAll}
+            publishing={publishing}
+          />
 
-          {/* Rejection comment */}
-          {selectedStep?.submissionStatus === "rejected" && selectedStep.adminComment && (
-            <div className="mx-4 mt-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
-              <strong>Comentário do admin:</strong> {selectedStep.adminComment}
-            </div>
-          )}
+          {/* Step drawer */}
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>
+                  Passo {selectedStep?.number}{selectedStep?.title ? ` — ${selectedStep.title}` : ""}
+                </SheetTitle>
+              </SheetHeader>
 
-          {/* Already approved */}
-          {selectedStep?.submissionStatus === "approved" && (
-            <div className="mx-4 mt-2 p-3 rounded-lg border border-lime/30 bg-lime/5 text-xs text-foreground flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-lime-600" />
-              Conteúdo aprovado e publicado.
-            </div>
-          )}
-
-          {/* Pending */}
-          {selectedStep?.submissionStatus === "pending" && (
-            <div className="mx-4 mt-2 p-3 rounded-lg border bg-muted text-xs text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Aguardando revisão do admin. Você ainda pode editar o rascunho.
-            </div>
-          )}
-
-          <div className="flex-1 space-y-4 p-4 overflow-y-auto">
-            {/* Existing file entries */}
-            {(() => {
-              const slideDisponivel = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
-              return files.map((entry, i) => (
-              <div key={entry.localId} className="border rounded-lg p-3 space-y-3 bg-muted/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    {TYPE_ICONS[entry.materialType]}
-                    {TYPE_LABELS[entry.materialType]}
-                  </div>
-                  <button onClick={() => removeFile(entry.localId)} className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+              {selectedStep?.submissionStatus === "rejected" && selectedStep.adminComment && (
+                <div className="mx-4 mt-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+                  <strong>Comentário do admin:</strong> {selectedStep.adminComment}
                 </div>
+              )}
+              {selectedStep?.submissionStatus === "approved" && (
+                <div className="mx-4 mt-2 p-3 rounded-lg border border-lime/30 bg-lime/5 text-xs text-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-lime-600" />
+                  Conteúdo publicado e disponível para os alunos.
+                </div>
+              )}
 
-                {/* Audio: record or upload */}
-                {entry.materialType === "audio" ? (
-                  <div className="space-y-2">
-                    <AudioRecorder onRecorded={(blob, url) => handleAudioRecorded(entry.localId, blob, url)} />
-                    <div className="text-xs text-muted-foreground">ou</div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">{entry.filename || "Selecionar arquivo de áudio"}</span>
-                      <input
-                        type="file"
-                        accept="audio/*"
-                        className="hidden"
-                        onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
-                      />
-                    </label>
-                    {entry.previewUrl && <audio controls src={entry.previewUrl} className="w-full h-8" />}
-                  </div>
-                ) : entry.materialType === "exercise" ? (
-                  <div className="space-y-3">
+              <div className="flex-1 space-y-4 p-4 overflow-y-auto">
+                {/* File entries */}
+                {(() => {
+                  const slideDisponivel = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
+                  return files.map((entry) => (
+                    <div key={entry.localId} className="border rounded-lg p-3 space-y-3 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-bold">
+                          {TYPE_ICONS[entry.materialType]}
+                          {TYPE_LABELS[entry.materialType]}
+                        </div>
+                        <button onClick={() => removeFile(entry.localId)} className="text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
 
-                    {/* ── IA: fonte + instruções + gerar ── */}
-                    {(entry.aiStatus === "idle" || entry.aiStatus === "error") && (
-                      <div className="space-y-2 border rounded-lg p-3 bg-muted/10">
-                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Gerar com IA</p>
-
-                        {/* Source selector */}
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <Button
-                            size="sm"
-                            variant={entry.aiFonte === "slide" ? "default" : "outline"}
-                            onClick={() => updateFile(entry.localId, { aiFonte: "slide" })}
-                            disabled={!slideDisponivel}
-                            className="text-xs h-8"
-                            title={!slideDisponivel ? "Adicione e salve um slide primeiro" : undefined}
-                          >
-                            Slide da aula
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={entry.aiFonte === "documento" ? "default" : "outline"}
-                            onClick={() => updateFile(entry.localId, { aiFonte: "documento" })}
-                            className="text-xs h-8"
-                          >
-                            Upload de documento
-                          </Button>
+                      {/* ── Audio ── */}
+                      {entry.materialType === "audio" ? (
+                        <div className="space-y-2">
+                          <AudioRecorder onRecorded={(blob, url) => handleAudioRecorded(entry.localId, blob, url)} />
+                          <div className="text-xs text-muted-foreground">ou</div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">{entry.filename || "Selecionar arquivo de áudio"}</span>
+                            <input type="file" accept="audio/*" className="hidden"
+                              onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])} />
+                          </label>
+                          {entry.previewUrl && <audio controls src={entry.previewUrl} className="w-full h-8" />}
                         </div>
 
-                        {/* Document upload when "documento" selected */}
-                        {entry.aiFonte === "documento" && (
-                          <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
-                            <Upload className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium truncate">{entry.filename || "Enviar PDF / DOCX"}</p>
-                              {entry.file && !entry.uploadedFileUrl && (
-                                <p className="text-[10px] text-amber-500">Salve o rascunho antes de gerar</p>
+                      ) : entry.materialType === "exercise" ? (
+                        // ── AI Content entry ──
+                        <div className="space-y-3">
+
+                          {/* Idle / Error: generation form */}
+                          {(entry.aiStatus === "idle" || entry.aiStatus === "error") && (
+                            <div className="space-y-3 border rounded-lg p-3 bg-muted/10">
+                              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Gerar com IA</p>
+
+                              {/* Source selector */}
+                              <div>
+                                <p className="text-[10px] text-muted-foreground mb-1.5">Fonte do conteúdo</p>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    variant={entry.aiFonte === "slide" ? "default" : "outline"}
+                                    onClick={() => updateFile(entry.localId, { aiFonte: "slide" })}
+                                    disabled={!slideDisponivel}
+                                    className="text-xs h-8"
+                                    title={!slideDisponivel ? "Adicione e salve um slide primeiro" : undefined}
+                                  >
+                                    Slide da aula
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={entry.aiFonte === "documento" ? "default" : "outline"}
+                                    onClick={() => updateFile(entry.localId, { aiFonte: "documento" })}
+                                    className="text-xs h-8"
+                                  >
+                                    Upload de documento
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Document upload */}
+                              {entry.aiFonte === "documento" && (
+                                <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
+                                  <Upload className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{entry.filename || "Enviar PDF / DOCX"}</p>
+                                    {entry.file && !entry.uploadedFileUrl && (
+                                      <p className="text-[10px] text-amber-500">Salve o rascunho antes de gerar</p>
+                                    )}
+                                  </div>
+                                  <input type="file" accept=".pdf,.doc,.docx" className="hidden"
+                                    onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])} />
+                                </label>
                               )}
+
+                              {/* What to generate */}
+                              <div>
+                                <p className="text-[10px] text-muted-foreground mb-1.5">O que gerar</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  {(["exercises", "vocabulary", "grammar"] as GenerateType[]).map(type => {
+                                    const active = entry.aiGenerate?.includes(type) ?? false;
+                                    return (
+                                      <button
+                                        key={type}
+                                        onClick={() => {
+                                          const current = entry.aiGenerate || [];
+                                          const next = active
+                                            ? current.filter(t => t !== type)
+                                            : [...current, type];
+                                          updateFile(entry.localId, { aiGenerate: next });
+                                        }}
+                                        className={cn(
+                                          "px-2.5 py-1 rounded-md text-xs border font-medium transition-colors",
+                                          active ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted/50"
+                                        )}
+                                      >
+                                        {GENERATE_LABELS[type]}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Teacher instructions */}
+                              <Textarea
+                                placeholder="Instruções para a IA (opcional): ex. criar 5 exercícios de lacuna, foco em verbos irregulares…"
+                                value={entry.aiInstrucoes || ""}
+                                onChange={e => updateFile(entry.localId, { aiInstrucoes: e.target.value })}
+                                rows={2}
+                                className="text-xs"
+                              />
+
+                              {entry.aiStatus === "error" && (
+                                <p className="text-xs text-destructive">Falha na geração. Verifique as configurações e tente novamente.</p>
+                              )}
+
+                              <Button
+                                size="sm"
+                                onClick={() => gerarConteudoIA(entry)}
+                                disabled={
+                                  !entry.aiFonte ||
+                                  !entry.aiGenerate?.length ||
+                                  (entry.aiFonte === "documento" && !entry.file && !entry.uploadedFileUrl)
+                                }
+                                className="w-full text-xs gap-1.5"
+                              >
+                                Gerar conteúdo com IA
+                              </Button>
                             </div>
-                            <input
-                              type="file"
-                              accept=".pdf,.doc,.docx"
-                              className="hidden"
-                              onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
-                            />
-                          </label>
-                        )}
+                          )}
 
-                        {/* Teacher instructions */}
-                        <Textarea
-                          placeholder="Instruções para a IA (opcional): ex. criar 5 exercícios de lacuna, focar em verbos irregulares…"
-                          value={entry.aiInstrucoes || ""}
-                          onChange={e => updateFile(entry.localId, { aiInstrucoes: e.target.value })}
-                          rows={2}
-                          className="text-xs"
-                        />
+                          {/* Converting: skeleton */}
+                          {entry.aiStatus === "converting" && (
+                            <div className="border rounded-lg p-3 space-y-2 bg-muted/10">
+                              <Skeleton className="h-3 w-2/5" />
+                              <Skeleton className="h-3 w-full" />
+                              <Skeleton className="h-3 w-3/4" />
+                              <Skeleton className="h-3 w-full" />
+                              <Skeleton className="h-3 w-1/2" />
+                              <Skeleton className="h-3 w-4/5" />
+                              <p className="text-xs text-muted-foreground text-center pt-1">
+                                Analisando o slide e gerando conteúdo…
+                              </p>
+                            </div>
+                          )}
 
-                        {entry.aiStatus === "error" && (
-                          <p className="text-xs text-destructive">Falha na geração. Verifique as configurações e tente novamente.</p>
-                        )}
+                          {/* Done: review tabs */}
+                          {entry.aiStatus === "done" && (
+                            <div className="space-y-2">
+                              {/* Header row */}
+                              <div className="flex items-center justify-between px-0.5">
+                                <div className="flex items-center gap-1">
+                                  <CheckCircle2 className="h-3 w-3 text-lime-600" />
+                                  <span className="text-[10px] text-muted-foreground">Conteúdo gerado — revise e edite antes de publicar</span>
+                                </div>
+                                <button
+                                  onClick={() => updateFile(entry.localId, { aiStatus: "idle", aiResult: undefined })}
+                                  className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                >
+                                  Gerar novamente
+                                </button>
+                              </div>
 
-                        <Button
-                          size="sm"
-                          onClick={() => gerarExerciciosIA(entry)}
-                          disabled={!entry.aiFonte || (entry.aiFonte === "documento" && !entry.file && !entry.uploadedFileUrl)}
-                          className="w-full text-xs gap-1.5"
-                        >
-                          Gerar exercícios com IA
-                        </Button>
-                      </div>
-                    )}
+                              {/* Tab bar */}
+                              <div className="flex gap-0 border-b">
+                                {(["exercises", "vocabulary", "grammar"] as GenerateType[]).filter(t =>
+                                  entry.aiGenerate?.includes(t)
+                                ).map(tab => {
+                                  const count = tab === "exercises" ? (entry.exercises || []).length
+                                    : tab === "vocabulary" ? (entry.aiVocabulary || []).length
+                                    : (entry.aiGrammar || []).length;
+                                  const active = (entry.aiReviewTab ?? "exercises") === tab;
+                                  return (
+                                    <button
+                                      key={tab}
+                                      onClick={() => updateFile(entry.localId, { aiReviewTab: tab })}
+                                      className={cn(
+                                        "flex-1 px-2 py-1.5 text-xs font-bold transition-colors",
+                                        active
+                                          ? "border-b-2 border-primary text-foreground"
+                                          : "text-muted-foreground hover:text-foreground"
+                                      )}
+                                    >
+                                      {GENERATE_LABELS[tab]} ({count})
+                                    </button>
+                                  );
+                                })}
+                              </div>
 
-                    {/* ── Converting: skeleton ── */}
-                    {entry.aiStatus === "converting" && (
-                      <div className="border rounded-lg p-3 space-y-2 bg-muted/10">
-                        <Skeleton className="h-3 w-2/5" />
-                        <Skeleton className="h-3 w-full" />
-                        <Skeleton className="h-3 w-3/4" />
-                        <Skeleton className="h-3 w-full" />
-                        <Skeleton className="h-3 w-1/2" />
-                        <p className="text-xs text-muted-foreground text-center pt-1">
-                          Analisando o conteúdo e criando exercícios…
-                        </p>
-                      </div>
-                    )}
+                              {/* Tab content */}
+                              <div className="pt-1">
+                                {(entry.aiReviewTab ?? "exercises") === "exercises" && entry.aiGenerate?.includes("exercises") && (
+                                  <>
+                                    <ExerciseEditor
+                                      exercises={entry.exercises || []}
+                                      onChange={exs => updateFile(entry.localId, { exercises: exs })}
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setBankPickerEntryId(entry.localId)}
+                                      className="w-full gap-1.5 text-xs mt-2"
+                                    >
+                                      <Library className="h-3.5 w-3.5" />
+                                      Buscar no banco de exercícios
+                                    </Button>
+                                  </>
+                                )}
+                                {entry.aiReviewTab === "vocabulary" && entry.aiGenerate?.includes("vocabulary") && (
+                                  <VocabEditor
+                                    vocab={entry.aiVocabulary || []}
+                                    onChange={vocab => updateFile(entry.localId, { aiVocabulary: vocab })}
+                                  />
+                                )}
+                                {entry.aiReviewTab === "grammar" && entry.aiGenerate?.includes("grammar") && (
+                                  <GrammarEditor
+                                    grammar={entry.aiGrammar || []}
+                                    onChange={grammar => updateFile(entry.localId, { aiGrammar: grammar })}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )}
 
-                    {/* ── Done: review banner ── */}
-                    {entry.aiStatus === "done" && (
-                      <div className="flex items-center gap-2 px-1">
-                        <Badge variant="secondary" className="text-[10px] gap-1 py-0.5">
-                          <CheckCircle2 className="h-3 w-3 text-lime-600" />
-                          {(entry.exercises || []).length} exercícios gerados
-                        </Badge>
-                        <button
-                          onClick={() => updateFile(entry.localId, { aiStatus: "idle", aiResult: undefined })}
-                          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground underline"
-                        >
-                          Gerar novamente
-                        </button>
-                      </div>
-                    )}
+                          {/* Confirmed (already published) */}
+                          {entry.aiStatus === "confirmed" && (
+                            <div className="flex items-center gap-1.5 px-1">
+                              <CheckCircle2 className="h-3 w-3 text-lime-600 shrink-0" />
+                              <span className="text-[10px] text-muted-foreground">Conteúdo publicado pela IA</span>
+                            </div>
+                          )}
+                        </div>
 
-                    {/* ── Confirmed: small indicator ── */}
-                    {entry.aiStatus === "confirmed" && (
-                      <div className="flex items-center gap-1.5 px-1">
-                        <CheckCircle2 className="h-3 w-3 text-lime-600 shrink-0" />
-                        <span className="text-[10px] text-muted-foreground">Exercícios confirmados pela IA</span>
-                        <button
-                          onClick={() => updateFile(entry.localId, { aiStatus: "idle" })}
-                          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground underline"
-                        >
-                          Gerar novamente
-                        </button>
-                      </div>
-                    )}
+                      ) : (
+                        // ── Slide / Grammar PDF / Vocab PDF ──
+                        <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
+                          <Upload className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs">{entry.filename || "Selecionar arquivo"}</span>
+                          <input
+                            type="file"
+                            accept={entry.materialType === "slide" ? ".pdf,.ppt,.pptx" : ".pdf,.doc,.docx"}
+                            className="hidden"
+                            onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  ));
+                })()}
 
-                    {/* ── Bank picker button ── */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setBankPickerEntryId(entry.localId)}
-                      className="w-full gap-1.5 text-xs"
-                    >
-                      <Library className="h-3.5 w-3.5" />
-                      Buscar no banco de exercícios
-                    </Button>
-
-                    {/* ── Editable exercise list ── */}
-                    <ExerciseEditor
-                      exercises={entry.exercises || []}
-                      onChange={exs => updateFile(entry.localId, { exercises: exs })}
-                    />
-
-                    {/* ── Confirm button (visible only in "done" state) ── */}
-                    {entry.aiStatus === "done" && (entry.exercises || []).length > 0 && (
+                {/* Add content buttons */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Adicionar conteúdo</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["slide", "audio", "grammar", "vocab", "exercise"] as const).map(type => (
                       <Button
+                        key={type}
+                        variant="outline"
                         size="sm"
-                        onClick={() => confirmExercises(entry.localId)}
-                        className="w-full text-xs gap-1.5"
+                        onClick={() => addFileEntry(type)}
+                        className="justify-start gap-1.5 text-xs h-9"
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Confirmar exercícios
+                        {TYPE_ICONS[type]}
+                        {TYPE_LABELS[type]}
                       </Button>
-                    )}
+                    ))}
                   </div>
-                ) : (
-                  /* slide / grammar / vocab — file upload */
-                  <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-xs">{entry.filename || "Selecionar arquivo"}</span>
-                    <input
-                      type="file"
-                      accept={entry.materialType === "slide" ? ".pdf,.ppt,.pptx" : ".pdf,.doc,.docx"}
-                      className="hidden"
-                      onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
-                    />
-                  </label>
-                )}
+                </div>
               </div>
-              ));
-            })()}
 
-            {/* Add type buttons */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Adicionar conteúdo</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(["slide", "audio", "grammar", "vocab", "exercise"] as const).map(type => (
-                  <Button
-                    key={type}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addFileEntry(type)}
-                    className="justify-start gap-1.5 text-xs h-9"
-                  >
-                    {TYPE_ICONS[type]}
-                    {TYPE_LABELS[type]}
-                  </Button>
-                ))}
+              {/* Footer */}
+              <div className="p-4 border-t flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={saveDraft}
+                  disabled={saving || publishing}
+                  className="flex-1 gap-1.5"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Salvar rascunho
+                </Button>
+                <Button
+                  onClick={() => setPublishDialogOpen(true)}
+                  disabled={saving || publishing || files.length === 0}
+                  className="flex-1 gap-1.5"
+                >
+                  <Rocket className="h-4 w-4" />
+                  Revisar e publicar
+                </Button>
               </div>
-            </div>
-          </div>
-
-          {/* Footer actions */}
-          <div className="p-4 border-t flex gap-2">
-            <Button
-              variant="outline"
-              onClick={saveDraft}
-              disabled={saving || submitting}
-              className="flex-1 gap-1.5"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar rascunho
-            </Button>
-            <Button
-              onClick={submitForApproval}
-              disabled={saving || submitting || files.length === 0}
-              className="flex-1 gap-1.5"
-            >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar para aprovação
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+            </SheetContent>
+          </Sheet>
         </>
       )}
     </div>

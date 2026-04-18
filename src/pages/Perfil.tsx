@@ -10,8 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PAYMENT_ENABLED } from "@/lib/featureFlags";
+import { differenceInDays } from "date-fns";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import {
   isPushSupported,
@@ -72,6 +74,23 @@ interface RecordingItem {
   teacher_score: number | null;
   teacher_feedback: string | null;
   stepNumber: number | null;
+}
+
+interface SubscriptionInfo {
+  id: string;
+  billing_type: string;
+  payment_method: string;
+  amount_cents: number;
+  status: string;
+  next_due_date: string | null;
+  ends_at: string | null;
+  plan_frequency: number;
+  plan_name: string;
+}
+
+interface StudentPaymentStatus {
+  is_corporate: boolean;
+  payment_status: string;
 }
 
 // ─── Inline editable field ───────────────────────────────────────────────────
@@ -180,6 +199,90 @@ const StatCard = ({ icon, label, value, iconBg = "bg-primary/10" }: StatCardProp
   </Card>
 );
 
+// ─── Subscription Card ───────────────────────────────────────────────────────
+
+const formatCents = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+
+const subscriptionStatusBadge = (status: string) => {
+  if (status === "active") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Ativo</span>;
+  if (status === "overdue") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">Inadimplente</span>;
+  if (status === "suspended") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Suspenso</span>;
+  return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{status}</span>;
+};
+
+const SubscriptionCard = ({ subscription }: { subscription: SubscriptionInfo }) => {
+  const isSemiannual = subscription.billing_type === "SEMIANNUAL";
+
+  const nextDueFormatted = subscription.next_due_date
+    ? new Date(subscription.next_due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+    : null;
+
+  const endsAtFormatted = subscription.ends_at
+    ? new Date(subscription.ends_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
+
+  const daysRemaining = subscription.ends_at
+    ? differenceInDays(new Date(subscription.ends_at), new Date())
+    : null;
+
+  return (
+    <Card className="rounded-xl">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+          <CreditCard className="h-4 w-4" /> Minha assinatura
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 pb-5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1">
+            <p className="text-sm font-bold">
+              {subscription.plan_frequency}x por semana
+            </p>
+            <div className="flex items-center gap-2">
+              {subscriptionStatusBadge(subscription.status)}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-black text-primary">{formatCents(subscription.amount_cents)}</p>
+            <p className="text-xs text-muted-foreground font-light">{isSemiannual ? "semestral" : "/mês"}</p>
+          </div>
+        </div>
+
+        <div className="space-y-1.5 text-sm">
+          {nextDueFormatted && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-light">Próximo vencimento</span>
+              <span className="text-xs font-medium">{nextDueFormatted}</span>
+            </div>
+          )}
+          {isSemiannual && endsAtFormatted && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-light">Termina em</span>
+              <span className="text-xs font-medium">
+                {endsAtFormatted}
+                {daysRemaining !== null && daysRemaining >= 0 && (
+                  <span className="text-muted-foreground ml-1">({daysRemaining} dias)</span>
+                )}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-light">Método</span>
+            <span className="text-xs font-medium">PIX</span>
+          </div>
+        </div>
+
+        <Button size="sm" variant="outline" className="w-full text-xs" asChild>
+          <a href="/pagamento">
+            <CreditCard className="h-3.5 w-3.5 mr-1.5" /> Gerenciar pagamento
+          </a>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const Perfil = () => {
@@ -194,6 +297,8 @@ const Perfil = () => {
   const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
   const [certificates, setCertificates] = useState<CertItem[]>([]);
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [studentPaymentStatus, setStudentPaymentStatus] = useState<StudentPaymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -254,11 +359,11 @@ const Perfil = () => {
         .single()
         .then(({ data }: any) => data as ProfileData | null);
 
-      // Student (with language & level joins)
+      // Student (with language & level joins + payment status)
       const studentPromise = db
         .from("students")
         .select(`
-          id, enrollment_date,
+          id, enrollment_date, is_corporate, payment_status,
           languages!students_language_id_fkey(name),
           levels!students_level_id_fkey(name, code)
         `)
@@ -266,6 +371,10 @@ const Perfil = () => {
         .single()
         .then(({ data }: any) => {
           if (!data) return null;
+          setStudentPaymentStatus({
+            is_corporate: data.is_corporate ?? false,
+            payment_status: data.payment_status ?? "pending_contract",
+          });
           return {
             id: data.id,
             enrollment_date: data.enrollment_date,
@@ -335,6 +444,34 @@ const Perfil = () => {
           })
         );
         setRecordings(enrichedRecs);
+
+        // Fetch active subscription
+        const subRes = await db
+          .from("subscriptions")
+          .select(`
+            id, billing_type, payment_method, amount_cents, status, next_due_date, ends_at,
+            payment_plans!subscriptions_plan_id_fkey(name, frequency)
+          `)
+          .eq("student_id", studentData.id)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (subRes.data) {
+          const s = subRes.data;
+          setSubscription({
+            id: s.id,
+            billing_type: s.billing_type,
+            payment_method: s.payment_method,
+            amount_cents: s.amount_cents,
+            status: s.status,
+            next_due_date: s.next_due_date,
+            ends_at: s.ends_at,
+            plan_frequency: s.payment_plans?.frequency ?? 0,
+            plan_name: s.payment_plans?.name ?? "—",
+          });
+        }
       }
     } finally {
       setLoading(false);
@@ -587,6 +724,11 @@ const Perfil = () => {
             </Card>
           </div>
         </div>
+
+        {/* ── Minha assinatura ── */}
+        {PAYMENT_ENABLED && subscription && !studentPaymentStatus?.is_corporate && (
+          <SubscriptionCard subscription={subscription} />
+        )}
 
         {/* ── Meus certificados ── */}
         {certificates.length > 0 && (
