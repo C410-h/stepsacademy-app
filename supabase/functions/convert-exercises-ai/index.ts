@@ -30,11 +30,9 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const {
-      // new params
       slide_url,
       raw_document_url,
       teacher_instructions,
-      // legacy support
       fileUrl: legacyFileUrl,
       submissionFileId: sfId,
     } = body;
@@ -49,16 +47,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Build final prompt, injecting teacher instructions if provided
     const instructionsNote = teacher_instructions
       ? `\n\nInstruções do professor: ${teacher_instructions}`
       : "";
     const EXTRACTION_PROMPT = BASE_PROMPT + instructionsNote;
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY não configurada");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY não configurada");
 
-    // Supabase client para atualizar status
     const sb = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -79,10 +75,10 @@ Deno.serve(async (req: Request) => {
     const contentType = fileRes.headers.get("content-type") || "";
     const isPdf = contentType.includes("pdf") || fileUrl.toLowerCase().endsWith(".pdf");
 
-    let parts: any[];
+    let content: any[];
 
     if (isPdf) {
-      // PDF → inline_data base64 para o Gemini
+      // PDF → base64 para Claude
       const buffer = await fileRes.arrayBuffer();
       const uint8 = new Uint8Array(buffer);
       let binary = "";
@@ -90,26 +86,30 @@ Deno.serve(async (req: Request) => {
         binary += String.fromCharCode(uint8[i]);
       }
       const base64 = btoa(binary);
-      parts = [
+      content = [
         {
-          inline_data: {
-            mime_type: "application/pdf",
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
             data: base64,
           },
         },
-        { text: EXTRACTION_PROMPT + "\n\nExtrai os exercícios do documento acima." },
+        {
+          type: "text",
+          text: EXTRACTION_PROMPT + "\n\nExtrai os exercícios do documento acima.",
+        },
       ];
     } else {
-      // DOCX, TXT e outros → extrai texto bruto
+      // DOCX, TXT → extrai texto bruto
       let text: string;
       try {
         const raw = await fileRes.text();
-        // Remove tags XML (docx é um zip com XML internamente)
         text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 30000);
       } catch {
         text = "[Conteúdo não pôde ser extraído]";
       }
-      parts = [{ text: `${EXTRACTION_PROMPT}\n\nDocumento:\n${text}` }];
+      content = [{ type: "text", text: `${EXTRACTION_PROMPT}\n\nDocumento:\n${text}` }];
     }
 
     // Atualiza status → processing
@@ -119,29 +119,29 @@ Deno.serve(async (req: Request) => {
         .eq("id", submissionFileId);
     }
 
-    // Chama Gemini
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 4000,
-          },
-        }),
+    // Chama Claude
+    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "pdfs-2024-09-25",
       },
-    );
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 4000,
+        messages: [{ role: "user", content }],
+      }),
+    });
 
-    if (!geminiRes.ok) {
-      const err = await geminiRes.text();
-      throw new Error(`Gemini API error: ${err}`);
+    if (!claudeRes.ok) {
+      const err = await claudeRes.text();
+      throw new Error(`Anthropic API error: ${err}`);
     }
 
-    const geminiData = await geminiRes.json();
-    const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+    const claudeData = await claudeRes.json();
+    const rawText: string = claudeData.content?.[0]?.text || "[]";
 
     // Parse da resposta
     let exercises: any[];
@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
       const parsed = JSON.parse(cleaned);
       exercises = Array.isArray(parsed) ? parsed : (parsed.exercises || []);
     } catch {
-      throw new Error("Gemini retornou JSON inválido: " + rawText.slice(0, 200));
+      throw new Error("Claude retornou JSON inválido: " + rawText.slice(0, 200));
     }
 
     // Salva resultado e atualiza status → done
@@ -166,7 +166,6 @@ Deno.serve(async (req: Request) => {
   } catch (error: any) {
     console.error("[convert-exercises-ai] erro:", error.message);
 
-    // Atualiza status → failed
     if (submissionFileId) {
       try {
         const sb = createClient(
