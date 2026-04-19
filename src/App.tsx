@@ -8,7 +8,6 @@ import { GamificationProvider } from "@/contexts/GamificationContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
-import TeacherProfilePage from "./pages/TeacherProfile";
 import AdminTeacherDetail from "./pages/AdminTeacherDetail";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
@@ -70,7 +69,7 @@ const App = () => (
               <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><Teacher /></ProtectedRoute>} />
-              <Route path="/perfil-professor" element={<ProtectedRoute requiredRole="teacher"><TeacherProfilePage /></ProtectedRoute>} />
+              <Route path="/perfil-professor" element={<Navigate to="/teacher?tab=profile" replace />} />
               <Route path="/admin/professor/:id" element={<ProtectedRoute requiredRole="admin"><AdminTeacherDetail /></ProtectedRoute>} />
               <Route path="/nivelamento" element={<ProtectedRoute><Nivelamento /></ProtectedRoute>} />
               <Route path="/loja" element={<ProtectedRoute><Loja /></ProtectedRoute>} />

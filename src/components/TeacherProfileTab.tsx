@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, ChangeEvent } from "react";
+import { useEffect, useMemo, useState, useRef, ChangeEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +9,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Info, Pencil } from "lucide-react";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { HELP_CONTENT } from "@/data/helpContent";
+import { Camera, Info, Pencil, Lock, LogOut, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -24,7 +40,6 @@ const PIX_TYPES = [
 ] as const;
 
 const DAY_LABELS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-
 const BIO_MAX = 280;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -77,24 +92,25 @@ interface Props {
 interface Language { id: string; name: string; }
 
 const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [savingInfo, setSavingInfo] = useState(false);
-  const [savingPix, setSavingPix]   = useState(false);
+  const [loading, setLoading]               = useState(true);
+  const [savingInfo, setSavingInfo]         = useState(false);
+  const [savingPix, setSavingPix]           = useState(false);
+  const [savingLangs, setSavingLangs]       = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Personal info
-  const [avatarUrl, setAvatarUrl]   = useState<string | null>(null);
-  const [name, setName]             = useState("");
-  const [phone, setPhone]           = useState("");
-  const [bio, setBio]               = useState("");
-  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
+  const [avatarUrl, setAvatarUrl]     = useState<string | null>(null);
+  const [name, setName]               = useState("");
+  const [phone, setPhone]             = useState("");
+  const [bio, setBio]                 = useState("");
 
   // Languages
-  const [languages, setLanguages]   = useState<Language[]>([]);
+  const [languages, setLanguages]         = useState<Language[]>([]);
+  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
 
   // PIX
   const [savedPixKey,  setSavedPixKey]  = useState<string | null>(null);
@@ -103,8 +119,17 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const [pixType, setPixType] = useState("cpf");
   const [pixKey,  setPixKey]  = useState("");
 
-  // Availability counts
+  // Availability
   const [slotsPerDay, setSlotsPerDay] = useState<number[]>(new Array(7).fill(0));
+
+  // Password dialog
+  const [pwOpen,     setPwOpen]     = useState(false);
+  const [newPw,      setNewPw]      = useState("");
+  const [confirmPw,  setConfirmPw]  = useState("");
+  const [savingPw,   setSavingPw]   = useState(false);
+
+  // Help search
+  const [helpSearch, setHelpSearch] = useState("");
 
   useEffect(() => { loadAll(); }, [profileId]);
 
@@ -179,12 +204,7 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
       const rawPhone = phone.replace(/\D/g, "");
       const { error } = await (supabase as any)
         .from("profiles")
-        .update({
-          name,
-          phone: rawPhone || null,
-          bio: bio || null,
-          teaching_languages: selectedLangs,
-        })
+        .update({ name, phone: rawPhone || null, bio: bio || null })
         .eq("id", profileId);
       if (error) throw error;
       toast({ title: "Alterações salvas!" });
@@ -192,6 +212,22 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
       toast({ title: "Erro ao salvar", variant: "destructive" });
     } finally {
       setSavingInfo(false);
+    }
+  };
+
+  const handleSaveLangs = async () => {
+    setSavingLangs(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("profiles")
+        .update({ teaching_languages: selectedLangs })
+        .eq("id", profileId);
+      if (error) throw error;
+      toast({ title: "Idiomas salvos!" });
+    } catch {
+      toast({ title: "Erro ao salvar idiomas", variant: "destructive" });
+    } finally {
+      setSavingLangs(false);
     }
   };
 
@@ -215,10 +251,50 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (newPw.length < 8) {
+      toast({ title: "A senha deve ter pelo menos 8 caracteres", variant: "destructive" });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast({ title: "As senhas não coincidem", variant: "destructive" });
+      return;
+    }
+    setSavingPw(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPw });
+      if (error) throw error;
+      toast({ title: "Senha alterada com sucesso!" });
+      setPwOpen(false);
+      setNewPw("");
+      setConfirmPw("");
+    } catch (err: any) {
+      toast({ title: "Erro ao alterar senha", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingPw(false);
+    }
+  };
+
   const toggleLang = (id: string) =>
     setSelectedLangs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const pixLabel = PIX_TYPES.find(t => t.value === (editingPix ? pixType : savedPixType))?.label ?? "Chave";
+
+  // Help filtering
+  const teacherHelp = HELP_CONTENT.teacher ?? [];
+  const filteredHelp = useMemo(() => {
+    const term = helpSearch.trim().toLowerCase();
+    if (!term) return null;
+    const results: Array<{ question: string; answer: string; section: string }> = [];
+    for (const sec of teacherHelp) {
+      for (const item of sec.items) {
+        if (item.question.toLowerCase().includes(term) || item.answer.toLowerCase().includes(term)) {
+          results.push({ ...item, section: sec.section });
+        }
+      }
+    }
+    return results;
+  }, [helpSearch]);
 
   if (loading) {
     return (
@@ -235,7 +311,7 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
     <div className="space-y-5">
       <h2 className="text-2xl font-bold">Perfil</h2>
 
-      {/* ── Informações pessoais ──────────────────────────────────────────── */}
+      {/* ── 1. Informações pessoais ───────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold">Informações pessoais</CardTitle>
@@ -265,19 +341,16 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             </div>
           </div>
 
-          {/* Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Nome completo</label>
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome completo" />
           </div>
 
-          {/* Email (read-only) */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">E-mail</label>
             <Input value={user?.email ?? ""} readOnly className="bg-muted text-muted-foreground" />
           </div>
 
-          {/* Phone */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Telefone</label>
             <Input
@@ -288,7 +361,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             />
           </div>
 
-          {/* Bio */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-medium text-muted-foreground">Bio</label>
@@ -305,36 +377,13 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             />
           </div>
 
-          {/* Teaching languages */}
-          {languages.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">Idiomas que ensina</label>
-              <div className="flex flex-wrap gap-2">
-                {languages.map(lang => (
-                  <Badge
-                    key={lang.id}
-                    variant={selectedLangs.includes(lang.id) ? "default" : "outline"}
-                    className="cursor-pointer select-none transition-colors"
-                    onClick={() => toggleLang(lang.id)}
-                  >
-                    {lang.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Button
-            className="w-full"
-            onClick={handleSaveInfo}
-            disabled={savingInfo || bio.length > BIO_MAX}
-          >
+          <Button className="w-full" onClick={handleSaveInfo} disabled={savingInfo || bio.length > BIO_MAX}>
             {savingInfo ? "Salvando..." : "Salvar alterações"}
           </Button>
         </CardContent>
       </Card>
 
-      {/* ── Chave PIX ─────────────────────────────────────────────────────── */}
+      {/* ── 2. Chave PIX ──────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold">Chave PIX</CardTitle>
@@ -355,13 +404,8 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Tipo de chave</label>
-                <Select
-                  value={pixType}
-                  onValueChange={v => { setPixType(v); setPixKey(""); }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={pixType} onValueChange={v => { setPixType(v); setPixKey(""); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PIX_TYPES.map(t => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -375,10 +419,10 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
                   value={pixKey}
                   onChange={e => setPixKey(applyPixMask(e.target.value, pixType))}
                   placeholder={
-                    pixType === "cpf"    ? "000.000.000-00"       :
-                    pixType === "cnpj"   ? "00.000.000/0000-00"   :
-                    pixType === "phone"  ? "(11) 99999-9999"      :
-                    pixType === "email"  ? "email@exemplo.com"    :
+                    pixType === "cpf"    ? "000.000.000-00"     :
+                    pixType === "cnpj"   ? "00.000.000/0000-00" :
+                    pixType === "phone"  ? "(11) 99999-9999"    :
+                    pixType === "email"  ? "email@exemplo.com"  :
                                           "Chave aleatória"
                   }
                   inputMode={pixType === "cpf" || pixType === "cnpj" || pixType === "phone" ? "numeric" : "text"}
@@ -403,7 +447,58 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </CardContent>
       </Card>
 
-      {/* ── Disponibilidade ───────────────────────────────────────────────── */}
+      {/* ── 3. Idiomas que ensina ──────────────────────────────────────────── */}
+      {languages.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold">Idiomas que ensina</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {languages.map(lang => (
+                <Badge
+                  key={lang.id}
+                  variant={selectedLangs.includes(lang.id) ? "default" : "outline"}
+                  className="cursor-pointer select-none transition-colors"
+                  onClick={() => toggleLang(lang.id)}
+                >
+                  {lang.name}
+                </Badge>
+              ))}
+            </div>
+            <Button className="w-full" onClick={handleSaveLangs} disabled={savingLangs}>
+              {savingLangs ? "Salvando..." : "Salvar idiomas"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 4. Tema visual ────────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-0.5">Tema da plataforma</p>
+        <ThemeSwitcher />
+      </div>
+
+      {/* ── 5. Segurança ──────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold">Segurança</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Senha</p>
+              <p className="text-xs text-muted-foreground font-light">Defina uma nova senha de acesso à plataforma.</p>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setPwOpen(true)}>
+              <Lock className="h-3.5 w-3.5" />
+              Alterar senha
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── 6. Disponibilidade ────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -434,6 +529,132 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
           </p>
         </CardContent>
       </Card>
+
+      {/* ── 7. Central de Ajuda ───────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold">Central de Ajuda</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Buscar pergunta ou palavra-chave…"
+              value={helpSearch}
+              onChange={e => setHelpSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {filteredHelp !== null ? (
+            filteredHelp.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <HelpCircle className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground font-light">
+                  Nenhum resultado para{" "}
+                  <span className="font-medium text-foreground">"{helpSearch}"</span>.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">
+                  {filteredHelp.length} {filteredHelp.length === 1 ? "resultado" : "resultados"}
+                </p>
+                <Accordion type="multiple">
+                  {filteredHelp.map((item, i) => (
+                    <AccordionItem key={i} value={`search-${i}`}>
+                      <AccordionTrigger className="text-sm font-semibold text-left">
+                        {item.question}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <p className="text-sm text-muted-foreground font-light leading-relaxed">{item.answer}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-2 uppercase tracking-wide">{item.section}</p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+            )
+          ) : (
+            <div className="space-y-6">
+              {teacherHelp.map((sec, si) => (
+                <div key={si} className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    {sec.section}
+                  </h3>
+                  <Accordion type="multiple">
+                    {sec.items.map((item, ii) => (
+                      <AccordionItem key={ii} value={`${si}-${ii}`}>
+                        <AccordionTrigger className="text-sm font-semibold text-left">
+                          {item.question}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <p className="text-sm text-muted-foreground font-light leading-relaxed">{item.answer}</p>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Sair da conta ─────────────────────────────────────────────────── */}
+      <Card>
+        <CardContent className="p-4">
+          <Button
+            variant="ghost"
+            className="w-full gap-2 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+            onClick={signOut}
+          >
+            <LogOut className="h-4 w-4" />
+            Sair da conta
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ── Password dialog ───────────────────────────────────────────────── */}
+      <Dialog open={pwOpen} onOpenChange={open => { setPwOpen(open); if (!open) { setNewPw(""); setConfirmPw(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Alterar senha</DialogTitle>
+            <DialogDescription>
+              A nova senha deve ter pelo menos 8 caracteres.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Nova senha</label>
+              <Input
+                type="password"
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Confirmar senha</label>
+              <Input
+                type="password"
+                value={confirmPw}
+                onChange={e => setConfirmPw(e.target.value)}
+                placeholder="Repita a nova senha"
+                autoComplete="new-password"
+                onKeyDown={e => e.key === "Enter" && handleChangePassword()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwOpen(false)}>Cancelar</Button>
+            <Button onClick={handleChangePassword} disabled={savingPw || !newPw || !confirmPw}>
+              {savingPw ? "Salvando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

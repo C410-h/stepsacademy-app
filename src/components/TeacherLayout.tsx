@@ -3,10 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, ClipboardList } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const TeacherLayout = ({ children }: { children: ReactNode }) => {
   const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
 
   return (
@@ -20,12 +21,13 @@ const TeacherLayout = ({ children }: { children: ReactNode }) => {
               Ficha
             </Link>
           </Button>
-          <Link to="/perfil-professor">
-            <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">{initials}</AvatarFallback>
-            </Avatar>
-          </Link>
+          <Avatar
+            className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => navigate("/teacher?tab=profile")}
+          >
+            <AvatarImage src={profile?.avatar_url || undefined} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs">{initials}</AvatarFallback>
+          </Avatar>
           <Button
             variant="ghost"
             size="sm"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import TeacherLayout from "@/components/TeacherLayout";
@@ -26,8 +27,17 @@ type ActiveTab = "overview" | "students" | "stats" | "agenda" | "content" | "ava
 const Teacher = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab") as ActiveTab | null;
+    if (tab) {
+      setActiveTab(tab);
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [simpleStudents, setSimpleStudents] = useState<ScheduleStudent[]>([]);
   const [scheduleOpen, setScheduleOpen] = useState(false);
