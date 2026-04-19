@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap,
-  RotateCcw, Mic, GraduationCap, ExternalLink,
+  RotateCcw, Mic, GraduationCap, ExternalLink, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -545,6 +545,7 @@ const AulaPage = () => {
 
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [missedCount, setMissedCount] = useState(0);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [vocabulary, setVocabulary] = useState<VocabWord[]>([]);
@@ -611,6 +612,15 @@ const AulaPage = () => {
       languageName: s.languages?.name || "",
       meetLink,
     });
+
+    // Check missed_pending sessions
+    const { data: missedRows } = await (supabase as any)
+      .from("class_sessions")
+      .select("id")
+      .eq("student_id", s.id)
+      .eq("status", "missed_pending")
+      .limit(1);
+    setMissedCount(missedRows?.length || 0);
 
     if (!s.current_step_id) { setLoading(false); return; }
 
@@ -707,7 +717,23 @@ const AulaPage = () => {
 
   return (
     <StudentLayout>
-      <div className="space-y-5">
+      <div className="relative space-y-5">
+        {/* Missed sessions overlay */}
+        {missedCount > 0 && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 rounded-xl bg-background/90 backdrop-blur-sm text-center p-6">
+            <AlertTriangle className="h-10 w-10 text-amber-500" />
+            <div className="space-y-1">
+              <p className="font-bold text-base">Aulas com falta pendente</p>
+              <p className="text-sm text-muted-foreground font-light max-w-xs">
+                Você tem {missedCount === 1 ? "uma aula" : `${missedCount} aulas`} com falta confirmada.
+                Remarcasse para continuar acessando o conteúdo.
+              </p>
+            </div>
+            <Button onClick={() => navigate("/")} className="gap-2">
+              Ir para o início
+            </Button>
+          </div>
+        )}
 
         {/* ── Header ── */}
         <div className="space-y-1">

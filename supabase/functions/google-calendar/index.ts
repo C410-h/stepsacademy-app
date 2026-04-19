@@ -241,6 +241,34 @@ serve(async (req) => {
       })
     }
 
+    // ── AÇÃO 4: Atualizar evento de aula ─────────────────────────────────────
+    if (action === 'update_event') {
+      const { google_event_id, start_datetime, end_datetime, teacher_id } = payload
+      const calendarOwner = teacher_id ?? user.id
+      const accessToken = await resolveAccessToken(supabase, calendarOwner)
+
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${google_event_id}`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start: { dateTime: start_datetime, timeZone: 'America/Sao_Paulo' },
+            end: { dateTime: end_datetime, timeZone: 'America/Sao_Paulo' },
+          }),
+        }
+      )
+      const updated = await res.json()
+      if (!updated.id) throw new Error(`Google Calendar recusou a atualização: ${updated.error?.message ?? JSON.stringify(updated)}`)
+
+      return new Response(JSON.stringify({
+        event_id: updated.id,
+        start: updated.start?.dateTime,
+        end: updated.end?.dateTime,
+        meet_link: updated.hangoutLink,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     return errResponse(`Ação desconhecida: ${action}`)
 
   } catch (err: any) {

@@ -7,6 +7,8 @@ import TeacherUpcomingClasses from "@/components/TeacherUpcomingClasses";
 import TeacherAvailabilityTab from "@/components/TeacherAvailabilityTab";
 import TeacherOverviewTab from "@/components/TeacherOverviewTab";
 import TeacherStudentsTab from "@/components/TeacherStudentsTab";
+import TeacherStatsTab from "@/components/TeacherStatsTab";
+import TeacherProfileTab from "@/components/TeacherProfileTab";
 import ScheduleClassSheet, { type ScheduleStudent } from "@/components/ScheduleClassSheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,10 +17,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard, Users, FileText, CalendarDays, Clock, CalendarPlus,
+  BarChart2, User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ActiveTab = "overview" | "students" | "agenda" | "content" | "availability";
+type ActiveTab = "overview" | "students" | "stats" | "agenda" | "content" | "availability" | "profile";
 
 const Teacher = () => {
   const { profile } = useAuth();
@@ -90,9 +93,11 @@ const Teacher = () => {
   const navItems: { value: ActiveTab; icon: typeof Users; label: string }[] = [
     { value: "overview",      icon: LayoutDashboard, label: "Overview" },
     { value: "students",      icon: Users,           label: "Alunos" },
+    { value: "stats",         icon: BarChart2,       label: "Estatísticas" },
     { value: "agenda",        icon: CalendarDays,    label: "Agenda" },
     { value: "content",       icon: FileText,        label: "Conteúdo" },
     { value: "availability",  icon: Clock,           label: "Horários" },
+    { value: "profile",       icon: User,            label: "Perfil" },
   ];
 
   // ── Loading ────────────────────────────────────────────────────────────────
@@ -187,15 +192,15 @@ const Teacher = () => {
         {/* ── Conteúdo principal ───────────────────────────────────────────── */}
         <div className="min-w-0 space-y-5">
 
-          {/* Mobile tab bar — ícones apenas */}
-          <div className="flex bg-muted rounded-lg p-1 gap-1 lg:hidden">
+          {/* Mobile tab bar — scrollável */}
+          <div className="flex overflow-x-auto scrollbar-none bg-muted rounded-lg p-1 gap-1 lg:hidden">
             {navItems.map(({ value, icon: Icon, label }) => (
               <button
                 key={value}
                 onClick={() => setActiveTab(value)}
                 title={label}
                 className={cn(
-                  "flex-1 flex flex-col items-center justify-center py-2.5 rounded-md transition-all gap-0.5",
+                  "shrink-0 flex flex-col items-center justify-center py-2.5 px-3 rounded-md transition-all gap-0.5 min-w-[56px]",
                   activeTab === value
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -268,11 +273,24 @@ const Teacher = () => {
             </div>
           )}
 
+          {/* ══ Estatísticas ══════════════════════════════════════════════════ */}
+          {activeTab === "stats" && (
+            <TeacherStatsTab profileId={profile!.id} teacherId={teacherId} />
+          )}
+
           {/* ══ Conteúdo ══════════════════════════════════════════════════════ */}
           {activeTab === "content" && <TeacherContentTab teacherId={teacherId} />}
 
           {/* ══ Disponibilidade ═══════════════════════════════════════════════ */}
           {activeTab === "availability" && <TeacherAvailabilityTab />}
+
+          {/* ══ Perfil ════════════════════════════════════════════════════════ */}
+          {activeTab === "profile" && (
+            <TeacherProfileTab
+              profileId={profile!.id}
+              onSwitchToAvailability={() => setActiveTab("availability")}
+            />
+          )}
         </div>
       </div>
 

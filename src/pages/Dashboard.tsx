@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Video, BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight } from "lucide-react";
+import { Video, BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 import UpcomingClasses from "@/components/UpcomingClasses";
+import RescheduleSheet, { type RescheduleSessionData } from "@/components/RescheduleSheet";
 
 interface StudentData {
   id: string;
@@ -53,6 +54,9 @@ const Dashboard = () => {
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [missedSessions, setMissedSessions] = useState<RescheduleSessionData[]>([]);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleSession, setRescheduleSession] = useState<RescheduleSessionData | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -124,6 +128,16 @@ const Dashboard = () => {
     });
 
     if (s.onboarding_completed === false) setShowOnboarding(true);
+
+    // Aulas com falta pendente (missed_pending)
+    const { data: missedRows } = await (supabase as any)
+      .from("class_sessions")
+      .select("id, google_event_id, scheduled_at, scheduled_ends_at, teacher_id")
+      .eq("student_id", s.id)
+      .eq("status", "missed_pending")
+      .order("scheduled_at", { ascending: false })
+      .limit(5);
+    setMissedSessions((missedRows as RescheduleSessionData[]) || []);
 
     // Materiais do step atual + materiais pessoais
     const [stepRes, personalRes] = await Promise.all([
@@ -211,6 +225,33 @@ const Dashboard = () => {
           </Button>
         </DialogContent>
       </Dialog>
+
+      {/* Missed sessions banner */}
+      {missedSessions.length > 0 && (
+        <Card className="border-amber-400/60 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                {missedSessions.length === 1
+                  ? "Você tem 1 aula com falta pendente."
+                  : `Você tem ${missedSessions.length} aulas com falta pendente.`}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40"
+              onClick={() => {
+                setRescheduleSession(missedSessions[0]);
+                setRescheduleOpen(true);
+              }}
+            >
+              Remarcar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
 
@@ -317,6 +358,15 @@ const Dashboard = () => {
         </div>
 
       </div>
+      <RescheduleSheet
+        open={rescheduleOpen}
+        onOpenChange={(open) => {
+          setRescheduleOpen(open);
+          if (!open) setRescheduleSession(null);
+        }}
+        session={rescheduleSession}
+        onSuccess={loadStudentData}
+      />
     </StudentLayout>
   );
 };
