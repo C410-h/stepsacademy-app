@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import TeacherLayout from "@/components/TeacherLayout";
 import TeacherContentTab from "@/components/TeacherContentTab";
 import TeacherUpcomingClasses from "@/components/TeacherUpcomingClasses";
+import TeacherAvailabilityTab from "@/components/TeacherAvailabilityTab";
 import ScheduleClassSheet from "@/components/ScheduleClassSheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, ChevronDown, ChevronUp, BookOpen, Users,
-  Mic, FileText, CalendarPlus, CalendarDays,
+  Mic, FileText, CalendarPlus, CalendarDays, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +56,7 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   completed: "outline",
 };
 
-type ActiveTab = "students" | "agenda" | "content";
+type ActiveTab = "students" | "agenda" | "content" | "availability";
 
 const Teacher = () => {
   const { profile } = useAuth();
@@ -365,10 +366,11 @@ const Teacher = () => {
   }
 
   // ── Nav items helper ───────────────────────────────────────────────────────
-  const navItems: { value: ActiveTab; icon: typeof Users; label: string }[] = [
+  const navItems: { value: ActiveTab; icon: typeof Users; label: string; mobileLabel?: string }[] = [
     { value: "students", icon: Users, label: "Alunos" },
     { value: "agenda", icon: CalendarDays, label: "Agenda" },
     { value: "content", icon: FileText, label: "Conteúdo" },
+    { value: "availability", icon: Clock, label: "Disponibilidade", mobileLabel: "Horários" },
   ];
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -477,20 +479,20 @@ const Teacher = () => {
         <div className="min-w-0 space-y-5">
 
           {/* Mobile tab bar */}
-          <div className="grid grid-cols-3 bg-muted rounded-lg p-1 gap-1 lg:hidden">
-            {navItems.map(({ value, icon: Icon, label }) => (
+          <div className="grid grid-cols-4 bg-muted rounded-lg p-1 gap-1 lg:hidden">
+            {navItems.map(({ value, icon: Icon, label, mobileLabel }) => (
               <button
                 key={value}
                 onClick={() => setActiveTab(value)}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all",
+                  "flex flex-col items-center justify-center gap-0.5 py-2 rounded-md text-xs font-medium transition-all",
                   activeTab === value
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className="h-4 w-4" />
-                <span>{label}</span>
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate w-full text-center px-0.5">{mobileLabel ?? label}</span>
               </button>
             ))}
           </div>
@@ -800,12 +802,16 @@ const Teacher = () => {
               <div className="py-12 text-center text-sm text-muted-foreground">Carregando...</div>
             )
           )}
+
+          {/* ══ Tab: Disponibilidade ══════════════════════════════════════════ */}
+          {activeTab === "availability" && <TeacherAvailabilityTab />}
         </div>
       </div>
 
       <ScheduleClassSheet
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}
+        teacherProfileId={profile?.id}
         students={students.map(s => ({
           studentId: s.studentId,
           userId: s.userId,

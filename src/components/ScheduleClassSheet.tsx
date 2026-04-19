@@ -30,6 +30,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   students: ScheduleStudent[];
+  teacherProfileId?: string;
 }
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ const toISOBR = (date: Date, time: string): string => {
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
-const ScheduleClassSheet = ({ open, onOpenChange, students }: Props) => {
+const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId }: Props) => {
   // Busca
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<ScheduleStudent[]>([]);
@@ -86,6 +87,10 @@ const ScheduleClassSheet = ({ open, onOpenChange, students }: Props) => {
   const [submitting, setSubmitting] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+
+  // Horários disponíveis filtrados pela grade do professor
+  const [availableSlots, setAvailableSlots] = useState<string[] | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   // Resultado de sucesso
   const [meetLink, setMeetLink] = useState<string | null>(null);
@@ -107,9 +112,66 @@ const ScheduleClassSheet = ({ open, onOpenChange, students }: Props) => {
       setShowConnect(false);
       setMeetLink(null);
       setMeetCopied(false);
+      setAvailableSlots(null);
+      setLoadingSlots(false);
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     }
   }, [open]);
+
+  // Busca horários disponíveis ao selecionar data (quando grade do professor está configurada)
+  useEffect(() => {
+    if (!date || !teacherProfileId) {
+      setAvailableSlots(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setLoadingSlots(true);
+      setStartTime("");
+
+      const dayOfWeek = date.getDay();
+      const dateStr = format(date, "yyyy-MM-dd");
+
+      const [{ data: avail }, { data: sessions }] = await Promise.all([
+        (supabase as any)
+          .from("teacher_availability")
+          .select("start_time")
+          .eq("teacher_id", teacherProfileId)
+          .eq("day_of_week", dayOfWeek)
+          .eq("active", true),
+        (supabase as any)
+          .from("class_sessions")
+          .select("scheduled_at")
+          .eq("teacher_id", teacherProfileId)
+          .eq("status", "scheduled")
+          .gte("scheduled_at", `${dateStr}T00:00:00-03:00`)
+          .lte("scheduled_at", `${dateStr}T23:59:59-03:00`),
+      ]);
+
+      if (cancelled) return;
+
+      // Converter timestamps UTC de class_sessions para horário BR (UTC-3)
+      const bookedTimes = new Set<string>(
+        (sessions || []).map((s: any) => {
+          const d = new Date(s.scheduled_at);
+          const brH = (d.getUTCHours() - 3 + 24) % 24;
+          const brM = d.getUTCMinutes();
+          return `${String(brH).padStart(2, "0")}:${String(brM).padStart(2, "0")}`;
+        })
+      );
+
+      const freeSlots: string[] = (avail || [])
+        .map((a: any) => a.start_time.substring(0, 5))
+        .filter((t: string) => !bookedTimes.has(t))
+        .sort();
+
+      setAvailableSlots(freeSlots);
+      setLoadingSlots(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [date, teacherProfileId]);
 
   // Debounce de busca (300ms) — filtragem local sobre alunos já carregados
   useEffect(() => {
@@ -461,16 +523,24 @@ const ScheduleClassSheet = ({ open, onOpenChange, students }: Props) => {
           {/* Horário de início */}
           <div className="space-y-2">
             <Label>Horário de início</Label>
-            <Select value={startTime} onValueChange={setStartTime}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o horário" />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {TIME_SLOTS.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {loadingSlots ? (
+              <div className="h-10 rounded-md border bg-muted animate-pulse" />
+            ) : teacherProfileId && date && availableSlots?.length === 0 ? (
+              <p className="text-sm text-muted-foreground font-light py-2 px-3 rounded-md border border-dashed">
+                Nenhum horário disponível neste dia.
+              </p>
+            ) : (
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o horário" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {(teacherProfileId && availableSlots ? availableSlots : TIME_SLOTS).map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Duração */}
