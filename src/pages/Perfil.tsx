@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { PAYMENT_ENABLED } from "@/lib/featureFlags";
 import { differenceInDays } from "date-fns";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { LanguageSwitcherList } from "@/components/LanguageSwitcher";
 import {
   isPushSupported,
   isPushSubscribed,
@@ -878,6 +879,9 @@ const Perfil = () => {
 
         {/* ── Theme switcher ── */}
         <ThemeSwitcher />
+
+        {/* ── Idioma ativo ── */}
+        <LanguageSwitcherList />
 
         {/* ── Central de Ajuda ── */}
         <Card className="rounded-xl">
