@@ -208,6 +208,14 @@ const Admin = () => {
   const [uploading, setUploading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
 
+  // ── New teacher form
+  const [showNewTeacher, setShowNewTeacher] = useState(false);
+  const [newTeacherName, setNewTeacherName] = useState("");
+  const [newTeacherEmail, setNewTeacherEmail] = useState("");
+  const [newTeacherLangId, setNewTeacherLangId] = useState("");
+  const [creatingTeacher, setCreatingTeacher] = useState(false);
+  const [teacherTempPw, setTeacherTempPw] = useState<string | null>(null);
+
   // ── Link student to teacher modal
   const [linkTeacherId, setLinkTeacherId] = useState<string | null>(null);
   const [linkStudentId, setLinkStudentId] = useState("");
@@ -869,6 +877,24 @@ const Admin = () => {
     }]);
     toast({ title: "Material enviado com sucesso!" });
     setShowUpload(false); setMatTitle(""); setMatFile(null); setUploading(false);
+  };
+
+  const handleCreateTeacher = async () => {
+    if (!newTeacherName || !newTeacherEmail || !newTeacherLangId) {
+      toast({ title: "Preencha nome, e-mail e idioma", variant: "destructive" }); return;
+    }
+    setCreatingTeacher(true); setTeacherTempPw(null);
+    const { data, error } = await supabase.functions.invoke("create-teacher", {
+      body: { name: newTeacherName, email: newTeacherEmail, language_id: newTeacherLangId },
+    });
+    if (error || !data?.success) {
+      toast({ title: "Erro ao criar professor", description: data?.error || error?.message || "Tente novamente.", variant: "destructive" });
+      setCreatingTeacher(false); return;
+    }
+    if (data.temp_password) setTeacherTempPw(data.temp_password);
+    toast({ title: "Professor criado com sucesso!" });
+    setNewTeacherName(""); setNewTeacherEmail(""); setNewTeacherLangId("");
+    setCreatingTeacher(false); loadTeachers();
   };
 
   const handleLinkStudent = async () => {
@@ -1778,9 +1804,56 @@ const Admin = () => {
           <TabsContent value="teachers" className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">{teachers.length} professor{teachers.length !== 1 ? "es" : ""}</p>
-              <Button variant="outline" size="sm" onClick={() => navigate("/nivelamento")}>
-                <Globe className="h-4 w-4 mr-1" />Nivelamento
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigate("/nivelamento")}>
+                  <Globe className="h-4 w-4 mr-1" />Nivelamento
+                </Button>
+                <Dialog open={showNewTeacher} onOpenChange={open => { setShowNewTeacher(open); if (!open) { setTeacherTempPw(null); } }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-primary text-white">
+                      <Plus className="h-4 w-4 mr-1" />Novo professor
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Novo professor</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <div>
+                        <Label>Nome completo *</Label>
+                        <Input value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} placeholder="Nome do professor" />
+                      </div>
+                      <div>
+                        <Label>E-mail *</Label>
+                        <Input value={newTeacherEmail} onChange={e => setNewTeacherEmail(e.target.value)} type="email" placeholder="email@stepsacademy.com.br" />
+                      </div>
+                      <div>
+                        <Label>Idioma que leciona *</Label>
+                        <Select value={newTeacherLangId} onValueChange={setNewTeacherLangId}>
+                          <SelectTrigger><SelectValue placeholder="Selecione o idioma" /></SelectTrigger>
+                          <SelectContent>
+                            {languages.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {teacherTempPw && (
+                        <div className="rounded-lg bg-muted p-3 space-y-1">
+                          <p className="text-xs text-muted-foreground font-light">Senha temporária — compartilhe com o professor:</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-mono font-bold">{teacherTempPw}</p>
+                            <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(teacherTempPw); toast({ title: "Copiado!" }); }}>
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <Button onClick={handleCreateTeacher} disabled={creatingTeacher} className="w-full bg-primary text-white">
+                        {creatingTeacher ? "Criando..." : "Criar professor"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
             {teachersLoading ? (

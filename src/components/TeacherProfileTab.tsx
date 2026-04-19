@@ -89,8 +89,6 @@ interface Props {
   onSwitchToAvailability: () => void;
 }
 
-interface Language { id: string; name: string; }
-
 const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -99,7 +97,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const [loading, setLoading]               = useState(true);
   const [savingInfo, setSavingInfo]         = useState(false);
   const [savingPix, setSavingPix]           = useState(false);
-  const [savingLangs, setSavingLangs]       = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Personal info
@@ -108,9 +105,8 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const [phone, setPhone]             = useState("");
   const [bio, setBio]                 = useState("");
 
-  // Languages
-  const [languages, setLanguages]         = useState<Language[]>([]);
-  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
+  // Teaching language (read-only, set at teacher creation)
+  const [teacherLang, setTeacherLang] = useState<string | null>(null);
 
   // PIX
   const [savedPixKey,  setSavedPixKey]  = useState<string | null>(null);
@@ -135,18 +131,22 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [profRes, langsRes, availRes] = await Promise.all([
+    const [profRes, availRes, teacherRes] = await Promise.all([
       (supabase as any)
         .from("profiles")
-        .select("name, avatar_url, phone, bio, teaching_languages, pix_key, pix_key_type")
+        .select("name, avatar_url, phone, bio, pix_key, pix_key_type")
         .eq("id", profileId)
         .single(),
-      supabase.from("languages").select("id, name").eq("active", true).order("name"),
       (supabase as any)
         .from("teacher_availability")
         .select("day_of_week")
         .eq("teacher_id", profileId)
         .eq("active", true),
+      (supabase as any)
+        .from("teachers")
+        .select("teacher_languages(languages!teacher_languages_language_id_fkey(name))")
+        .eq("user_id", profileId)
+        .maybeSingle(),
     ]);
 
     const prof = profRes.data;
@@ -155,9 +155,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
       setName(prof.name || "");
       setPhone(prof.phone ? applyPhoneMask(prof.phone) : "");
       setBio(prof.bio || "");
-      setSelectedLangs(
-        Array.isArray(prof.teaching_languages) ? prof.teaching_languages.map(String) : []
-      );
       if (prof.pix_key) {
         setSavedPixKey(prof.pix_key);
         setSavedPixType(prof.pix_key_type || null);
@@ -166,7 +163,8 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
       }
     }
 
-    setLanguages((langsRes.data || []) as Language[]);
+    const langEntry = teacherRes.data?.teacher_languages?.[0];
+    setTeacherLang(langEntry?.languages?.name || null);
 
     const counts = new Array(7).fill(0);
     ((availRes.data || []) as any[]).forEach(r => { counts[r.day_of_week]++; });
@@ -215,22 +213,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
     }
   };
 
-  const handleSaveLangs = async () => {
-    setSavingLangs(true);
-    try {
-      const { error } = await (supabase as any)
-        .from("profiles")
-        .update({ teaching_languages: selectedLangs })
-        .eq("id", profileId);
-      if (error) throw error;
-      toast({ title: "Idiomas salvos!" });
-    } catch {
-      toast({ title: "Erro ao salvar idiomas", variant: "destructive" });
-    } finally {
-      setSavingLangs(false);
-    }
-  };
-
   const handleSavePix = async () => {
     if (!pixKey.trim()) return;
     setSavingPix(true);
@@ -274,9 +256,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
       setSavingPw(false);
     }
   };
-
-  const toggleLang = (id: string) =>
-    setSelectedLangs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const pixLabel = PIX_TYPES.find(t => t.value === (editingPix ? pixType : savedPixType))?.label ?? "Chave";
 
@@ -447,31 +426,24 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </CardContent>
       </Card>
 
-      {/* ── 3. Idiomas que ensina ──────────────────────────────────────────── */}
-      {languages.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold">Idiomas que ensina</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {languages.map(lang => (
-                <Badge
-                  key={lang.id}
-                  variant={selectedLangs.includes(lang.id) ? "default" : "outline"}
-                  className="cursor-pointer select-none transition-colors"
-                  onClick={() => toggleLang(lang.id)}
-                >
-                  {lang.name}
-                </Badge>
-              ))}
-            </div>
-            <Button className="w-full" onClick={handleSaveLangs} disabled={savingLangs}>
-              {savingLangs ? "Salvando..." : "Salvar idiomas"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* ── 3. Idioma que leciona ─────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold">Idioma que leciona</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <Badge variant="default" className="shrink-0">
+              {teacherLang ?? "—"}
+            </Badge>
+            <span className="text-sm font-medium">{teacherLang ?? "Não definido"}</span>
+          </div>
+          <p className="text-xs text-muted-foreground font-light flex items-start gap-1.5">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            Para alterar o idioma, entre em contato com o administrador.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* ── 4. Tema visual ────────────────────────────────────────────────── */}
       <div className="space-y-2">
