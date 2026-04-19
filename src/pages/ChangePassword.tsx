@@ -26,10 +26,16 @@ const ChangePassword = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({
+    const { data: { user: currentUser }, error } = await supabase.auth.updateUser({
       password,
       data: { must_change_password: false },
     });
+    if (!error && currentUser) {
+      await (supabase as any)
+        .from("profiles")
+        .update({ force_password_change: false })
+        .eq("id", currentUser.id);
+    }
     setLoading(false);
     if (error) {
       toast({ title: "Erro", description: "Não foi possível salvar a senha.", variant: "destructive" });

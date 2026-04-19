@@ -23,6 +23,7 @@ interface Profile {
   role: string;
   phone: string | null;
   avatar_url: string | null;
+  force_password_change: boolean | null;
 }
 
 interface AuthContextType {
@@ -56,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, name, role, phone, avatar_url")
+        .select("id, name, role, phone, avatar_url, force_password_change")
         .eq("id", userId)
         .single();
 

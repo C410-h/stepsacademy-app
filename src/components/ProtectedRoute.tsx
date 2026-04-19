@@ -55,8 +55,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Força troca de senha no primeiro acesso
-  const mustChangePassword = session.user?.user_metadata?.must_change_password === true;
+  // Força troca de senha no primeiro acesso (user_metadata ou flag no profile)
+  const mustChangePassword =
+    session.user?.user_metadata?.must_change_password === true ||
+    profile?.force_password_change === true;
   if (mustChangePassword && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
   }
