@@ -12,7 +12,7 @@ const TeacherLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-8" /></Link>
+        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32" /></Link>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild className="text-xs">
             <Link to="/nivelamento">
