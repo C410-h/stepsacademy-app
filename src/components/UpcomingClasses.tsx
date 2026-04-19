@@ -43,7 +43,6 @@ const UpcomingClasses = () => {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<ClassEvent[]>([]);
   const [teacherName, setTeacherName] = useState<string>("");
-  const [debugInfo, setDebugInfo] = useState<any>(null);
   const isMounted = useRef(true);
 
   const load = useCallback(async () => {
@@ -57,10 +56,7 @@ const UpcomingClasses = () => {
         .maybeSingle();
 
       if (!isMounted.current) return;
-      if (!teacherInfo) {
-        setDebugInfo({ step: "teacher info not found", error: tiErr?.message, profile_id: profile.id });
-        return;
-      }
+      if (!teacherInfo) return;
 
       if (isMounted.current) setTeacherName(teacherInfo.teacher_name || "Professor");
 
@@ -72,12 +68,9 @@ const UpcomingClasses = () => {
         session = refreshed.session;
       }
       const accessToken = session?.access_token;
-      if (!accessToken) {
-        setDebugInfo({ step: "no access token", teacher_user_id: teacherInfo.teacher_user_id });
-        return;
-      }
+      if (!accessToken) return;
 
-      const { data, error: fnErr } = await supabase.functions.invoke("google-calendar", {
+      const { data } = await supabase.functions.invoke("google-calendar", {
         headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           action: "list_student_events",
@@ -88,21 +81,9 @@ const UpcomingClasses = () => {
         },
       });
 
-      if (isMounted.current) {
-        setEvents(data?.events || []);
-        setDebugInfo({
-          step: "fn called",
-          fn_error: fnErr?.message,
-          data_error: data?.error,
-          student_email_used: data?.student_email_used,
-          attendees: data?.debug_attendees,
-        });
-      }
-    } catch (err: any) {
-      if (isMounted.current) {
-        setEvents([]);
-        setDebugInfo({ step: "exception", error: err?.message });
-      }
+      if (isMounted.current) setEvents(data?.events || []);
+    } catch {
+      if (isMounted.current) setEvents([]);
     } finally {
       if (isMounted.current) setLoading(false);
     }
@@ -144,25 +125,6 @@ const UpcomingClasses = () => {
             <p className="text-sm text-muted-foreground font-light">
               Nenhuma aula agendada nos próximos 30 dias.
             </p>
-            {/* DEBUG TEMPORÁRIO — remover após diagnóstico */}
-            <div className="mt-2 text-left text-[10px] bg-muted rounded p-2 w-full break-all">
-              {debugInfo ? (
-                <>
-                  <p><b>step:</b> {debugInfo.step}</p>
-                  {debugInfo.error && <p><b>error:</b> {debugInfo.error}</p>}
-                  {debugInfo.fn_error && <p><b>fn_error:</b> {debugInfo.fn_error}</p>}
-                  {debugInfo.data_error && <p><b>data_error:</b> {debugInfo.data_error}</p>}
-                  {debugInfo.profile_id && <p><b>profile_id:</b> {debugInfo.profile_id}</p>}
-                  {debugInfo.student_id && <p><b>student_id:</b> {debugInfo.student_id}</p>}
-                  {debugInfo.student_email_used && <p><b>email usado:</b> {debugInfo.student_email_used}</p>}
-                  {debugInfo.attendees?.map((ev: any, i: number) => (
-                    <p key={i}><b>{ev.title}</b>: {ev.attendees?.join(", ") || "sem attendees"}</p>
-                  ))}
-                </>
-              ) : (
-                <p><b>debugInfo:</b> null (load() não chegou ao fim)</p>
-              )}
-            </div>
           </CardContent>
         </Card>
       </div>
