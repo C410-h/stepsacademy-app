@@ -31,6 +31,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   students: ScheduleStudent[];
   teacherProfileId?: string;
+  preSelectedStudent?: ScheduleStudent;
 }
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
@@ -68,7 +69,7 @@ const toISOBR = (date: Date, time: string): string => {
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
-const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId }: Props) => {
+const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId, preSelectedStudent }: Props) => {
   // Busca
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<ScheduleStudent[]>([]);
@@ -96,6 +97,13 @@ const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId }: 
   const [meetLink, setMeetLink] = useState<string | null>(null);
   const [meetCopied, setMeetCopied] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pré-selecionar aluno ao abrir (quando chamado com aluno específico)
+  useEffect(() => {
+    if (open && preSelectedStudent) {
+      setSelectedStudent(preSelectedStudent);
+    }
+  }, [open, preSelectedStudent]);
 
   // Limpar ao fechar
   useEffect(() => {
