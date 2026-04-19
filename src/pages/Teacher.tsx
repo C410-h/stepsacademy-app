@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import TeacherLayout from "@/components/TeacherLayout";
 import TeacherContentTab from "@/components/TeacherContentTab";
-import TeacherUpcomingClasses from "@/components/TeacherUpcomingClasses";
+import TeacherAgendaTab from "@/components/TeacherAgendaTab";
 import TeacherAvailabilityTab from "@/components/TeacherAvailabilityTab";
 import TeacherOverviewTab from "@/components/TeacherOverviewTab";
 import TeacherStudentsTab from "@/components/TeacherStudentsTab";
@@ -251,26 +251,11 @@ const Teacher = () => {
 
           {/* ══ Agenda ════════════════════════════════════════════════════════ */}
           {activeTab === "agenda" && (
-            <div className="space-y-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-bold">Próximas aulas</h2>
-                  <p className="text-sm text-muted-foreground font-light mt-1">
-                    Eventos dos próximos 30 dias no seu Google Calendar
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  className="gap-2 shrink-0 lg:hidden"
-                  onClick={() => handleSchedule()}
-                  disabled={simpleStudents.length === 0}
-                >
-                  <CalendarPlus className="h-4 w-4" />
-                  Agendar
-                </Button>
-              </div>
-              <TeacherUpcomingClasses />
-            </div>
+            <TeacherAgendaTab
+              profileId={profile!.id}
+              onSchedule={handleSchedule}
+              scheduleDisabled={simpleStudents.length === 0}
+            />
           )}
 
           {/* ══ Estatísticas ══════════════════════════════════════════════════ */}
