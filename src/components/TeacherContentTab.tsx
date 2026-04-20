@@ -1194,6 +1194,9 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         // 4. Insert exercises → lesson_exercises + exercise_bank
         const exercises = aiEntry.exercises || [];
         if (exercises.length > 0) {
+          // Remove previous exercises for this step before inserting the new set
+          await (supabase as any).from("lesson_exercises").delete().eq("step_id", selectedStep.id);
+
           const VALID_EX_TYPES = ["fill_blank","association","rewrite","dialogue","production"];
           const lessonExInserts = exercises.map((ex, i) => ({
             step_id: selectedStep.id,
