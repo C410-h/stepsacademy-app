@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ExternalLink, RefreshCw } from "lucide-react";
@@ -18,6 +19,8 @@ interface ClassEvent {
   end: string;
   meet_link: string | null;
   description: string | null;
+  class_type: "individual" | "duo" | "group";
+  is_rescheduled: boolean;
 }
 
 interface ClassSession {
@@ -41,11 +44,14 @@ const formatClassDate = (isoStr: string): string => {
 const formatTime = (isoStr: string): string =>
   new Date(isoStr).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-/** Verdadeiro se a aula começa em até 30 min a partir de agora */
 const isStartingSoon = (startIso: string): boolean => {
   const diff = new Date(startIso).getTime() - Date.now();
   return diff >= 0 && diff <= 30 * 60 * 1000;
 };
+
+/** Extrai o identificador do grupo do título (ex: "Español | Squad" → "Squad") */
+const groupLabel = (title: string): string =>
+  title.split(" | ")[1]?.trim() ?? "Turma";
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
@@ -64,10 +70,11 @@ const UpcomingClasses = () => {
 
     setLoading(true);
     try {
-      // 1. Resolver professor via função SECURITY DEFINER (sem tocar em RLS das tabelas)
-      const { data: teacherInfo, error: tiErr } = await supabase
-        .rpc("get_my_teacher_info", { p_uid: profile.id })
-        .maybeSingle();
+      // 1. Buscar professor e student_db_id em paralelo
+      const [{ data: teacherInfo }, { data: studentData }] = await Promise.all([
+        supabase.rpc("get_my_teacher_info", { p_uid: profile.id }).maybeSingle(),
+        supabase.from("students").select("id").eq("user_id", profile.id).maybeSingle(),
+      ]);
 
       if (!isMounted.current) return;
       if (!teacherInfo) return;
@@ -83,19 +90,28 @@ const UpcomingClasses = () => {
       const accessToken = session?.access_token;
       if (!accessToken) return;
 
+      const studentDbId = studentData?.id ?? null;
+
       // 3. Eventos do Google Calendar + class_sessions em paralelo
-      const [calRes, studentRes] = await Promise.all([
+      const [calRes, sessionsRes] = await Promise.all([
         supabase.functions.invoke("google-calendar", {
           headers: { Authorization: `Bearer ${accessToken}` },
           body: {
             action: "list_student_events",
             payload: {
               student_email: user.email,
+              student_db_id: studentDbId,
               teacher_id: teacherInfo.teacher_user_id,
             },
           },
         }),
-        supabase.from("students").select("id").eq("user_id", profile.id).maybeSingle(),
+        studentDbId
+          ? (supabase as any)
+              .from("class_sessions")
+              .select("id, google_event_id, scheduled_at, scheduled_ends_at, teacher_id, status, reschedule_count")
+              .eq("student_id", studentDbId)
+              .eq("status", "scheduled")
+          : Promise.resolve({ data: [] }),
       ]);
 
       if (!isMounted.current) return;
@@ -103,20 +119,11 @@ const UpcomingClasses = () => {
       const calEvents: ClassEvent[] = calRes.data?.events || [];
       if (isMounted.current) setEvents(calEvents);
 
-      // 4. Buscar class_sessions e indexar por google_event_id
-      if (studentRes.data?.id) {
-        const { data: sessions } = await (supabase as any)
-          .from("class_sessions")
-          .select("id, google_event_id, scheduled_at, scheduled_ends_at, teacher_id, status, reschedule_count")
-          .eq("student_id", studentRes.data.id)
-          .eq("status", "scheduled");
-
-        if (isMounted.current && sessions) {
-          const map = new Map<string, ClassSession>(
-            sessions.map((s: ClassSession) => [s.google_event_id, s])
-          );
-          setSessionByEventId(map);
-        }
+      if (isMounted.current && sessionsRes.data) {
+        const map = new Map<string, ClassSession>(
+          sessionsRes.data.map((s: ClassSession) => [s.google_event_id, s])
+        );
+        setSessionByEventId(map);
       }
     } catch {
       if (isMounted.current) setEvents([]);
@@ -183,6 +190,25 @@ const UpcomingClasses = () => {
         {events.map((ev) => {
           const soon = isStartingSoon(ev.start);
           const matchedSession = sessionByEventId.get(ev.id);
+
+          // Badge de tipo ou remarcada (remarcada tem prioridade)
+          const typeBadge = ev.is_rescheduled ? (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 border-yellow-400 text-yellow-600 bg-yellow-50 dark:bg-yellow-950 dark:text-yellow-400"
+            >
+              Remarcada
+            </Badge>
+          ) : ev.class_type === "duo" ? (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              Aula em dupla
+            </Badge>
+          ) : ev.class_type === "group" ? (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              {groupLabel(ev.title)}
+            </Badge>
+          ) : null;
+
           return (
             <Card
               key={ev.id}
@@ -200,6 +226,7 @@ const UpcomingClasses = () => {
                   <p className="text-xs text-muted-foreground font-light">
                     {teacherName}
                   </p>
+                  {typeBadge && <div className="pt-0.5">{typeBadge}</div>}
                   {soon && (
                     <span className="inline-block text-[10px] font-bold text-primary uppercase tracking-wide">
                       Começando em breve
