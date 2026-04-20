@@ -8,14 +8,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  Users, CalendarCheck, Clock, AlertTriangle,
+  Users, CalendarCheck, AlertTriangle,
   CalendarPlus, BookOpen, CheckCircle2, ExternalLink, CalendarDays,
 } from "lucide-react";
 import type { ScheduleStudent } from "@/components/ScheduleClassSheet";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
-interface TodayEvent {
+interface UpcomingEvent {
   id: string;
   title: string;
   start: string;
@@ -83,6 +83,12 @@ const isThisMonth = (iso: string) => {
   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 };
 
+const shortDayLabel = (date: Date): string => {
+  const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`;
+};
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStudents }: Props) => {
@@ -94,14 +100,15 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
     nextSession: null as string | null,
     missedPending: 0,
   });
-  const [todayCalEvents, setTodayCalEvents] = useState<TodayEvent[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [upcomingDayLabel, setUpcomingDayLabel] = useState<string>("Hoje");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, [profileId, teacherId]);
 
-  // Fetch today's Google Calendar events
+  // Fetch upcoming events: today's first, else next day with events
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -110,10 +117,29 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: { action: "list_teacher_events", payload: {} },
       });
-      const today = new Date().toDateString();
-      setTodayCalEvents(
-        (data?.events || []).filter((ev: any) => new Date(ev.start).toDateString() === today)
-      );
+
+      const events: UpcomingEvent[] = data?.events || [];
+      const todayStr = new Date().toDateString();
+      const todayEvents = events.filter(ev => new Date(ev.start).toDateString() === todayStr);
+
+      if (todayEvents.length > 0) {
+        setUpcomingEvents(todayEvents);
+        setUpcomingDayLabel("Hoje");
+      } else {
+        const future = [...events]
+          .filter(ev => new Date(ev.start) > new Date())
+          .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+        if (future.length > 0) {
+          const nextDayStr = new Date(future[0].start).toDateString();
+          const nextDayEvents = future.filter(ev => new Date(ev.start).toDateString() === nextDayStr);
+          setUpcomingEvents(nextDayEvents);
+          setUpcomingDayLabel(shortDayLabel(new Date(future[0].start)));
+        } else {
+          setUpcomingEvents([]);
+          setUpcomingDayLabel("");
+        }
+      }
     })();
   }, []);
 
@@ -237,12 +263,12 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
-          <Skeleton className="h-24 rounded-xl lg:row-span-2" />
-          <Skeleton className="h-24 rounded-xl lg:row-span-2" />
           <Skeleton className="h-24 rounded-xl lg:col-span-2" />
+          <Skeleton className="h-48 rounded-xl lg:col-span-2 lg:row-span-2" />
+          <Skeleton className="hidden lg:block h-24 rounded-xl lg:col-span-2" />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
         </div>
@@ -262,21 +288,20 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
             grid-template-columns: repeat(4, 1fr);
             grid-template-rows: auto auto;
             grid-template-areas:
-              "ativos mes atencao aulas"
-              "proxima proxima atencao aulas";
+              "ativos  mes      proximas  proximas"
+              "atencao atencao  proximas  proximas";
           }
           .bento-ativos   { grid-area: ativos; }
           .bento-mes      { grid-area: mes; }
           .bento-atencao  { grid-area: atencao; }
-          .bento-proxima  { grid-area: proxima; }
-          .bento-aulas    { grid-area: aulas; }
+          .bento-proximas { grid-area: proximas; }
         }
       `}</style>
 
       {/* ── Bento faixa superior ── */}
       <div className="overview-bento grid grid-cols-1 gap-3">
 
-        {/* Métricas pequenas: 2 col on mobile via sub-grid, individual on desktop */}
+        {/* Métricas pequenas: side-by-side on mobile, individual cells on desktop */}
         <div className="grid grid-cols-2 gap-3 lg:contents">
 
           {/* Alunos ativos */}
@@ -307,73 +332,31 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
 
         </div>
 
-        {/* Atenção — spans 2 rows on desktop */}
-        <Card className={cn("bento-atencao", metrics.missedPending > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900" : "")}>
-          <CardContent className="p-4 h-full flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                Atenção
-              </span>
-              <AlertTriangle className={cn("h-4 w-4", metrics.missedPending > 0 ? "text-red-500" : "text-muted-foreground")} />
-            </div>
-            <div className="flex items-end gap-2">
-              <p className={cn("text-3xl font-bold", metrics.missedPending > 0 && "text-red-600")}>
-                {metrics.missedPending}
-              </p>
-              {metrics.missedPending > 0 && (
-                <span className="text-xs text-red-500 font-medium mb-1">
-                  {metrics.missedPending === 1 ? "falta pend." : "faltas pend."}
-                </span>
-              )}
-            </div>
-            {metrics.missedPending > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3 w-full border-red-200 text-red-700 hover:bg-red-100 text-xs dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                onClick={onSwitchToStudents}
-              >
-                Revisar faltas
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Próxima aula — spans 2 cols on desktop */}
-        <Card className="bento-proxima">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                Próxima aula
-              </span>
-              <Clock className="h-4 w-4 text-blue-500" />
-            </div>
-            {metrics.nextSession ? (
-              <p className="text-xl font-bold leading-tight">{ptDateTime(metrics.nextSession)}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground font-light">Nenhuma agendada</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Aulas de hoje — spans 2 rows on desktop */}
-        <Card className="bento-aulas">
+        {/* Próximas aulas — 2×2 on desktop, full-width on mobile */}
+        <Card className="bento-proximas">
           <CardContent className="p-4 h-full flex flex-col">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                Aulas de hoje
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Próximas aulas
+                </span>
+                {upcomingDayLabel && (
+                  <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    {upcomingDayLabel}
+                  </span>
+                )}
+              </div>
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
             </div>
 
-            {todayCalEvents.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-4 text-center">
-                <CalendarDays className="h-7 w-7 text-muted-foreground/25" />
-                <p className="text-xs text-muted-foreground font-light">Nenhuma aula hoje</p>
+            {upcomingEvents.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-6 text-center">
+                <CalendarDays className="h-8 w-8 text-muted-foreground/25" />
+                <p className="text-xs text-muted-foreground font-light">Nenhuma aula nos próximos dias</p>
               </div>
             ) : (
-              <div className="space-y-2 overflow-y-auto flex-1" style={{ maxHeight: "200px" }}>
-                {todayCalEvents.map((ev) => {
+              <div className="space-y-2 overflow-y-auto" style={{ maxHeight: "240px" }}>
+                {upcomingEvents.map((ev) => {
                   const name = ev.title.split(" | ")[1]?.trim();
                   const lang = ev.title.split(" | ")[0]?.trim();
                   const soon = isStartingSoon(ev.start);
@@ -381,7 +364,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
                     <div
                       key={ev.id}
                       className={cn(
-                        "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs",
+                        "flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-xs",
                         soon
                           ? "border-primary/40 bg-primary/5"
                           : "border-border bg-muted/30"
@@ -415,6 +398,43 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
                   );
                 })}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Atenção — spans 2 cols on desktop, full-width on mobile */}
+        <Card className={cn("bento-atencao", metrics.missedPending > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900" : "")}>
+          <CardContent className="p-4 flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Atenção
+                </span>
+                <AlertTriangle className={cn("h-3.5 w-3.5", metrics.missedPending > 0 ? "text-red-500" : "text-muted-foreground")} />
+              </div>
+              <div className="flex items-end gap-2">
+                <p className={cn("text-3xl font-bold", metrics.missedPending > 0 && "text-red-600")}>
+                  {metrics.missedPending}
+                </p>
+                {metrics.missedPending > 0 && (
+                  <span className="text-xs text-red-500 font-medium mb-1">
+                    {metrics.missedPending === 1 ? "falta pend." : "faltas pend."}
+                  </span>
+                )}
+              </div>
+              {metrics.missedPending === 0 && (
+                <p className="text-xs text-muted-foreground font-light mt-1">Nenhuma pendência</p>
+              )}
+            </div>
+            {metrics.missedPending > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 border-red-200 text-red-700 hover:bg-red-100 text-xs dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                onClick={onSwitchToStudents}
+              >
+                Revisar
+              </Button>
             )}
           </CardContent>
         </Card>
@@ -456,7 +476,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {students.map((student) => (
               <Card
                 key={student.studentId}
@@ -465,7 +485,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
               >
                 <CardContent className="p-4 space-y-3">
 
-                  {/* Cabeçalho do card */}
+                  {/* Cabeçalho */}
                   <div className="flex items-start gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
                       <AvatarImage src={student.avatarUrl || undefined} />
