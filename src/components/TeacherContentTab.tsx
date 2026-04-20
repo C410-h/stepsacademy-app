@@ -14,7 +14,7 @@ import {
   FileText, Headphones, BookOpen, PenLine, Mic,
   Upload, Plus, Trash2, Save, ChevronRight,
   CheckCircle2, AlertCircle, Clock, XCircle, Loader2, Globe,
-  Library, Search, Rocket,
+  Library, Search, Rocket, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -710,6 +710,13 @@ const TeacherContentTab = ({ teacherId }: Props) => {
   const [currentSubmissionId, setCurrentSubmissionId] = useState<string | null>(null);
   const [bankPickerEntryId, setBankPickerEntryId] = useState<string | null>(null);
 
+  // ── Slide version history ───────────────────────────────────────────────────
+  const [slideVersions, setSlideVersions] = useState<{
+    id: string; file_url: string; filename: string | null; version_number: number; replaced_at: string;
+  }[]>([]);
+  const [slideMaterialId, setSlideMaterialId] = useState<string | null>(null);
+  const [versionDialogOpen, setVersionDialogOpen] = useState(false);
+
   // Load levels + auto-detect teacher's language via their students
   useEffect(() => {
     Promise.all([
@@ -803,6 +810,8 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     setSelectedStep(step);
     setFiles([]);
     setCurrentSubmissionId(step.submissionId);
+    setSlideMaterialId(null);
+    setSlideVersions([]);
 
     if (step.submissionId) {
       const { data: sfData } = await (supabase as any)
@@ -853,6 +862,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
       }
     }
 
+    await loadSlideVersions(step.id);
     setSheetOpen(true);
   };
 
@@ -977,6 +987,77 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     }
   };
 
+  // ── Slide version helpers ────────────────────────────────────────────────────
+
+  const loadSlideVersions = async (stepId: string) => {
+    const { data: mat } = await (supabase as any)
+      .from("materials")
+      .select("id")
+      .eq("step_id", stepId)
+      .eq("type", "slide")
+      .maybeSingle();
+    if (!mat) { setSlideMaterialId(null); setSlideVersions([]); return; }
+    setSlideMaterialId(mat.id);
+    const { data: versions } = await (supabase as any)
+      .from("material_versions")
+      .select("id, file_url, filename, version_number, replaced_at")
+      .eq("material_id", mat.id)
+      .order("version_number", { ascending: false });
+    setSlideVersions(versions || []);
+  };
+
+  const upsertSlideVersion = async (stepId: string, newFileUrl: string, newFilename: string) => {
+    const { data: existing } = await (supabase as any)
+      .from("materials")
+      .select("id, file_url, filename")
+      .eq("step_id", stepId)
+      .eq("type", "slide")
+      .maybeSingle();
+
+    if (existing) {
+      const { data: latestVer } = await (supabase as any)
+        .from("material_versions")
+        .select("version_number")
+        .eq("material_id", existing.id)
+        .order("version_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      await (supabase as any).from("material_versions").insert({
+        material_id: existing.id,
+        file_url: existing.file_url,
+        filename: existing.filename,
+        version_number: (latestVer?.version_number ?? 0) + 1,
+        replaced_at: new Date().toISOString(),
+        replaced_by: teacherId,
+      });
+
+      await (supabase as any)
+        .from("materials")
+        .update({ file_url: newFileUrl, filename: newFilename })
+        .eq("id", existing.id);
+
+      setSlideMaterialId(existing.id);
+    } else {
+      const { data: newMat } = await (supabase as any)
+        .from("materials")
+        .insert({
+          step_id: stepId,
+          type: "slide",
+          delivery: "before",
+          title: newFilename,
+          file_url: newFileUrl,
+          filename: newFilename,
+          active: true,
+        })
+        .select("id")
+        .single();
+      if (newMat) setSlideMaterialId(newMat.id);
+    }
+
+    await loadSlideVersions(stepId);
+  };
+
   // ── Upload single file ──────────────────────────────────────────────────────
 
   const uploadFile = async (entry: FileEntry): Promise<string | null> => {
@@ -1043,6 +1124,11 @@ const TeacherContentTab = ({ teacherId }: Props) => {
           if (sf) updateFile(entry.localId, { localId: sf.id, uploadedFileUrl: fileUrl ?? undefined });
         }
         if (fileUrl) updateFile(entry.localId, { uploadedFileUrl: fileUrl });
+
+        // Slide versioning: upsert materials + save previous to material_versions
+        if (entry.materialType === "slide" && entry.file && fileUrl) {
+          await upsertSlideVersion(selectedStep.id, fileUrl, entry.filename);
+        }
       }
 
       toast({ title: "Rascunho salvo!" });
@@ -1093,6 +1179,11 @@ const TeacherContentTab = ({ teacherId }: Props) => {
             if (sf) updateFile(entry.localId, { localId: sf.id, uploadedFileUrl: fileUrl });
           }
           updateFile(entry.localId, { uploadedFileUrl: fileUrl });
+
+          // Slide versioning on publish
+          if (entry.materialType === "slide" && fileUrl) {
+            await upsertSlideVersion(selectedStep.id, fileUrl, entry.filename);
+          }
         }
       }
 
@@ -1560,16 +1651,36 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
                       ) : (
                         // ── Slide / Grammar PDF / Vocab PDF ──
-                        <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
-                          <Upload className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs">{entry.filename || "Selecionar arquivo"}</span>
-                          <input
-                            type="file"
-                            accept={entry.materialType === "slide" ? ".pdf,.ppt,.pptx" : ".pdf,.doc,.docx"}
-                            className="hidden"
-                            onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
-                          />
-                        </label>
+                        <div className="space-y-1.5">
+                          <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded p-2 hover:bg-muted/30">
+                            <Upload className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs">{entry.filename || "Selecionar arquivo"}</span>
+                            <input
+                              type="file"
+                              accept={entry.materialType === "slide" ? ".pdf,.ppt,.pptx" : ".pdf,.doc,.docx"}
+                              className="hidden"
+                              onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
+                            />
+                          </label>
+
+                          {/* Versão atual + histórico (apenas slides) */}
+                          {entry.materialType === "slide" && slideMaterialId && (
+                            <div className="flex items-center justify-between px-0.5">
+                              <span className="text-[10px] text-muted-foreground">
+                                {slideVersions.length === 0 ? "Versão atual" : `v${slideVersions.length + 1} (atual)`}
+                              </span>
+                              {slideVersions.length > 0 && (
+                                <button
+                                  className="flex items-center gap-1 text-[10px] text-muted-foreground underline hover:text-foreground"
+                                  onClick={() => setVersionDialogOpen(true)}
+                                >
+                                  <History className="h-3 w-3" />
+                                  Ver histórico ({slideVersions.length})
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   ));
@@ -1619,6 +1730,43 @@ const TeacherContentTab = ({ teacherId }: Props) => {
           </Sheet>
         </>
       )}
+
+      {/* ── Version history dialog ─────────────────────────────────────────── */}
+      <Dialog open={versionDialogOpen} onOpenChange={setVersionDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Histórico de versões</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {slideVersions.length === 0 ? (
+              <p className="text-sm text-muted-foreground font-light py-2">Nenhuma versão anterior.</p>
+            ) : (
+              slideVersions.map((v) => (
+                <div key={v.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">v{v.version_number}</p>
+                    <p className="text-xs text-muted-foreground truncate">{v.filename || "—"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(v.replaced_at).toLocaleString("pt-BR", {
+                        day: "2-digit", month: "2-digit", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 text-xs gap-1.5"
+                    onClick={() => window.open(v.file_url, "_blank")}
+                  >
+                    Baixar
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
