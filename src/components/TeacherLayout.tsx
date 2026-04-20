@@ -38,7 +38,7 @@ const TeacherLayout = ({ children }: { children: ReactNode }) => {
           </Button>
         </div>
       </header>
-      <main className="px-4 py-6 md:px-8 lg:pl-4 lg:pr-10 max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto lg:ml-0">{children}</main>
+      <main className="px-4 py-6 md:px-8 lg:pl-4 lg:pr-8 max-w-2xl md:max-w-4xl lg:max-w-none mx-auto lg:mx-0">{children}</main>
     </div>
   );
 };
