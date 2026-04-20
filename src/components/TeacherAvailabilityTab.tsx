@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Copy } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,12 @@ interface ModalState {
   existing: AvailRow | null;
 }
 
+interface DragState {
+  day: number;
+  startIdx: number; // índice em GRID_SLOTS
+  endIdx: number;
+}
+
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -49,10 +56,14 @@ for (let h = 6; h <= 22; h++) {
 }
 
 const END_OFFSETS = [
-  { label: "30 min", value: "30" },
-  { label: "1 hora", value: "60" },
-  { label: "1h30", value: "90" },
+  { label: "30 min",  value: "30"  },
+  { label: "1 hora",  value: "60"  },
+  { label: "1h30",    value: "90"  },
   { label: "2 horas", value: "120" },
+  { label: "2h30",    value: "150" },
+  { label: "3 horas", value: "180" },
+  { label: "3h30",    value: "210" },
+  { label: "4 horas", value: "240" },
 ];
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
@@ -70,16 +81,50 @@ const TeacherAvailabilityTab = () => {
   const { toast } = useToast();
 
   const [availability, setAvailability] = useState<AvailRow[]>([]);
-  const [languages, setLanguages] = useState<Language[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState(() => new Date().getDay());
+  const [languages, setLanguages]       = useState<Language[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [selectedDay, setSelectedDay]   = useState(() => new Date().getDay());
 
-  const [modal, setModal] = useState<ModalState>({
-    open: false, day: 0, startTime: "08:00", existing: null,
-  });
+  const [modal, setModal]             = useState<ModalState>({ open: false, day: 0, startTime: "08:00", existing: null });
   const [modalLangId, setModalLangId] = useState<string>("__any__");
   const [modalEndOffset, setModalEndOffset] = useState("60");
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]           = useState(false);
+
+  // ── Drag-to-create ────────────────────────────────────────────────────────
+
+  const [drag, setDragState] = useState<DragState | null>(null);
+  const dragRef              = useRef<DragState | null>(null);
+
+  // State de "abrir modal após drag" — necessário porque o mouseup global não
+  // pode chamar openModal diretamente (closure stale de `languages`).
+  const [pendingOpen, setPendingOpen] = useState<{
+    day: number; start: string; end: string;
+  } | null>(null);
+
+  const setDrag = (d: DragState | null) => {
+    dragRef.current = d;
+    setDragState(d);
+  };
+
+  // Listener global de mouseup — finaliza o drag mesmo fora da grade
+  useEffect(() => {
+    const up = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      e.preventDefault();
+      const a = Math.min(d.startIdx, d.endIdx);
+      const b = Math.max(d.startIdx, d.endIdx);
+      dragRef.current = null;
+      setDragState(null);
+      setPendingOpen({
+        day: d.day,
+        start: GRID_SLOTS[a],
+        end: addMinutes(GRID_SLOTS[b], 30),
+      });
+    };
+    document.addEventListener("mouseup", up);
+    return () => document.removeEventListener("mouseup", up);
+  }, []);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -124,11 +169,13 @@ const TeacherAvailabilityTab = () => {
   const findSlot = (day: number, time: string): AvailRow | undefined =>
     availability.find((a) => a.day_of_week === day && a.start_time.startsWith(time));
 
-  const openModal = (day: number, startTime: string) => {
-    const existing = findSlot(day, startTime) || null;
+  const openModal = useCallback((day: number, startTime: string, dragEndTime?: string) => {
+    const existing = availability.find(
+      (a) => a.day_of_week === day && a.start_time.startsWith(startTime)
+    ) || null;
     setModal({ open: true, day, startTime, existing });
 
-    // Idioma: usa o do slot existente → ou auto-seleciona se teacher só tem 1
+    // Idioma: slot existente → auto-seleção se só 1 → qualquer
     if (existing?.language_id) {
       setModalLangId(existing.language_id);
     } else if (languages.length === 1) {
@@ -137,19 +184,49 @@ const TeacherAvailabilityTab = () => {
       setModalLangId("__any__");
     }
 
-    // Duração: pre-preenche a partir do slot existente
+    // Duração: slot existente → drag → padrão 60 min
     if (existing) {
       const [sh, sm] = existing.start_time.split(":").map(Number);
       const [eh, em] = existing.end_time.split(":").map(Number);
       const duration = (eh * 60 + em) - (sh * 60 + sm);
-      const match = END_OFFSETS.find(o => parseInt(o.value) === duration);
-      setModalEndOffset(match ? match.value : "60");
+      setModalEndOffset(END_OFFSETS.find(o => parseInt(o.value) === duration)?.value ?? "60");
+    } else if (dragEndTime) {
+      const [sh, sm] = startTime.split(":").map(Number);
+      const [eh, em] = dragEndTime.split(":").map(Number);
+      const duration = (eh * 60 + em) - (sh * 60 + sm);
+      setModalEndOffset(END_OFFSETS.find(o => parseInt(o.value) === duration)?.value ?? "60");
     } else {
       setModalEndOffset("60");
     }
-  };
+  }, [availability, languages]);
+
+  // Processa drag após atualização de estado
+  useEffect(() => {
+    if (!pendingOpen) return;
+    openModal(pendingOpen.day, pendingOpen.start, pendingOpen.end);
+    setPendingOpen(null);
+  }, [pendingOpen, openModal]);
 
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
+
+  // ── Drag handlers ──────────────────────────────────────────────────────────
+
+  // Inicia drag num slot vazio; clique em slot existente abre modal diretamente
+  const handleCellMouseDown = (day: number, slotIdx: number, hasSlot: boolean, e: React.MouseEvent) => {
+    if (hasSlot) {
+      openModal(day, GRID_SLOTS[slotIdx]);
+      return;
+    }
+    e.preventDefault();
+    setDrag({ day, startIdx: slotIdx, endIdx: slotIdx });
+  };
+
+  // Estende seleção enquanto arrasta (mesmo dia)
+  const handleCellMouseEnter = (day: number, slotIdx: number) => {
+    const d = dragRef.current;
+    if (!d || d.day !== day) return;
+    setDrag({ ...d, endIdx: slotIdx });
+  };
 
   // ── Salvar ─────────────────────────────────────────────────────────────────
 
@@ -205,7 +282,6 @@ const TeacherAvailabilityTab = () => {
           <Skeleton className="h-7 w-48" />
           <Skeleton className="h-4 w-72" />
         </div>
-        {/* Mobile skeleton */}
         <div className="lg:hidden space-y-2">
           <Skeleton className="h-10 w-full" />
           {Array.from({ length: 6 }).map((_, i) => (
@@ -215,20 +291,15 @@ const TeacherAvailabilityTab = () => {
             </div>
           ))}
         </div>
-        {/* Desktop skeleton */}
         <div className="hidden lg:block space-y-0.5">
           <div className="grid grid-cols-[56px,repeat(7,1fr)] gap-1 mb-1">
             <div />
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="h-5" />
-            ))}
+            {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-5" />)}
           </div>
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="grid grid-cols-[56px,repeat(7,1fr)] gap-1">
               <Skeleton className="h-7" />
-              {Array.from({ length: 7 }).map((_, j) => (
-                <Skeleton key={j} className="h-7" />
-              ))}
+              {Array.from({ length: 7 }).map((_, j) => <Skeleton key={j} className="h-7" />)}
             </div>
           ))}
         </div>
@@ -243,7 +314,7 @@ const TeacherAvailabilityTab = () => {
       <div>
         <h2 className="text-2xl font-bold">Disponibilidade</h2>
         <p className="text-sm text-muted-foreground font-light mt-1">
-          Configure os horários em que você está disponível para aulas.
+          Configure os horários disponíveis. Clique em um slot ou <strong className="font-semibold">arraste</strong> para criar um intervalo.
         </p>
       </div>
 
@@ -258,30 +329,26 @@ const TeacherAvailabilityTab = () => {
           </SelectTrigger>
           <SelectContent>
             {DAY_LABELS.map((label, i) => (
-              <SelectItem key={i} value={String(i)}>
-                {label}
-              </SelectItem>
+              <SelectItem key={i} value={String(i)}>{label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <div className="space-y-0.5">
-          {GRID_SLOTS.map((time) => {
-            const slot = findSlot(selectedDay, time);
-            const lang = slot?.language_id
-              ? languages.find((l) => l.id === slot.language_id)
-              : null;
-            const isHour = time.endsWith(":00");
+        <div className="space-y-0.5 select-none">
+          {GRID_SLOTS.map((time, slotIdx) => {
+            const slot    = findSlot(selectedDay, time);
+            const lang    = slot?.language_id ? languages.find((l) => l.id === slot.language_id) : null;
+            const isHour  = time.endsWith(":00");
+            const a = drag ? Math.min(drag.startIdx, drag.endIdx) : -1;
+            const b = drag ? Math.max(drag.startIdx, drag.endIdx) : -1;
+            const inDrag  = drag?.day === selectedDay && slotIdx >= a && slotIdx <= b;
 
             return (
               <div key={time} className="flex items-center gap-2">
-                <span
-                  className={`w-12 text-right text-xs shrink-0 ${
-                    isHour
-                      ? "font-medium text-foreground"
-                      : "text-muted-foreground/40"
-                  }`}
-                >
+                <span className={cn(
+                  "w-12 text-right text-xs shrink-0",
+                  isHour ? "font-medium text-foreground" : "text-muted-foreground/40"
+                )}>
                   {isHour ? time : ""}
                 </span>
                 <div className="flex-1">
@@ -290,8 +357,7 @@ const TeacherAvailabilityTab = () => {
                       onClick={() => openModal(selectedDay, time)}
                       className="w-full h-9 rounded border text-sm font-medium px-3 text-left transition-opacity hover:opacity-70"
                       style={{
-                        backgroundColor:
-                          "color-mix(in srgb, var(--theme-accent) 25%, transparent)",
+                        backgroundColor: "color-mix(in srgb, var(--theme-accent) 25%, transparent)",
                         borderColor: "var(--theme-accent)",
                       }}
                     >
@@ -305,10 +371,17 @@ const TeacherAvailabilityTab = () => {
                       {time}
                     </button>
                   ) : (
-                    <button
-                      onClick={() => openModal(selectedDay, time)}
-                      className="w-full h-9 rounded border border-dashed border-border/50 hover:border-primary/40 hover:bg-muted/50 transition-colors"
+                    <div
+                      role="button"
                       aria-label={`Adicionar ${DAY_LABELS[selectedDay]} ${time}`}
+                      className={cn(
+                        "w-full h-9 rounded border transition-colors cursor-cell",
+                        inDrag
+                          ? "bg-primary/20 border-primary"
+                          : "border-dashed border-border/50 hover:border-primary/40 hover:bg-muted/50"
+                      )}
+                      onMouseDown={(e) => handleCellMouseDown(selectedDay, slotIdx, false, e)}
+                      onMouseEnter={() => handleCellMouseEnter(selectedDay, slotIdx)}
                     />
                   )}
                 </div>
@@ -335,41 +408,43 @@ const TeacherAvailabilityTab = () => {
           </div>
 
           {/* Linhas de slots */}
-          <div className="space-y-0.5">
-            {GRID_SLOTS.map((time) => {
+          <div className="space-y-0.5 select-none">
+            {GRID_SLOTS.map((time, slotIdx) => {
               const isHour = time.endsWith(":00");
+              const a = drag ? Math.min(drag.startIdx, drag.endIdx) : -1;
+              const b = drag ? Math.max(drag.startIdx, drag.endIdx) : -1;
+
               return (
                 <div
                   key={time}
                   className="grid grid-cols-[56px,repeat(7,1fr)] gap-1 items-center"
                 >
                   {/* Etiqueta de hora */}
-                  <span
-                    className={`text-right pr-2 text-[10px] leading-none select-none ${
-                      isHour
-                        ? "font-medium text-foreground"
-                        : "text-muted-foreground/30"
-                    }`}
-                  >
+                  <span className={cn(
+                    "text-right pr-2 text-[10px] leading-none select-none",
+                    isHour ? "font-medium text-foreground" : "text-muted-foreground/30"
+                  )}>
                     {isHour ? time : "·"}
                   </span>
 
-                  {/* 7 slots (um por dia) */}
+                  {/* 7 células (uma por dia) */}
                   {Array.from({ length: 7 }).map((_, day) => {
-                    const slot = findSlot(day, time);
-                    const lang = slot?.language_id
-                      ? languages.find((l) => l.id === slot.language_id)
-                      : null;
+                    const slot    = findSlot(day, time);
+                    const lang    = slot?.language_id ? languages.find((l) => l.id === slot.language_id) : null;
+                    const inDrag  = drag?.day === day && slotIdx >= a && slotIdx <= b;
+                    const dimmed  = drag && drag.day !== day;
 
                     if (slot && slot.active) {
                       return (
                         <button
                           key={day}
                           onClick={() => openModal(day, time)}
-                          className="w-full h-7 rounded border text-[9px] font-medium truncate px-1 transition-opacity hover:opacity-70"
+                          className={cn(
+                            "w-full h-7 rounded border text-[9px] font-medium truncate px-1 transition-opacity hover:opacity-70",
+                            dimmed && "opacity-30"
+                          )}
                           style={{
-                            backgroundColor:
-                              "color-mix(in srgb, var(--theme-accent) 25%, transparent)",
+                            backgroundColor: "color-mix(in srgb, var(--theme-accent) 25%, transparent)",
                             borderColor: "var(--theme-accent)",
                           }}
                           title={lang?.name || "Qualquer idioma"}
@@ -384,19 +459,32 @@ const TeacherAvailabilityTab = () => {
                         <button
                           key={day}
                           onClick={() => openModal(day, time)}
-                          className="w-full h-7 rounded border border-border bg-muted text-[9px] text-muted-foreground line-through px-1"
+                          className={cn(
+                            "w-full h-7 rounded border border-border bg-muted text-[9px] text-muted-foreground line-through px-1",
+                            dimmed && "opacity-30"
+                          )}
                         >
                           off
                         </button>
                       );
                     }
 
+                    // Slot vazio: suporta drag
                     return (
-                      <button
+                      <div
                         key={day}
-                        onClick={() => openModal(day, time)}
-                        className="w-full h-7 rounded border border-dashed border-border/40 hover:border-primary/40 hover:bg-muted/50 transition-colors"
+                        role="button"
                         aria-label={`Adicionar ${DAY_LABELS[day]} ${time}`}
+                        className={cn(
+                          "w-full h-7 rounded border transition-colors",
+                          inDrag
+                            ? "bg-primary/20 border-primary cursor-s-resize"
+                            : dimmed
+                              ? "border-dashed border-border/20 opacity-30 cursor-not-allowed"
+                              : "border-dashed border-border/40 hover:border-primary/40 hover:bg-muted/50 cursor-cell"
+                        )}
+                        onMouseDown={(e) => handleCellMouseDown(day, slotIdx, false, e)}
+                        onMouseEnter={() => handleCellMouseEnter(day, slotIdx)}
                       />
                     );
                   })}
@@ -407,18 +495,23 @@ const TeacherAvailabilityTab = () => {
         </div>
       </div>
 
+      {/* Dica de drag — visível apenas durante arraste */}
+      {drag && (
+        <div className="hidden lg:flex items-center gap-2 text-xs text-primary font-medium animate-pulse">
+          <span>
+            {GRID_SLOTS[Math.min(drag.startIdx, drag.endIdx)]} → {addMinutes(GRID_SLOTS[Math.max(drag.startIdx, drag.endIdx)], 30)}
+            {" "}({Math.max(drag.startIdx, drag.endIdx) - Math.min(drag.startIdx, drag.endIdx) + 1} × 30 min)
+          </span>
+        </div>
+      )}
+
       {/* Botão copiar semana */}
       <div className="pt-2">
         <Button
           variant="outline"
           size="sm"
           className="gap-2 w-full sm:w-auto"
-          onClick={() =>
-            toast({
-              title: "Em breve!",
-              description: "Funcionalidade em desenvolvimento.",
-            })
-          }
+          onClick={() => toast({ title: "Em breve!", description: "Funcionalidade em desenvolvimento." })}
         >
           <Copy className="h-4 w-4" />
           Copiar configuração para próximas semanas
@@ -455,9 +548,7 @@ const TeacherAvailabilityTab = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {END_OFFSETS.map(({ label, value }) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -490,9 +581,7 @@ const TeacherAvailabilityTab = () => {
                   <SelectContent>
                     <SelectItem value="__any__">Qualquer idioma</SelectItem>
                     {languages.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>
-                        {l.name}
-                      </SelectItem>
+                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
