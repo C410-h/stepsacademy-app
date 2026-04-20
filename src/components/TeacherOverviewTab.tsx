@@ -40,6 +40,7 @@ interface OverviewStudent {
   xpTotal: number;
   streakCurrent: number;
   hasMaterial: boolean;
+  groupName: string | null;
 }
 
 interface Props {
@@ -185,6 +186,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         { data: profileRows },
         { data: sessions },
         { data: gamif },
+        { data: groupRows },
       ] = await Promise.all([
         supabase.from("profiles").select("id, name, avatar_url, email").in("id", userIds),
         (supabase as any)
@@ -197,7 +199,16 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           .from("student_gamification")
           .select("student_id, xp_total, streak_current")
           .in("student_id", studentIds),
+        (supabase as any)
+          .from("group_students")
+          .select("student_id, groups!group_students_group_id_fkey(name)")
+          .in("student_id", studentIds),
       ]);
+
+      const groupByStudentId = new Map<string, string>();
+      for (const row of (groupRows || [])) {
+        if (row.groups?.name) groupByStudentId.set(row.student_id, row.groups.name);
+      }
 
       const submissions: any[] = stepIds.length
         ? (
@@ -260,6 +271,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           xpTotal: g?.xp_total ?? 0,
           streakCurrent: g?.streak_current ?? 0,
           hasMaterial: hasSub,
+          groupName: groupByStudentId.get(s.id) ?? null,
         };
       });
 
@@ -493,10 +505,15 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {students.map((student) => {
               const gcalNext = allGcalEvents
-                .filter(ev =>
-                  new Date(ev.start) > new Date() &&
-                  ev.attendees?.some(a => a.email?.toLowerCase() === student.email?.toLowerCase())
-                )
+                .filter(ev => {
+                  if (new Date(ev.start) <= new Date()) return false;
+                  if (ev.attendees?.some(a => a.email?.toLowerCase() === student.email?.toLowerCase())) return true;
+                  if (student.groupName) {
+                    const identifier = ev.title?.split(" | ")[1]?.trim();
+                    if (identifier && student.groupName.toLowerCase().includes(identifier.toLowerCase())) return true;
+                  }
+                  return false;
+                })
                 .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0]?.start ?? null;
               const nextSessionDate = gcalNext ?? student.nextSession?.scheduled_at;
 

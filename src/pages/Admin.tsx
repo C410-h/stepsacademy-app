@@ -774,12 +774,13 @@ const Admin = () => {
   // ── Groups ────────────────────────────────────────────────────────────────────
   const loadGroups = async () => {
     setGroupsLoading(true);
-    const { data } = await (supabase as any).from("groups").select(`
+    const { data, error } = await (supabase as any).from("groups").select(`
       id, name, meet_link, active, created_at,
       languages!groups_language_id_fkey(name),
       levels!groups_level_id_fkey(name, code),
-      group_students(student_id)
+      group_students!group_students_group_id_fkey(student_id)
     `).order("created_at", { ascending: false });
+    if (error) console.error("[Admin] loadGroups error:", error);
     setGroups(data || []);
     setGroupsLoading(false);
   };
