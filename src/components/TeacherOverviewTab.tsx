@@ -21,11 +21,13 @@ interface UpcomingEvent {
   start: string;
   end: string;
   meet_link: string | null;
+  attendees: { email: string; name: string | null }[];
 }
 
 interface OverviewStudent {
   studentId: string;
   userId: string;
+  email: string | null;
   name: string;
   avatarUrl: string | null;
   languageName: string;
@@ -101,6 +103,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
     missedPending: 0,
   });
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [allGcalEvents, setAllGcalEvents] = useState<UpcomingEvent[]>([]);
   const [upcomingDayLabel, setUpcomingDayLabel] = useState<string>("Hoje");
   const [loading, setLoading] = useState(true);
 
@@ -119,6 +122,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
       });
 
       const events: UpcomingEvent[] = data?.events || [];
+      setAllGcalEvents(events);
       const todayStr = new Date().toDateString();
       const todayEvents = events.filter(ev => new Date(ev.start).toDateString() === todayStr);
 
@@ -173,7 +177,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         { data: sessions },
         { data: gamif },
       ] = await Promise.all([
-        supabase.from("profiles").select("id, name, avatar_url").in("id", userIds),
+        supabase.from("profiles").select("id, name, avatar_url, email").in("id", userIds),
         (supabase as any)
           .from("class_sessions")
           .select("id, student_id, scheduled_at, status")
@@ -235,6 +239,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           studentId: s.id,
           userId: s.user_id,
           name: prof?.name ?? "Aluno",
+          email: prof?.email ?? null,
           avatarUrl: prof?.avatar_url ?? null,
           languageName: s.languages?.name ?? "—",
           levelName: s.levels?.name ?? "—",
@@ -477,7 +482,16 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {students.map((student) => (
+            {students.map((student) => {
+              const gcalNext = allGcalEvents
+                .filter(ev =>
+                  new Date(ev.start) > new Date() &&
+                  ev.attendees?.some(a => a.email?.toLowerCase() === student.email?.toLowerCase())
+                )
+                .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0]?.start ?? null;
+              const nextSessionDate = student.nextSession?.scheduled_at ?? gcalNext;
+
+              return (
               <Card
                 key={student.studentId}
                 className="cursor-pointer hover:shadow-md transition-shadow group"
@@ -512,8 +526,8 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                     <div>
                       <p className="text-muted-foreground mb-0.5">Próx. aula</p>
-                      {student.nextSession ? (
-                        <p className="font-semibold">{ptDateTime(student.nextSession.scheduled_at)}</p>
+                      {nextSessionDate ? (
+                        <p className="font-semibold">{ptDateTime(nextSessionDate)}</p>
                       ) : (
                         <Button
                           size="sm"
@@ -581,7 +595,8 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
 
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
