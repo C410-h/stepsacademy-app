@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock,
 } from "lucide-react";
+import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,10 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [savingNotes, setSavingNotes]             = useState(false);
   const [confirmingMissed, setConfirmingMissed]   = useState(false);
   const [markingCompleted, setMarkingCompleted]   = useState(false);
+
+  // Reagendar
+  const [rescheduleOpen, setRescheduleOpen]       = useState(false);
+  const [rescheduleSession, setRescheduleSession] = useState<RescheduleSessionData | null>(null);
 
   const todayColRef    = useRef<HTMLDivElement>(null);
   const scrollContRef  = useRef<HTMLDivElement>(null);
@@ -323,6 +328,20 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       toast({ title: "Erro ao marcar aula", variant: "destructive" });
     }
     setMarkingCompleted(false);
+  };
+
+  const handleReschedule = (s: SessionWithStudent) => {
+    if (!s.google_event_id) return;
+    const { start, end } = getEffectiveTimes(s);
+    setRescheduleSession({
+      id: s.id,
+      google_event_id: s.google_event_id,
+      scheduled_at: start,
+      scheduled_ends_at: end || start,
+      teacher_id: profileId,
+    });
+    setDrawerOpen(false);
+    setRescheduleOpen(true);
   };
 
   // ── Render: Google Calendar card (read-only) ─────────────────────────────
@@ -561,6 +580,14 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
         </div>
       )}
 
+      {/* ── Reagendar sheet ──────────────────────────────────────────────── */}
+      <RescheduleSheet
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+        session={rescheduleSession}
+        onSuccess={loadSessions}
+      />
+
       {/* ── Session drawer ───────────────────────────────────────────────── */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto flex flex-col">
@@ -640,6 +667,19 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     >
                       <ExternalLink className="h-4 w-4" />
                       Entrar na aula
+                    </Button>
+                  )}
+
+                  {/* Reagendar */}
+                  {(selected.status === "scheduled" || selected.status === "rescheduled") &&
+                    selected.google_event_id && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => handleReschedule(selected)}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                      Reagendar aula
                     </Button>
                   )}
 

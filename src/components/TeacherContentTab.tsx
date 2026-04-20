@@ -921,6 +921,36 @@ const TeacherContentTab = ({ teacherId }: Props) => {
     updateFile(localId, { file: f, filename: f.name, previewUrl: url });
   };
 
+  // Suporta seleção de múltiplos arquivos de áudio de uma vez
+  const handleAudioFilesSelect = (localId: string, fileList: FileList) => {
+    const fileArr = Array.from(fileList);
+    if (fileArr.length === 0) return;
+    setFiles(prev => {
+      // Atualiza o card atual com o primeiro arquivo
+      let result = prev.map(f =>
+        f.localId !== localId ? f : {
+          ...f,
+          file: fileArr[0],
+          filename: fileArr[0].name,
+          previewUrl: URL.createObjectURL(fileArr[0]),
+          uploadedFileUrl: null,
+        }
+      );
+      // Adiciona novos cards para os arquivos subsequentes
+      for (let i = 1; i < fileArr.length; i++) {
+        result = [...result, {
+          localId: newLocalId(),
+          materialType: "audio" as const,
+          file: fileArr[i],
+          filename: fileArr[i].name,
+          previewUrl: URL.createObjectURL(fileArr[i]),
+          uploadedFileUrl: null,
+        }];
+      }
+      return result;
+    });
+  };
+
   // ── AI generation ────────────────────────────────────────────────────────────
 
   const gerarConteudoIA = async (entry: FileEntry) => {
@@ -1450,12 +1480,16 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                   const slidePresente = files.some(f => f.materialType === "slide" && (!!f.file || !!f.uploadedFileUrl || !!f.previewUrl));
                   // Slide "enviado": já foi feito upload ao servidor
                   const slideEnviado = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
+                  // Áudios: para numerar quando há mais de um
+                  const audioEntries = files.filter(f => f.materialType === "audio");
                   return files.map((entry) => (
                     <div key={entry.localId} className="border rounded-lg p-3 space-y-3 bg-muted/20">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm font-bold">
                           {TYPE_ICONS[entry.materialType]}
-                          {TYPE_LABELS[entry.materialType]}
+                          {entry.materialType === "audio" && audioEntries.length > 1
+                            ? `Áudio ${audioEntries.findIndex(f => f.localId === entry.localId) + 1}`
+                            : TYPE_LABELS[entry.materialType]}
                         </div>
                         <button onClick={() => removeFile(entry.localId)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
@@ -1469,9 +1503,16 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                           <div className="text-xs text-muted-foreground">ou</div>
                           <label className="flex items-center gap-2 cursor-pointer">
                             <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">{entry.filename || "Selecionar arquivo de áudio"}</span>
-                            <input type="file" accept="audio/*" className="hidden"
-                              onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])} />
+                            <span className="text-xs text-muted-foreground">
+                              {entry.filename || "Selecionar arquivo(s) de áudio"}
+                            </span>
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              multiple
+                              className="hidden"
+                              onChange={e => e.target.files?.length && handleAudioFilesSelect(entry.localId, e.target.files)}
+                            />
                           </label>
                           {entry.previewUrl && <audio controls src={entry.previewUrl} className="w-full h-8" />}
                         </div>

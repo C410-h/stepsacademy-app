@@ -98,11 +98,23 @@ const TeacherAvailabilityTab = () => {
     if (!profile) return;
     (async () => {
       setLoading(true);
-      const [, { data: langs }] = await Promise.all([
-        fetchAvailability(),
-        supabase.from("languages").select("id, name").eq("active", true).order("name"),
-      ]);
-      setLanguages(langs || []);
+      await fetchAvailability();
+
+      // Carregar apenas idiomas que a professora ensina
+      const { data: teacherLangRows } = await (supabase as any)
+        .from("teacher_languages")
+        .select("language_id")
+        .eq("teacher_id", profile.id);
+      const langIds = (teacherLangRows || []).map((r: any) => r.language_id);
+      if (langIds.length > 0) {
+        const { data: langs } = await (supabase as any)
+          .from("languages")
+          .select("id, name")
+          .in("id", langIds)
+          .order("name");
+        setLanguages((langs as Language[]) || []);
+      }
+
       setLoading(false);
     })();
   }, [profile]);
@@ -115,8 +127,26 @@ const TeacherAvailabilityTab = () => {
   const openModal = (day: number, startTime: string) => {
     const existing = findSlot(day, startTime) || null;
     setModal({ open: true, day, startTime, existing });
-    setModalLangId(existing?.language_id ?? "__any__");
-    setModalEndOffset("60");
+
+    // Idioma: usa o do slot existente → ou auto-seleciona se teacher só tem 1
+    if (existing?.language_id) {
+      setModalLangId(existing.language_id);
+    } else if (languages.length === 1) {
+      setModalLangId(languages[0].id);
+    } else {
+      setModalLangId("__any__");
+    }
+
+    // Duração: pre-preenche a partir do slot existente
+    if (existing) {
+      const [sh, sm] = existing.start_time.split(":").map(Number);
+      const [eh, em] = existing.end_time.split(":").map(Number);
+      const duration = (eh * 60 + em) - (sh * 60 + sm);
+      const match = END_OFFSETS.find(o => parseInt(o.value) === duration);
+      setModalEndOffset(match ? match.value : "60");
+    } else {
+      setModalEndOffset("60");
+    }
   };
 
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
@@ -416,38 +446,58 @@ const TeacherAvailabilityTab = () => {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Duração / Fim</Label>
-              <Select value={modalEndOffset} onValueChange={setModalEndOffset}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {END_OFFSETS.map(({ label, value }) => (
-                    <SelectItem key={value} value={value}>
-                      {label} → {addMinutes(modal.startTime, parseInt(value))}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Duração</Label>
+                <Select value={modalEndOffset} onValueChange={setModalEndOffset}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {END_OFFSETS.map(({ label, value }) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fim</Label>
+                <Input
+                  value={addMinutes(modal.startTime, parseInt(modalEndOffset))}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Idioma</Label>
-              <Select value={modalLangId} onValueChange={setModalLangId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__any__">Qualquer idioma</SelectItem>
-                  {languages.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {languages.length === 1 ? (
+              <div className="space-y-1.5">
+                <Label>Idioma</Label>
+                <Input value={languages[0].name} disabled className="bg-muted" />
+                <p className="text-[11px] text-muted-foreground font-light">
+                  Detectado automaticamente
+                </p>
+              </div>
+            ) : languages.length > 1 ? (
+              <div className="space-y-1.5">
+                <Label>Idioma</Label>
+                <Select value={modalLangId} onValueChange={setModalLangId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Qualquer idioma</SelectItem>
+                    {languages.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 pt-1">
