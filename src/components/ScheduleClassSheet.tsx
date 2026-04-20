@@ -319,6 +319,19 @@ const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId, pr
         return;
       }
 
+      // Persiste a sessão no banco para métricas e agenda
+      if (teacherProfileId && selectedStudent) {
+        await (supabase as any).from("class_sessions").insert({
+          teacher_id: teacherProfileId,
+          student_id: selectedStudent.studentId,
+          scheduled_at: toISOBR(date, startTime),
+          ends_at: toISOBR(date, addMinutes(startTime, duration)),
+          google_event_id: data?.event_id ?? null,
+          meet_link: data?.meet_link ?? null,
+          status: "scheduled",
+        });
+      }
+
       toast({ title: "Aula agendada! Link do Meet criado." });
       setMeetLink(data?.meet_link ?? null);
 

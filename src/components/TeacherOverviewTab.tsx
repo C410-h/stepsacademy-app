@@ -476,14 +476,14 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {students.map((student) => (
               <Card
                 key={student.studentId}
                 className="cursor-pointer hover:shadow-md transition-shadow group"
                 onClick={onSwitchToStudents}
               >
-                <CardContent className="p-4 space-y-3">
+                <CardContent className="p-3 space-y-2.5">
 
                   {/* Cabeçalho */}
                   <div className="flex items-start gap-3">
