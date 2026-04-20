@@ -300,8 +300,8 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             grid-template-rows: auto auto auto;
             gap: 16px;
             grid-template-areas:
-              "info  pix      temasg"
-              "info  horarios horarios"
+              "info  pix      horarios"
+              "info  temasg   horarios"
               "ajuda ajuda    ajuda";
           }
           .bento-info     { grid-area: info; }
@@ -401,11 +401,11 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </Card>
 
         {/* ── PIX ── */}
-        <Card className="bento-pix">
-          <CardHeader className="pb-2 pt-4 px-4">
+        <Card className="bento-pix flex flex-col">
+          <CardHeader className="pb-2 pt-4 px-4 shrink-0">
             <CardTitle className="text-sm font-bold">Chave PIX</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-3">
+          <CardContent className="px-4 pb-4 flex-1 space-y-3">
             {savedPixKey && !editingPix ? (
               <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted">
                 <div className="min-w-0">
@@ -466,8 +466,8 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </Card>
 
         {/* ── Tema + Segurança ── */}
-        <Card className="bento-temasg">
-          <CardContent className="p-4 space-y-4">
+        <Card className="bento-temasg flex flex-col">
+          <CardContent className="p-4 flex-1 space-y-4">
             <div className="space-y-2">
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</span>
               <div className="flex flex-wrap gap-2">
@@ -499,27 +499,27 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
 
         {/* ── Horários ── */}
         <Card className="bento-horarios">
-          <CardContent className="p-4 space-y-3">
+          <CardContent className="p-4 flex flex-col h-full gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Disponibilidade</span>
               <button
                 onClick={onSwitchToAvailability}
                 className="text-[10px] text-primary hover:underline font-medium"
               >
-                Editar horários →
+                Editar →
               </button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-center">
+            <div className="flex-1 flex flex-col justify-between gap-1">
               {DAY_LABELS.map((day, i) => (
-                <div key={day} className="space-y-1">
-                  <p className="text-[9px] font-medium text-muted-foreground">{day}</p>
+                <div key={day} className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground w-8 shrink-0">{day}</span>
                   <div className={cn(
-                    "rounded py-1.5 text-xs font-bold",
+                    "flex-1 rounded px-2 py-1 text-xs font-bold text-center",
                     slotsPerDay[i] > 0
                       ? "bg-primary/10 text-primary"
                       : "bg-muted text-muted-foreground/50"
                   )}>
-                    {slotsPerDay[i] > 0 ? slotsPerDay[i] : "—"}
+                    {slotsPerDay[i] > 0 ? `${slotsPerDay[i]} horário${slotsPerDay[i] > 1 ? "s" : ""}` : "—"}
                   </div>
                 </div>
               ))}
