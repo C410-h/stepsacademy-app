@@ -1,25 +1,16 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { Copy } from "lucide-react";
+import { Trash2, Plus, Check, X, Loader2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface AvailRow {
   id: string;
-  teacher_id: string;
   day_of_week: number;
   start_time: string; // "HH:MM:SS"
   end_time: string;
@@ -27,282 +18,256 @@ interface AvailRow {
   active: boolean;
 }
 
-interface Language {
-  id: string;
-  name: string;
+interface EditState {
+  start: string;   // "HH:MM"
+  end: string;
+  saving: boolean;
 }
 
-interface ModalState {
-  open: boolean;
-  day: number;
-  startTime: string; // "HH:MM"
-  existing: AvailRow | null;
-}
-
-interface DragState {
-  day: number;
-  startIdx: number; // índice em GRID_SLOTS
-  endIdx: number;
+interface NewRow {
+  tempId: string;
+  start: string;
+  end: string;
+  saving: boolean;
 }
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
-const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const DAY_SHORT  = ["Dom.", "Seg.", "Ter.", "Qua.", "Qui.", "Sex.", "Sáb."];
+const DAY_LABELS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
-const GRID_SLOTS: string[] = [];
-for (let h = 6; h <= 22; h++) {
-  GRID_SLOTS.push(`${String(h).padStart(2, "0")}:00`);
-  if (h < 22) GRID_SLOTS.push(`${String(h).padStart(2, "0")}:30`);
-}
+let _tempId = 0;
+const makeTempId = () => `new_${++_tempId}`;
 
-const END_OFFSETS = [
-  { label: "30 min",  value: "30"  },
-  { label: "1 hora",  value: "60"  },
-  { label: "1h30",    value: "90"  },
-  { label: "2 horas", value: "120" },
-  { label: "2h30",    value: "150" },
-  { label: "3 horas", value: "180" },
-  { label: "3h30",    value: "210" },
-  { label: "4 horas", value: "240" },
-];
+// "HH:MM:SS" → "HH:MM"
+const hhmm = (s: string) => s.slice(0, 5);
 
-// ── Utilitários ───────────────────────────────────────────────────────────────
-
-const addMinutes = (time: string, minutes: number): string => {
+// "HH:MM" + minutos → "HH:MM"
+const addMinutes = (time: string, mins: number) => {
   const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  const t = h * 60 + m + mins;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 };
 
-// ── Componente ────────────────────────────────────────────────────────────────
+// ── Subcomponente: input de hora ───────────────────────────────────────────────
+
+const TimeInput = ({
+  value, onChange, disabled,
+}: { value: string; onChange: (v: string) => void; disabled?: boolean }) => (
+  <input
+    type="time"
+    value={value}
+    onChange={e => onChange(e.target.value)}
+    disabled={disabled}
+    className={cn(
+      "rounded-md border border-input bg-background px-3 py-1.5 text-sm tabular-nums w-[118px]",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ring-offset-background",
+      "disabled:cursor-not-allowed disabled:opacity-50"
+    )}
+  />
+);
+
+// ── Componente principal ───────────────────────────────────────────────────────
 
 const TeacherAvailabilityTab = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
 
   const [availability, setAvailability] = useState<AvailRow[]>([]);
-  const [languages, setLanguages]       = useState<Language[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [selectedDay, setSelectedDay]   = useState(() => new Date().getDay());
+  const [loading, setLoading] = useState(true);
+  const [teacherLangId, setTeacherLangId] = useState<string | null>(null);
 
-  const [modal, setModal]             = useState<ModalState>({ open: false, day: 0, startTime: "08:00", existing: null });
-  const [modalLangId, setModalLangId] = useState<string>("__any__");
-  const [modalEndOffset, setModalEndOffset] = useState("60");
-  const [saving, setSaving]           = useState(false);
-
-  // ── Drag-to-create ────────────────────────────────────────────────────────
-
-  const [drag, setDragState] = useState<DragState | null>(null);
-  const dragRef              = useRef<DragState | null>(null);
-
-  // State de "abrir modal após drag" — necessário porque o mouseup global não
-  // pode chamar openModal diretamente (closure stale de `languages`).
-  const [pendingOpen, setPendingOpen] = useState<{
-    day: number; start: string; end: string;
-  } | null>(null);
-
-  const setDrag = (d: DragState | null) => {
-    dragRef.current = d;
-    setDragState(d);
-  };
-
-  // Listener global de mouseup — finaliza o drag mesmo fora da grade
-  useEffect(() => {
-    const up = (e: MouseEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      e.preventDefault();
-      const a = Math.min(d.startIdx, d.endIdx);
-      const b = Math.max(d.startIdx, d.endIdx);
-      dragRef.current = null;
-      setDragState(null);
-      setPendingOpen({
-        day: d.day,
-        start: GRID_SLOTS[a],
-        end: addMinutes(GRID_SLOTS[b], 30),
-      });
-    };
-    document.addEventListener("mouseup", up);
-    return () => document.removeEventListener("mouseup", up);
-  }, []);
+  // Edições em andamento: rowId → EditState
+  const [edits, setEdits] = useState<Record<string, EditState>>({});
+  // Novas linhas ainda não salvas: day → NewRow[]
+  const [newRows, setNewRows] = useState<Record<number, NewRow[]>>({});
+  // Linhas em processo de exclusão
+  const [deleting, setDeleting] = useState<Set<string>>(new Set());
+  // Copiando dia X para outros
+  const [copyingDay, setCopyingDay] = useState<number | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
-  const fetchAvailability = async () => {
+  const fetchAvailability = useCallback(async () => {
     if (!profile) return;
     const { data } = await (supabase as any)
       .from("teacher_availability")
-      .select("*")
+      .select("id, day_of_week, start_time, end_time, language_id, active")
       .eq("teacher_id", profile.id)
       .order("day_of_week")
       .order("start_time");
     setAvailability(data || []);
-  };
+  }, [profile]);
 
   useEffect(() => {
     if (!profile) return;
     (async () => {
       setLoading(true);
       await fetchAvailability();
-
-      // Carregar apenas idiomas que a professora ensina
-      const { data: teacherLangRows } = await (supabase as any)
+      // Idioma principal do professor (para novos slots)
+      const { data: tl } = await (supabase as any)
         .from("teacher_languages")
         .select("language_id")
-        .eq("teacher_id", profile.id);
-      const langIds = (teacherLangRows || []).map((r: any) => r.language_id);
-      if (langIds.length > 0) {
-        const { data: langs } = await (supabase as any)
-          .from("languages")
-          .select("id, name")
-          .in("id", langIds)
-          .order("name");
-        setLanguages((langs as Language[]) || []);
-      }
-
+        .eq("teacher_id", profile.id)
+        .limit(1)
+        .maybeSingle();
+      setTeacherLangId(tl?.language_id ?? null);
       setLoading(false);
     })();
   }, [profile]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Edição de linhas existentes ────────────────────────────────────────────
 
-  const findSlot = (day: number, time: string): AvailRow | undefined =>
-    availability.find((a) => a.day_of_week === day && a.start_time.startsWith(time));
-
-  const openModal = useCallback((day: number, startTime: string, dragEndTime?: string) => {
-    const existing = availability.find(
-      (a) => a.day_of_week === day && a.start_time.startsWith(startTime)
-    ) || null;
-    setModal({ open: true, day, startTime, existing });
-
-    // Idioma: slot existente → auto-seleção se só 1 → qualquer
-    if (existing?.language_id) {
-      setModalLangId(existing.language_id);
-    } else if (languages.length === 1) {
-      setModalLangId(languages[0].id);
-    } else {
-      setModalLangId("__any__");
-    }
-
-    // Duração: slot existente → drag → padrão 60 min
-    if (existing) {
-      const [sh, sm] = existing.start_time.split(":").map(Number);
-      const [eh, em] = existing.end_time.split(":").map(Number);
-      const duration = (eh * 60 + em) - (sh * 60 + sm);
-      setModalEndOffset(END_OFFSETS.find(o => parseInt(o.value) === duration)?.value ?? "60");
-    } else if (dragEndTime) {
-      const [sh, sm] = startTime.split(":").map(Number);
-      const [eh, em] = dragEndTime.split(":").map(Number);
-      const duration = (eh * 60 + em) - (sh * 60 + sm);
-      setModalEndOffset(END_OFFSETS.find(o => parseInt(o.value) === duration)?.value ?? "60");
-    } else {
-      setModalEndOffset("60");
-    }
-  }, [availability, languages]);
-
-  // Processa drag após atualização de estado
-  useEffect(() => {
-    if (!pendingOpen) return;
-    openModal(pendingOpen.day, pendingOpen.start, pendingOpen.end);
-    setPendingOpen(null);
-  }, [pendingOpen, openModal]);
-
-  const closeModal = () => setModal((m) => ({ ...m, open: false }));
-
-  // ── Drag handlers ──────────────────────────────────────────────────────────
-
-  // Inicia drag num slot vazio; clique em slot existente abre modal diretamente
-  const handleCellMouseDown = (day: number, slotIdx: number, hasSlot: boolean, e: React.MouseEvent) => {
-    if (hasSlot) {
-      openModal(day, GRID_SLOTS[slotIdx]);
-      return;
-    }
-    e.preventDefault();
-    setDrag({ day, startIdx: slotIdx, endIdx: slotIdx });
+  const startEdit = (row: AvailRow) => {
+    if (edits[row.id]) return;
+    setEdits(prev => ({
+      ...prev,
+      [row.id]: { start: hhmm(row.start_time), end: hhmm(row.end_time), saving: false },
+    }));
   };
 
-  // Estende seleção enquanto arrasta (mesmo dia)
-  const handleCellMouseEnter = (day: number, slotIdx: number) => {
-    const d = dragRef.current;
-    if (!d || d.day !== day) return;
-    setDrag({ ...d, endIdx: slotIdx });
-  };
+  const patchEdit = (id: string, patch: Partial<EditState>) =>
+    setEdits(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
-  // ── Salvar ─────────────────────────────────────────────────────────────────
+  const cancelEdit = (id: string) =>
+    setEdits(prev => { const { [id]: _, ...rest } = prev; return rest; });
 
-  const handleSave = async () => {
-    if (!profile) return;
-    setSaving(true);
-    const endTime = addMinutes(modal.startTime, parseInt(modalEndOffset));
+  const saveEdit = async (row: AvailRow) => {
+    const e = edits[row.id];
+    if (!e || e.saving) return;
+    patchEdit(row.id, { saving: true });
     const { error } = await (supabase as any)
       .from("teacher_availability")
-      .upsert(
-        {
-          ...(modal.existing ? { id: modal.existing.id } : {}),
-          teacher_id: profile.id,
-          day_of_week: modal.day,
-          start_time: `${modal.startTime}:00`,
-          end_time: `${endTime}:00`,
-          language_id: modalLangId === "__any__" ? null : modalLangId,
-          active: true,
-        },
-        { onConflict: "teacher_id,day_of_week,start_time" }
-      );
+      .update({ start_time: `${e.start}:00`, end_time: `${e.end}:00` })
+      .eq("id", row.id);
     if (error) {
       toast({ title: "Erro ao salvar horário.", variant: "destructive" });
+      patchEdit(row.id, { saving: false });
     } else {
       toast({ title: "Horário salvo!" });
+      cancelEdit(row.id);
       await fetchAvailability();
-      closeModal();
     }
-    setSaving(false);
   };
 
-  // ── Remover ────────────────────────────────────────────────────────────────
+  // ── Excluir linha ─────────────────────────────────────────────────────────
 
-  const handleRemove = async () => {
-    if (!profile || !modal.existing) return;
-    setSaving(true);
-    await (supabase as any)
+  const deleteRow = async (row: AvailRow) => {
+    setDeleting(prev => new Set(prev).add(row.id));
+    const { error } = await (supabase as any)
       .from("teacher_availability")
       .delete()
-      .eq("id", modal.existing.id);
-    toast({ title: "Horário removido!" });
-    setAvailability((prev) => prev.filter((a) => a.id !== modal.existing!.id));
-    closeModal();
-    setSaving(false);
+      .eq("id", row.id);
+    if (error) {
+      toast({ title: "Erro ao remover.", variant: "destructive" });
+    } else {
+      setAvailability(prev => prev.filter(r => r.id !== row.id));
+      toast({ title: "Horário removido." });
+    }
+    setDeleting(prev => { const s = new Set(prev); s.delete(row.id); return s; });
   };
 
-  // ── Loading skeleton ───────────────────────────────────────────────────────
+  // ── Novas linhas ──────────────────────────────────────────────────────────
+
+  const addNewRow = (day: number) => {
+    const existing = availability.filter(r => r.day_of_week === day);
+    const pending  = newRows[day] ?? [];
+    // Sugerir início após o último intervalo do dia
+    const lastEnd = [...existing.map(r => hhmm(r.end_time)), ...pending.map(r => r.end)]
+      .sort()
+      .at(-1) ?? "09:00";
+    const start = lastEnd;
+    const end   = addMinutes(start, 60);
+    setNewRows(prev => ({
+      ...prev,
+      [day]: [...(prev[day] ?? []), { tempId: makeTempId(), start, end, saving: false }],
+    }));
+  };
+
+  const patchNewRow = (day: number, tempId: string, patch: Partial<NewRow>) =>
+    setNewRows(prev => ({
+      ...prev,
+      [day]: (prev[day] ?? []).map(r => r.tempId === tempId ? { ...r, ...patch } : r),
+    }));
+
+  const removeNewRow = (day: number, tempId: string) =>
+    setNewRows(prev => ({
+      ...prev,
+      [day]: (prev[day] ?? []).filter(r => r.tempId !== tempId),
+    }));
+
+  const saveNewRow = async (day: number, nr: NewRow) => {
+    if (!profile || nr.saving) return;
+    patchNewRow(day, nr.tempId, { saving: true });
+    const { error } = await (supabase as any)
+      .from("teacher_availability")
+      .insert({
+        teacher_id: profile.id,
+        day_of_week: day,
+        start_time: `${nr.start}:00`,
+        end_time: `${nr.end}:00`,
+        language_id: teacherLangId,
+        active: true,
+      });
+    if (error) {
+      toast({ title: "Erro ao adicionar horário.", variant: "destructive" });
+      patchNewRow(day, nr.tempId, { saving: false });
+    } else {
+      toast({ title: "Horário adicionado!" });
+      removeNewRow(day, nr.tempId);
+      await fetchAvailability();
+    }
+  };
+
+  // ── Copiar dia para outros dias ────────────────────────────────────────────
+
+  const copyDayToAll = async (sourceDay: number) => {
+    if (!profile) return;
+    const source = availability.filter(r => r.day_of_week === sourceDay);
+    if (source.length === 0) return;
+    setCopyingDay(sourceDay);
+    // Aplica para todos os outros dias da semana (1-6, seg-sáb)
+    const targets = [0, 1, 2, 3, 4, 5, 6].filter(d => d !== sourceDay);
+    for (const day of targets) {
+      // Remove horários existentes do dia alvo
+      const existing = availability.filter(r => r.day_of_week === day);
+      if (existing.length > 0) {
+        await (supabase as any)
+          .from("teacher_availability")
+          .delete()
+          .in("id", existing.map(r => r.id));
+      }
+      // Insere cópias dos horários do dia fonte
+      await (supabase as any)
+        .from("teacher_availability")
+        .insert(
+          source.map(r => ({
+            teacher_id: profile.id,
+            day_of_week: day,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            language_id: r.language_id,
+            active: true,
+          }))
+        );
+    }
+    await fetchAvailability();
+    setCopyingDay(null);
+    toast({ title: "Horários copiados para toda a semana!" });
+  };
+
+  // ── Loading ────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <Skeleton className="h-7 w-48" />
-          <Skeleton className="h-4 w-72" />
-        </div>
-        <div className="lg:hidden space-y-2">
-          <Skeleton className="h-10 w-full" />
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Skeleton className="h-5 w-10 shrink-0" />
-              <Skeleton className="h-9 flex-1" />
-            </div>
-          ))}
-        </div>
-        <div className="hidden lg:block space-y-0.5">
-          <div className="grid grid-cols-[56px,repeat(7,1fr)] gap-1 mb-1">
-            <div />
-            {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-5" />)}
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-48 mb-4" />
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 py-3 border-b">
+            <Skeleton className="h-4 w-10 shrink-0" />
+            <Skeleton className="h-9 w-48" />
           </div>
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[56px,repeat(7,1fr)] gap-1">
-              <Skeleton className="h-7" />
-              {Array.from({ length: 7 }).map((_, j) => <Skeleton key={j} className="h-7" />)}
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
     );
   }
@@ -310,302 +275,178 @@ const TeacherAvailabilityTab = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-5">
-      <div>
+    <div className="space-y-0">
+      <div className="mb-5">
         <h2 className="text-2xl font-bold">Disponibilidade</h2>
         <p className="text-sm text-muted-foreground font-light mt-1">
-          Configure os horários disponíveis. Clique em um slot ou <strong className="font-semibold">arraste</strong> para criar um intervalo.
+          Defina os intervalos de horário disponíveis para cada dia da semana.
         </p>
       </div>
 
-      {/* ── Mobile: select de dia + coluna única ── */}
-      <div className="lg:hidden space-y-3">
-        <Select
-          value={String(selectedDay)}
-          onValueChange={(v) => setSelectedDay(Number(v))}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DAY_LABELS.map((label, i) => (
-              <SelectItem key={i} value={String(i)}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {Array.from({ length: 7 }, (_, day) => {
+        const dayRows  = availability.filter(r => r.day_of_week === day);
+        const dayNew   = newRows[day] ?? [];
+        const hasAny   = dayRows.length > 0 || dayNew.length > 0;
+        const isCopying = copyingDay === day;
 
-        <div className="space-y-0.5 select-none">
-          {GRID_SLOTS.map((time, slotIdx) => {
-            const slot    = findSlot(selectedDay, time);
-            const lang    = slot?.language_id ? languages.find((l) => l.id === slot.language_id) : null;
-            const isHour  = time.endsWith(":00");
-            const a = drag ? Math.min(drag.startIdx, drag.endIdx) : -1;
-            const b = drag ? Math.max(drag.startIdx, drag.endIdx) : -1;
-            const inDrag  = drag?.day === selectedDay && slotIdx >= a && slotIdx <= b;
+        return (
+          <div
+            key={day}
+            className="flex gap-3 py-3.5 border-b last:border-0 items-start"
+          >
+            {/* Rótulo do dia */}
+            <span
+              className="text-sm font-semibold text-muted-foreground w-11 shrink-0 pt-2"
+              title={DAY_LABELS[day]}
+            >
+              {DAY_SHORT[day]}
+            </span>
 
-            return (
-              <div key={time} className="flex items-center gap-2">
-                <span className={cn(
-                  "w-12 text-right text-xs shrink-0",
-                  isHour ? "font-medium text-foreground" : "text-muted-foreground/40"
-                )}>
-                  {isHour ? time : ""}
+            {/* Conteúdo do dia */}
+            <div className="flex-1 min-w-0 space-y-2">
+
+              {/* Estado vazio */}
+              {!hasAny && (
+                <span className="text-sm text-muted-foreground font-light block pt-1.5">
+                  Indisponível
                 </span>
-                <div className="flex-1">
-                  {slot && slot.active ? (
-                    <button
-                      onClick={() => openModal(selectedDay, time)}
-                      className="w-full h-9 rounded border text-sm font-medium px-3 text-left transition-opacity hover:opacity-70"
-                      style={{
-                        backgroundColor: "color-mix(in srgb, var(--theme-accent) 25%, transparent)",
-                        borderColor: "var(--theme-accent)",
-                      }}
-                    >
-                      {time} — {lang?.name || "Qualquer idioma"}
-                    </button>
-                  ) : slot && !slot.active ? (
-                    <button
-                      onClick={() => openModal(selectedDay, time)}
-                      className="w-full h-9 rounded border border-border bg-muted text-sm text-muted-foreground line-through px-3 text-left"
-                    >
-                      {time}
-                    </button>
-                  ) : (
-                    <div
-                      role="button"
-                      aria-label={`Adicionar ${DAY_LABELS[selectedDay]} ${time}`}
-                      className={cn(
-                        "w-full h-9 rounded border transition-colors cursor-cell",
-                        inDrag
-                          ? "bg-primary/20 border-primary"
-                          : "border-dashed border-border/50 hover:border-primary/40 hover:bg-muted/50"
-                      )}
-                      onMouseDown={(e) => handleCellMouseDown(selectedDay, slotIdx, false, e)}
-                      onMouseEnter={() => handleCellMouseEnter(selectedDay, slotIdx)}
+              )}
+
+              {/* Linhas existentes */}
+              {dayRows.map(row => {
+                const e          = edits[row.id];
+                const isDirty    = !!e;
+                const start      = e?.start ?? hhmm(row.start_time);
+                const end        = e?.end   ?? hhmm(row.end_time);
+                const isSaving   = e?.saving ?? false;
+                const isDeleting = deleting.has(row.id);
+                const busy       = isSaving || isDeleting;
+
+                return (
+                  <div key={row.id} className="flex items-center gap-2 flex-wrap">
+                    <TimeInput
+                      value={start}
+                      onChange={v => { startEdit(row); patchEdit(row.id, { start: v }); }}
+                      disabled={busy}
                     />
-                  )}
+                    <span className="text-muted-foreground text-sm select-none">—</span>
+                    <TimeInput
+                      value={end}
+                      onChange={v => { startEdit(row); patchEdit(row.id, { end: v }); }}
+                      disabled={busy}
+                    />
+
+                    {/* Confirmar/cancelar edição */}
+                    {isDirty && (
+                      <>
+                        <Button
+                          size="icon" variant="ghost"
+                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20"
+                          onClick={() => saveEdit(row)}
+                          disabled={isSaving}
+                          title="Salvar"
+                        >
+                          {isSaving
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Check className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          size="icon" variant="ghost"
+                          className="h-8 w-8 text-muted-foreground"
+                          onClick={() => cancelEdit(row.id)}
+                          disabled={isSaving}
+                          title="Cancelar"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Excluir */}
+                    {!isDirty && (
+                      <Button
+                        size="icon" variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteRow(row)}
+                        disabled={busy}
+                        title="Remover intervalo"
+                      >
+                        {isDeleting
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Novas linhas pendentes */}
+              {dayNew.map(nr => (
+                <div key={nr.tempId} className="flex items-center gap-2 flex-wrap">
+                  <TimeInput
+                    value={nr.start}
+                    onChange={v => patchNewRow(day, nr.tempId, { start: v })}
+                    disabled={nr.saving}
+                  />
+                  <span className="text-muted-foreground text-sm select-none">—</span>
+                  <TimeInput
+                    value={nr.end}
+                    onChange={v => patchNewRow(day, nr.tempId, { end: v })}
+                    disabled={nr.saving}
+                  />
+                  <Button
+                    size="icon" variant="ghost"
+                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20"
+                    onClick={() => saveNewRow(day, nr)}
+                    disabled={nr.saving}
+                    title="Confirmar"
+                  >
+                    {nr.saving
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Check className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button
+                    size="icon" variant="ghost"
+                    className="h-8 w-8 text-muted-foreground"
+                    onClick={() => removeNewRow(day, nr.tempId)}
+                    disabled={nr.saving}
+                    title="Cancelar"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              ))}
 
-      {/* ── Desktop: grade completa 7 colunas ── */}
-      <div className="hidden lg:block overflow-x-auto">
-        <div className="min-w-[640px]">
-          {/* Cabeçalho dos dias */}
-          <div className="grid grid-cols-[56px,repeat(7,1fr)] gap-1 mb-1">
-            <div />
-            {DAY_LABELS.map((label) => (
-              <div
-                key={label}
-                className="text-center text-xs font-bold uppercase tracking-wide text-muted-foreground py-1 border-b"
-              >
-                {label}
-              </div>
-            ))}
-          </div>
-
-          {/* Linhas de slots */}
-          <div className="space-y-0.5 select-none">
-            {GRID_SLOTS.map((time, slotIdx) => {
-              const isHour = time.endsWith(":00");
-              const a = drag ? Math.min(drag.startIdx, drag.endIdx) : -1;
-              const b = drag ? Math.max(drag.startIdx, drag.endIdx) : -1;
-
-              return (
-                <div
-                  key={time}
-                  className="grid grid-cols-[56px,repeat(7,1fr)] gap-1 items-center"
+              {/* Ações do dia */}
+              <div className="flex items-center gap-3 pt-0.5">
+                {/* Adicionar intervalo */}
+                <button
+                  onClick={() => addNewRow(day)}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  {/* Etiqueta de hora */}
-                  <span className={cn(
-                    "text-right pr-2 text-[10px] leading-none select-none",
-                    isHour ? "font-medium text-foreground" : "text-muted-foreground/30"
-                  )}>
-                    {isHour ? time : "·"}
-                  </span>
+                  <Plus className="h-3.5 w-3.5" />
+                  Adicionar horário
+                </button>
 
-                  {/* 7 células (uma por dia) */}
-                  {Array.from({ length: 7 }).map((_, day) => {
-                    const slot    = findSlot(day, time);
-                    const lang    = slot?.language_id ? languages.find((l) => l.id === slot.language_id) : null;
-                    const inDrag  = drag?.day === day && slotIdx >= a && slotIdx <= b;
-                    const dimmed  = drag && drag.day !== day;
-
-                    if (slot && slot.active) {
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => openModal(day, time)}
-                          className={cn(
-                            "w-full h-7 rounded border text-[9px] font-medium truncate px-1 transition-opacity hover:opacity-70",
-                            dimmed && "opacity-30"
-                          )}
-                          style={{
-                            backgroundColor: "color-mix(in srgb, var(--theme-accent) 25%, transparent)",
-                            borderColor: "var(--theme-accent)",
-                          }}
-                          title={lang?.name || "Qualquer idioma"}
-                        >
-                          {lang?.name?.slice(0, 7) || "✓"}
-                        </button>
-                      );
-                    }
-
-                    if (slot && !slot.active) {
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => openModal(day, time)}
-                          className={cn(
-                            "w-full h-7 rounded border border-border bg-muted text-[9px] text-muted-foreground line-through px-1",
-                            dimmed && "opacity-30"
-                          )}
-                        >
-                          off
-                        </button>
-                      );
-                    }
-
-                    // Slot vazio: suporta drag
-                    return (
-                      <div
-                        key={day}
-                        role="button"
-                        aria-label={`Adicionar ${DAY_LABELS[day]} ${time}`}
-                        className={cn(
-                          "w-full h-7 rounded border transition-colors",
-                          inDrag
-                            ? "bg-primary/20 border-primary cursor-s-resize"
-                            : dimmed
-                              ? "border-dashed border-border/20 opacity-30 cursor-not-allowed"
-                              : "border-dashed border-border/40 hover:border-primary/40 hover:bg-muted/50 cursor-cell"
-                        )}
-                        onMouseDown={(e) => handleCellMouseDown(day, slotIdx, false, e)}
-                        onMouseEnter={() => handleCellMouseEnter(day, slotIdx)}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Dica de drag — visível apenas durante arraste */}
-      {drag && (
-        <div className="hidden lg:flex items-center gap-2 text-xs text-primary font-medium animate-pulse">
-          <span>
-            {GRID_SLOTS[Math.min(drag.startIdx, drag.endIdx)]} → {addMinutes(GRID_SLOTS[Math.max(drag.startIdx, drag.endIdx)], 30)}
-            {" "}({Math.max(drag.startIdx, drag.endIdx) - Math.min(drag.startIdx, drag.endIdx) + 1} × 30 min)
-          </span>
-        </div>
-      )}
-
-      {/* Botão copiar semana */}
-      <div className="pt-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 w-full sm:w-auto"
-          onClick={() => toast({ title: "Em breve!", description: "Funcionalidade em desenvolvimento." })}
-        >
-          <Copy className="h-4 w-4" />
-          Copiar configuração para próximas semanas
-        </Button>
-      </div>
-
-      {/* ── Modal adicionar/editar ── */}
-      <Dialog open={modal.open} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {modal.existing ? "Editar horário" : "Adicionar horário"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Dia</Label>
-                <Input value={DAY_LABELS[modal.day]} disabled className="bg-muted" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Início</Label>
-                <Input value={modal.startTime} disabled className="bg-muted" />
+                {/* Copiar para todos os dias */}
+                {dayRows.length > 0 && (
+                  <button
+                    onClick={() => copyDayToAll(day)}
+                    disabled={isCopying || copyingDay !== null}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    title={`Copiar horários de ${DAY_LABELS[day]} para todos os dias`}
+                  >
+                    {isCopying
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Copy className="h-3.5 w-3.5" />}
+                    Copiar para toda a semana
+                  </button>
+                )}
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Duração</Label>
-                <Select value={modalEndOffset} onValueChange={setModalEndOffset}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {END_OFFSETS.map(({ label, value }) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Fim</Label>
-                <Input
-                  value={addMinutes(modal.startTime, parseInt(modalEndOffset))}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-            </div>
-
-            {languages.length === 1 ? (
-              <div className="space-y-1.5">
-                <Label>Idioma</Label>
-                <Input value={languages[0].name} disabled className="bg-muted" />
-                <p className="text-[11px] text-muted-foreground font-light">
-                  Detectado automaticamente
-                </p>
-              </div>
-            ) : languages.length > 1 ? (
-              <div className="space-y-1.5">
-                <Label>Idioma</Label>
-                <Select value={modalLangId} onValueChange={setModalLangId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__any__">Qualquer idioma</SelectItem>
-                    {languages.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
           </div>
-
-          <div className="flex flex-col gap-2 pt-1">
-            <Button onClick={handleSave} disabled={saving} className="w-full">
-              {saving ? "Salvando..." : "Confirmar horário"}
-            </Button>
-            {modal.existing && (
-              <Button
-                variant="destructive"
-                onClick={handleRemove}
-                disabled={saving}
-                className="w-full"
-              >
-                Remover horário
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+        );
+      })}
     </div>
   );
 };
