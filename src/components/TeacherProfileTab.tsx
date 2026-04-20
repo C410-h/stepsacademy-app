@@ -300,15 +300,15 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             grid-template-rows: auto auto auto;
             gap: 16px;
             grid-template-areas:
-              "info  pix       pix"
-              "info  tema      seguranca"
-              "ajuda ajuda     ajuda";
+              "info  pix      temasg"
+              "info  horarios horarios"
+              "ajuda ajuda    ajuda";
           }
-          .bento-info      { grid-area: info; }
-          .bento-pix       { grid-area: pix; }
-          .bento-tema      { grid-area: tema; }
-          .bento-seguranca { grid-area: seguranca; }
-          .bento-ajuda     { grid-area: ajuda; }
+          .bento-info     { grid-area: info; }
+          .bento-pix      { grid-area: pix; }
+          .bento-temasg   { grid-area: temasg; }
+          .bento-horarios { grid-area: horarios; }
+          .bento-ajuda    { grid-area: ajuda; }
         }
       `}</style>
 
@@ -392,28 +392,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
                 </Badge>
               </div>
 
-              {/* Disponibilidade compacta */}
-              <div className="flex items-center justify-between pt-0.5">
-                <div className="flex gap-1">
-                  {DAY_LABELS.map((day, i) => (
-                    <div key={day} className="flex flex-col items-center gap-0.5">
-                      <span className="text-[9px] text-muted-foreground">{day}</span>
-                      <span className={cn(
-                        "text-[10px] font-bold w-5 text-center",
-                        slotsPerDay[i] > 0 ? "text-primary" : "text-muted-foreground/40"
-                      )}>
-                        {slotsPerDay[i] > 0 ? slotsPerDay[i] : "·"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  onClick={onSwitchToAvailability}
-                  className="text-[10px] text-primary hover:underline font-medium"
-                >
-                  Editar horários →
-                </button>
-              </div>
             </div>
 
             <Button className="w-full mt-4" onClick={handleSaveInfo} disabled={savingInfo || bio.length > BIO_MAX}>
@@ -487,36 +465,65 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
           </CardContent>
         </Card>
 
-        {/* ── Tema ── */}
-        <Card className="bento-tema">
-          <CardContent className="p-4 space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</span>
-            <div className="flex flex-wrap gap-2">
-              {(Object.entries(themes) as [ThemeKey, typeof themes[ThemeKey]][]).map(([key, t]) => (
-                <button
-                  key={key}
-                  onClick={() => setTheme(key)}
-                  title={t.name}
-                  className={cn(
-                    "h-7 w-7 rounded-full transition-all hover:scale-110 focus:outline-none",
-                    activeTheme === key ? "ring-2 ring-offset-2 ring-primary scale-110" : ""
-                  )}
-                  style={{ background: t.primary }}
-                />
-              ))}
+        {/* ── Tema + Segurança ── */}
+        <Card className="bento-temasg">
+          <CardContent className="p-4 space-y-4">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</span>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(themes) as [ThemeKey, typeof themes[ThemeKey]][]).map(([key, t]) => (
+                  <button
+                    key={key}
+                    onClick={() => setTheme(key)}
+                    title={t.name}
+                    className={cn(
+                      "h-7 w-7 rounded-full transition-all hover:scale-110 focus:outline-none",
+                      activeTheme === key ? "ring-2 ring-offset-2 ring-primary scale-110" : ""
+                    )}
+                    style={{ background: t.primary }}
+                  />
+                ))}
+              </div>
+              <p className="text-xs font-medium">{themes[activeTheme as ThemeKey]?.name ?? ""}</p>
             </div>
-            <p className="text-xs font-medium">{themes[activeTheme as ThemeKey]?.name ?? ""}</p>
+
+            <div className="border-t pt-3 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Segurança</span>
+              <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => setPwOpen(true)}>
+                <Lock className="h-3.5 w-3.5" />
+                Alterar senha
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        {/* ── Segurança ── */}
-        <Card className="bento-seguranca">
-          <CardContent className="p-4 space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Segurança</span>
-            <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => setPwOpen(true)}>
-              <Lock className="h-3.5 w-3.5" />
-              Alterar senha
-            </Button>
+        {/* ── Horários ── */}
+        <Card className="bento-horarios">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Disponibilidade</span>
+              <button
+                onClick={onSwitchToAvailability}
+                className="text-[10px] text-primary hover:underline font-medium"
+              >
+                Editar horários →
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {DAY_LABELS.map((day, i) => (
+                <div key={day} className="space-y-1">
+                  <p className="text-[9px] font-medium text-muted-foreground">{day}</p>
+                  <div className={cn(
+                    "rounded py-1.5 text-xs font-bold",
+                    slotsPerDay[i] > 0
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground/50"
+                  )}>
+                    {slotsPerDay[i] > 0 ? slotsPerDay[i] : "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
