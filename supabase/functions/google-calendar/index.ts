@@ -182,7 +182,7 @@ serve(async (req) => {
 
       const events = await fetchCalendarEvents(
         accessToken,
-        (e) => (e.attendees?.length ?? 0) > 0,
+        (e) => (e.summary ?? '').includes(' | '),
         (e) => ({
           id: e.id,
           title: e.summary,
