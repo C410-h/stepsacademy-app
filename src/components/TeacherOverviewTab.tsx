@@ -187,7 +187,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         { data: profileRows },
         { data: sessions },
         { data: gamif },
-        { data: groupRows },
+        { data: groupRows, error: groupErr },
         { data: altEmailRows },
       ] = await Promise.all([
         supabase.from("profiles").select("id, name, avatar_url, email").in("id", userIds),
@@ -203,7 +203,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           .in("student_id", studentIds),
         (supabase as any)
           .from("group_students")
-          .select("student_id, groups!group_students_group_id_fkey(name, languages(name), levels(name, code, total_steps))")
+          .select("student_id, groups!group_students_group_id_fkey(name, languages!groups_language_id_fkey(name), levels!groups_level_id_fkey(name, code, total_steps))")
           .in("student_id", studentIds),
         (supabase as any)
           .from("profile_alternate_emails")
@@ -211,6 +211,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           .in("profile_id", userIds),
       ]);
 
+      if (groupErr) console.error("[TeacherOverview] groupRows error:", groupErr);
       interface GroupInfo { name: string; languageName: string; levelName: string; levelCode: string; totalSteps: number; }
       const groupByStudentId = new Map<string, GroupInfo>();
       for (const row of (groupRows || [])) {
