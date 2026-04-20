@@ -41,6 +41,7 @@ interface OverviewStudent {
   streakCurrent: number;
   hasMaterial: boolean;
   groupName: string | null;
+  allEmails: string[];
 }
 
 interface Props {
@@ -187,6 +188,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         { data: sessions },
         { data: gamif },
         { data: groupRows },
+        { data: altEmailRows },
       ] = await Promise.all([
         supabase.from("profiles").select("id, name, avatar_url, email").in("id", userIds),
         (supabase as any)
@@ -201,13 +203,33 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           .in("student_id", studentIds),
         (supabase as any)
           .from("group_students")
-          .select("student_id, groups!group_students_group_id_fkey(name)")
+          .select("student_id, groups!group_students_group_id_fkey(name, languages(name), levels(name, code, total_steps))")
           .in("student_id", studentIds),
+        (supabase as any)
+          .from("profile_alternate_emails")
+          .select("profile_id, email")
+          .in("profile_id", userIds),
       ]);
 
-      const groupByStudentId = new Map<string, string>();
+      interface GroupInfo { name: string; languageName: string; levelName: string; levelCode: string; totalSteps: number; }
+      const groupByStudentId = new Map<string, GroupInfo>();
       for (const row of (groupRows || [])) {
-        if (row.groups?.name) groupByStudentId.set(row.student_id, row.groups.name);
+        if (row.groups?.name) {
+          groupByStudentId.set(row.student_id, {
+            name: row.groups.name,
+            languageName: row.groups.languages?.name ?? "—",
+            levelName: row.groups.levels?.name ?? "—",
+            levelCode: row.groups.levels?.code ?? "—",
+            totalSteps: row.groups.levels?.total_steps ?? 30,
+          });
+        }
+      }
+
+      const altEmailsByUserId = new Map<string, string[]>();
+      for (const row of (altEmailRows || [])) {
+        const existing = altEmailsByUserId.get(row.profile_id) ?? [];
+        existing.push(row.email);
+        altEmailsByUserId.set(row.profile_id, existing);
       }
 
       const submissions: any[] = stepIds.length
@@ -255,15 +277,20 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
             .filter((ss) => ss.status === "completed")
             .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))[0] ?? null;
 
+        const groupInfo = groupByStudentId.get(s.id) ?? null;
+        const primaryEmail = prof?.email ?? null;
+        const altEmails = altEmailsByUserId.get(s.user_id) ?? [];
+        const allEmails = [primaryEmail, ...altEmails].filter(Boolean).map(e => e!.toLowerCase());
+
         return {
           studentId: s.id,
           userId: s.user_id,
           name: prof?.name ?? "Aluno",
-          email: prof?.email ?? null,
+          email: primaryEmail,
           avatarUrl: prof?.avatar_url ?? null,
-          languageName: s.languages?.name ?? "—",
-          levelName: s.levels?.name ?? "—",
-          totalSteps: s.levels?.total_steps ?? 30,
+          languageName: groupInfo?.languageName ?? s.languages?.name ?? "—",
+          levelName: groupInfo?.levelName ?? s.levels?.name ?? "—",
+          totalSteps: groupInfo?.totalSteps ?? s.levels?.total_steps ?? 30,
           status: s.status ?? "active",
           nextSession: nextSession ? { id: nextSession.id, scheduled_at: nextSession.scheduled_at } : null,
           lastCompleted: lastCompleted ? { scheduled_at: lastCompleted.scheduled_at } : null,
@@ -271,7 +298,8 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           xpTotal: g?.xp_total ?? 0,
           streakCurrent: g?.streak_current ?? 0,
           hasMaterial: hasSub,
-          groupName: groupByStudentId.get(s.id) ?? null,
+          groupName: groupInfo?.name ?? null,
+          allEmails,
         };
       });
 
@@ -507,7 +535,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
               const gcalNext = allGcalEvents
                 .filter(ev => {
                   if (new Date(ev.start) <= new Date()) return false;
-                  if (ev.attendees?.some(a => a.email?.toLowerCase() === student.email?.toLowerCase())) return true;
+                  if (ev.attendees?.some(a => student.allEmails.includes(a.email?.toLowerCase()))) return true;
                   if (student.groupName) {
                     const identifier = ev.title?.split(" | ")[1]?.trim();
                     if (identifier && student.groupName.toLowerCase().includes(identifier.toLowerCase())) return true;
