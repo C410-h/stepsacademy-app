@@ -117,7 +117,7 @@ const UpcomingClasses = () => {
 
       if (!isMounted.current) return;
 
-      const calEvents: ClassEvent[] = calRes.data?.events || [];
+      const calEvents: ClassEvent[] = (calRes.data?.events || []).slice(0, 1);
       if (isMounted.current) setEvents(calEvents);
 
       if (isMounted.current && sessionsRes.data) {
