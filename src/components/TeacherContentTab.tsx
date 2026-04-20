@@ -83,6 +83,7 @@ interface FileEntry {
   aiGrammar?: GrammarItem[];
   aiReviewTab?: GenerateType;
   uploadedFileUrl?: string | null;
+  uploading?: boolean; // auto-upload em background ao selecionar slide
 }
 
 interface Props {
@@ -889,9 +890,30 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
   const removeFile = (localId: string) => setFiles(prev => prev.filter(f => f.localId !== localId));
 
-  const handleFileSelect = (localId: string, file: File) => {
+  const handleFileSelect = async (localId: string, file: File) => {
     const url = URL.createObjectURL(file);
-    updateFile(localId, { file, filename: file.name, previewUrl: url });
+    // Limpa uploadedFileUrl: novo arquivo selecionado, URL anterior não é mais válida
+    updateFile(localId, { file, filename: file.name, previewUrl: url, uploadedFileUrl: null });
+
+    // Slides: upload automático em background para habilitar IA sem precisar salvar rascunho
+    const entryType = files.find(f => f.localId === localId)?.materialType;
+    if (entryType !== "slide" || !selectedStep) return;
+
+    updateFile(localId, { uploading: true });
+    try {
+      const folder = `submissions/${teacherId}/${selectedStep.id}/slide`;
+      const ext = file.name.split(".").pop() || "pdf";
+      const path = `${folder}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("materials").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("materials").getPublicUrl(path);
+      updateFile(localId, { uploadedFileUrl: urlData.publicUrl, uploading: false });
+      await upsertSlideVersion(selectedStep.id, urlData.publicUrl, file.name);
+    } catch (e: any) {
+      console.warn("Auto-upload do slide falhou:", e.message);
+      updateFile(localId, { uploading: false });
+      // Não mostra toast de erro — professor ainda pode salvar o rascunho manualmente
+    }
   };
 
   const handleAudioRecorded = (localId: string, blob: Blob, url: string) => {
@@ -1062,6 +1084,8 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
   const uploadFile = async (entry: FileEntry): Promise<string | null> => {
     if (!entry.file) return entry.uploadedFileUrl || null;
+    // Slide já foi enviado pelo auto-upload — evita re-upload desnecessário
+    if (entry.uploadedFileUrl) return entry.uploadedFileUrl;
     const bucket = entry.materialType === "audio" ? "audios" : "materials";
     const folder = entry.materialType === "audio"
       ? `audios/submissions/${teacherId}/${selectedStep!.id}`
@@ -1212,15 +1236,19 @@ const TeacherContentTab = ({ teacherId }: Props) => {
           if (leErr) console.error("lesson_exercises insert:", leErr);
 
           if (levelId) {
+            const langId = levels.find(l => l.id === levelId)?.language_id || null;
             const bankInserts = exercises.map(ex => ({
+              language_id: langId,
               level_id: levelId,
+              created_by: teacherId,
               type: ex.type,
               question: ex.question,
               options: formatOptionsForDb(ex),
               answer: ex.answer,
               explanation: ex.explanation || null,
+              tags: [],
               active: true,
-              times_used: 1,
+              times_used: 0,
             }));
             await (supabase as any).from("exercise_bank").insert(bankInserts);
           }
@@ -1418,7 +1446,10 @@ const TeacherContentTab = ({ teacherId }: Props) => {
               <div className="flex-1 space-y-4 p-4 overflow-y-auto">
                 {/* File entries */}
                 {(() => {
-                  const slideDisponivel = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
+                  // Slide "presente": arquivo selecionado (mesmo sem upload ainda)
+                  const slidePresente = files.some(f => f.materialType === "slide" && (!!f.file || !!f.uploadedFileUrl || !!f.previewUrl));
+                  // Slide "enviado": já foi feito upload ao servidor
+                  const slideEnviado = files.some(f => f.materialType === "slide" && !!f.uploadedFileUrl);
                   return files.map((entry) => (
                     <div key={entry.localId} className="border rounded-lg p-3 space-y-3 bg-muted/20">
                       <div className="flex items-center justify-between">
@@ -1462,9 +1493,9 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                                     size="sm"
                                     variant={entry.aiFonte === "slide" ? "default" : "outline"}
                                     onClick={() => updateFile(entry.localId, { aiFonte: "slide" })}
-                                    disabled={!slideDisponivel}
+                                    disabled={!slidePresente}
                                     className="text-xs h-8"
-                                    title={!slideDisponivel ? "Adicione e salve um slide primeiro" : undefined}
+                                    title={!slidePresente ? "Adicione um slide primeiro" : undefined}
                                   >
                                     Slide da aula
                                   </Button>
@@ -1477,6 +1508,12 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                                     Upload de documento
                                   </Button>
                                 </div>
+                                {/* Aviso: slide presente mas upload ainda não concluído */}
+                                {entry.aiFonte === "slide" && !slideEnviado && slidePresente && !files.find(f => f.materialType === "slide")?.uploading && (
+                                  <p className="text-[10px] text-amber-600 mt-1">
+                                    ⚠️ O envio do slide falhou. Salve o rascunho para tentar novamente.
+                                  </p>
+                                )}
                               </div>
 
                               {/* Document upload */}
@@ -1541,6 +1578,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                                 disabled={
                                   !entry.aiFonte ||
                                   !entry.aiGenerate?.length ||
+                                  (entry.aiFonte === "slide" && !slideEnviado) ||
                                   (entry.aiFonte === "documento" && !entry.file && !entry.uploadedFileUrl)
                                 }
                                 className="w-full text-xs gap-1.5"
@@ -1665,6 +1703,14 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                               onChange={e => e.target.files?.[0] && handleFileSelect(entry.localId, e.target.files[0])}
                             />
                           </label>
+
+                          {/* Auto-upload em progresso */}
+                          {entry.materialType === "slide" && entry.uploading && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-0.5">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Enviando slide…
+                            </div>
+                          )}
 
                           {/* Versão atual + histórico (apenas slides) */}
                           {entry.materialType === "slide" && slideMaterialId && (

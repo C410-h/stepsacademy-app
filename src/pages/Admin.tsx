@@ -29,6 +29,7 @@ import {
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
   UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
+  Library, X,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -303,6 +304,26 @@ const Admin = () => {
   const [savingExercise, setSavingExercise] = useState(false);
   const [allSteps, setAllSteps] = useState<any[]>([]);
 
+  // ── Content tab — Exercise Bank
+  const [bankExercises, setBankExercises] = useState<any[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankFilterLang, setBankFilterLang] = useState("all");
+  const [bankFilterLevel, setBankFilterLevel] = useState("all");
+  const [bankFilterType, setBankFilterType] = useState("all");
+  const [bankSearch, setBankSearch] = useState("");
+  const [bankOnlyActive, setBankOnlyActive] = useState(true);
+  const [selectedBankEx, setSelectedBankEx] = useState<any | null>(null);
+  const [bankDrawerOpen, setBankDrawerOpen] = useState(false);
+  const [savingBankTags, setSavingBankTags] = useState(false);
+  const [bankTagInput, setBankTagInput] = useState("");
+  const [bankAddLangId, setBankAddLangId] = useState("");
+  const [bankAddLevelId, setBankAddLevelId] = useState("");
+  const [bankAddUnitId, setBankAddUnitId] = useState("");
+  const [bankAddStepId, setBankAddStepId] = useState("");
+  const [bankAddUnits, setBankAddUnits] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [bankAddSteps, setBankAddSteps] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [bankAddingToStep, setBankAddingToStep] = useState(false);
+
   // ── Notifications tab
   const [notifSettings, setNotifSettings] = useState<any[]>([]);
   const [notifLog, setNotifLog] = useState<any[]>([]);
@@ -408,6 +429,7 @@ const Admin = () => {
     loadGroups();
     loadVocabulary();
     loadExercises();
+    loadBankExercises();
     loadNotificationSettings();
     loadNotifLog();
     loadMaterials();
@@ -668,6 +690,20 @@ const Admin = () => {
     (supabase as any).from("steps").select("id, number, title").eq("unit_id", grpStepUnitId).order("number")
       .then(({ data }: any) => { setGrpStepSteps(data || []); setGrpNewStepId(""); });
   }, [grpStepUnitId]);
+
+  // ── Bank add-to-step cascade ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!bankAddLevelId) { setBankAddUnits([]); setBankAddUnitId(""); setBankAddSteps([]); setBankAddStepId(""); return; }
+    (supabase as any).from("units").select("id, number, title").eq("level_id", bankAddLevelId).order("number")
+      .then(({ data }: any) => { setBankAddUnits(data || []); setBankAddUnitId(""); setBankAddSteps([]); setBankAddStepId(""); });
+  }, [bankAddLevelId]);
+
+  useEffect(() => {
+    if (!bankAddUnitId) { setBankAddSteps([]); setBankAddStepId(""); return; }
+    (supabase as any).from("steps").select("id, number, title").eq("unit_id", bankAddUnitId).order("number")
+      .then(({ data }: any) => { setBankAddSteps(data || []); setBankAddStepId(""); });
+  }, [bankAddUnitId]);
 
   const handleUpdateGroupStep = async () => {
     if (!selectedGroup || !grpNewStepId || groupStudents.length === 0) return;
@@ -967,6 +1003,17 @@ const Admin = () => {
     setAllSteps((data as any[]) || []);
   };
 
+  // ── Exercise Bank ─────────────────────────────────────────────────────────────
+  const loadBankExercises = async () => {
+    setBankLoading(true);
+    const { data } = await (supabase as any)
+      .from("exercise_bank")
+      .select("id, type, question, options, answer, explanation, tags, times_used, active, level_id, language_id, created_by, created_at")
+      .order("created_at", { ascending: false });
+    setBankExercises(data || []);
+    setBankLoading(false);
+  };
+
   // ── Notifications ─────────────────────────────────────────────────────────────
   const loadNotificationSettings = async () => {
     setNotifLoading(true);
@@ -1198,6 +1245,65 @@ const Admin = () => {
     });
   };
 
+  // ── Exercise Bank handlers ────────────────────────────────────────────────────
+
+  const handleToggleBankExActive = async (ex: any) => {
+    const newActive = !ex.active;
+    await (supabase as any).from("exercise_bank").update({ active: newActive }).eq("id", ex.id);
+    setBankExercises(prev => prev.map(e => e.id === ex.id ? { ...e, active: newActive } : e));
+    if (selectedBankEx?.id === ex.id) setSelectedBankEx((prev: any) => prev ? { ...prev, active: newActive } : prev);
+  };
+
+  const handleAddBankTag = async (tag: string) => {
+    if (!selectedBankEx || !tag.trim()) return;
+    const trimmed = tag.trim();
+    const current: string[] = selectedBankEx.tags || [];
+    if (current.includes(trimmed)) return;
+    const newTags = [...current, trimmed];
+    setSavingBankTags(true);
+    await (supabase as any).from("exercise_bank").update({ tags: newTags }).eq("id", selectedBankEx.id);
+    setBankExercises(prev => prev.map(e => e.id === selectedBankEx.id ? { ...e, tags: newTags } : e));
+    setSelectedBankEx((prev: any) => prev ? { ...prev, tags: newTags } : prev);
+    setSavingBankTags(false);
+  };
+
+  const handleRemoveBankTag = async (idx: number) => {
+    if (!selectedBankEx) return;
+    const current: string[] = selectedBankEx.tags || [];
+    const newTags = current.filter((_, i) => i !== idx);
+    setSavingBankTags(true);
+    await (supabase as any).from("exercise_bank").update({ tags: newTags }).eq("id", selectedBankEx.id);
+    setBankExercises(prev => prev.map(e => e.id === selectedBankEx.id ? { ...e, tags: newTags } : e));
+    setSelectedBankEx((prev: any) => prev ? { ...prev, tags: newTags } : prev);
+    setSavingBankTags(false);
+  };
+
+  const handleAddBankExToStep = async () => {
+    if (!selectedBankEx || !bankAddStepId) return;
+    setBankAddingToStep(true);
+    try {
+      await (supabase as any).from("lesson_exercises").insert({
+        step_id: bankAddStepId,
+        type: selectedBankEx.type,
+        question: selectedBankEx.question,
+        answer: selectedBankEx.answer,
+        explanation: selectedBankEx.explanation || null,
+        options: selectedBankEx.options || null,
+        order_index: 999,
+        active: true,
+      });
+      const newTimesUsed = (selectedBankEx.times_used || 0) + 1;
+      await (supabase as any).from("exercise_bank").update({ times_used: newTimesUsed }).eq("id", selectedBankEx.id);
+      setBankExercises(prev => prev.map(e => e.id === selectedBankEx.id ? { ...e, times_used: newTimesUsed } : e));
+      setSelectedBankEx((prev: any) => prev ? { ...prev, times_used: newTimesUsed } : prev);
+      toast({ title: "Exercício adicionado ao passo!", description: "O exercício foi inserido com sucesso." });
+      setBankAddStepId(""); setBankAddUnitId(""); setBankAddLevelId(""); setBankAddLangId("");
+    } catch (e: any) {
+      toast({ title: "Erro ao adicionar", description: e.message, variant: "destructive" });
+    }
+    setBankAddingToStep(false);
+  };
+
   const handleSaveNotifSetting = async (setting: any, updates: any) => {
     setSavingNotif(setting.id);
     await (supabase as any).from("notification_settings").update(updates).eq("id", setting.id);
@@ -1273,6 +1379,16 @@ const Admin = () => {
     const matchLevel = exerciseFilterLevel === "all" || levelId === exerciseFilterLevel;
     const matchStep = exerciseFilterStep === "all" || ex.step_id === exerciseFilterStep;
     return matchLevel && matchStep;
+  });
+
+  const filteredBankExercises = bankExercises.filter(ex => {
+    const level = levels.find(l => l.id === ex.level_id);
+    const matchLang = bankFilterLang === "all" || ex.language_id === bankFilterLang || level?.language_id === bankFilterLang;
+    const matchLevel = bankFilterLevel === "all" || ex.level_id === bankFilterLevel;
+    const matchType = bankFilterType === "all" || ex.type === bankFilterType;
+    const matchSearch = !bankSearch.trim() || (ex.question || "").toLowerCase().includes(bankSearch.toLowerCase());
+    const matchActive = !bankOnlyActive || ex.active;
+    return matchLang && matchLevel && matchType && matchSearch && matchActive;
   });
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -2406,6 +2522,7 @@ const Admin = () => {
                 <TabsTrigger value="materials" className="shrink-0 text-xs px-3 py-1.5">Materiais</TabsTrigger>
                 <TabsTrigger value="vocabulary" className="shrink-0 text-xs px-3 py-1.5">Vocabulário</TabsTrigger>
                 <TabsTrigger value="exercises" className="shrink-0 text-xs px-3 py-1.5">Exercícios da Aula</TabsTrigger>
+                <TabsTrigger value="exercise_bank" className="shrink-0 text-xs px-3 py-1.5">Banco de Exercícios</TabsTrigger>
                 <TabsTrigger value="approvals" className="shrink-0 text-xs px-3 py-1.5">Aprovações</TabsTrigger>
                 <TabsTrigger value="step_content" className="shrink-0 text-xs px-3 py-1.5">Por Passo</TabsTrigger>
               </TabsList>
@@ -2770,6 +2887,258 @@ const Admin = () => {
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Sub-tab: Banco de Exercícios */}
+              <TabsContent value="exercise_bank" className="space-y-3 mt-3">
+                {/* Filters */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Select value={bankFilterLang} onValueChange={v => { setBankFilterLang(v); setBankFilterLevel("all"); }}>
+                    <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Idioma" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos idiomas</SelectItem>
+                      {languages.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={bankFilterLevel} onValueChange={setBankFilterLevel}>
+                    <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Nível" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos níveis</SelectItem>
+                      {(bankFilterLang === "all" ? levels : filteredLevels(bankFilterLang)).map(l => (
+                        <SelectItem key={l.id} value={l.id}>{l.code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={bankFilterType} onValueChange={setBankFilterType}>
+                    <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="fill_blank">Preencher lacuna</SelectItem>
+                      <SelectItem value="association">Associação</SelectItem>
+                      <SelectItem value="open_answer">Resposta aberta</SelectItem>
+                      <SelectItem value="rewrite">Reescrita</SelectItem>
+                      <SelectItem value="production">Produção</SelectItem>
+                      <SelectItem value="dialogue">Diálogo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1 min-w-[140px]">
+                    <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar enunciado…"
+                      value={bankSearch}
+                      onChange={e => setBankSearch(e.target.value)}
+                      className="pl-7 h-8 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Switch
+                      id="bank-only-active"
+                      checked={bankOnlyActive}
+                      onCheckedChange={setBankOnlyActive}
+                    />
+                    <Label htmlFor="bank-only-active" className="text-xs cursor-pointer">Apenas ativos</Label>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={loadBankExercises}>
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                {/* Count */}
+                <p className="text-xs text-muted-foreground">
+                  {filteredBankExercises.length} exercício{filteredBankExercises.length !== 1 ? "s" : ""} encontrado{filteredBankExercises.length !== 1 ? "s" : ""}
+                </p>
+
+                {/* List */}
+                {bankLoading ? (
+                  <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded" />)}</div>
+                ) : filteredBankExercises.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Library className="h-10 w-10 mb-2 opacity-30" />
+                    <p className="text-sm">Nenhum exercício no banco.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {filteredBankExercises.map(ex => {
+                      const level = levels.find(l => l.id === ex.level_id);
+                      return (
+                        <Card key={ex.id} className={cn(!ex.active && "opacity-50")}>
+                          <CardContent className="p-3">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <Badge variant="outline" className="text-[10px] shrink-0">{ex.type?.replace(/_/g, " ")}</Badge>
+                                  {level && <span className="text-[10px] text-muted-foreground">{level.code}</span>}
+                                  <span className="text-[10px] text-muted-foreground ml-auto">usado {ex.times_used || 0}×</span>
+                                </div>
+                                <p className="text-sm truncate">{(ex.question || "").slice(0, 90)}{(ex.question || "").length > 90 ? "…" : ""}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Switch
+                                  checked={ex.active}
+                                  onCheckedChange={() => handleToggleBankExActive(ex)}
+                                  title={ex.active ? "Desativar" : "Ativar"}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs gap-1 px-2"
+                                  onClick={() => {
+                                    setSelectedBankEx(ex);
+                                    setBankAddLangId(""); setBankAddLevelId(""); setBankAddUnitId(""); setBankAddStepId("");
+                                    setBankTagInput("");
+                                    setBankDrawerOpen(true);
+                                  }}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  Detalhes
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Detail Drawer */}
+                <Sheet open={bankDrawerOpen} onOpenChange={v => { setBankDrawerOpen(v); if (!v) setSelectedBankEx(null); }}>
+                  <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto flex flex-col">
+                    <SheetHeader>
+                      <SheetTitle className="flex items-center gap-2">
+                        <Library className="h-4 w-4" />
+                        Exercício do Banco
+                      </SheetTitle>
+                    </SheetHeader>
+
+                    {selectedBankEx && (
+                      <div className="flex-1 space-y-5 py-4 overflow-y-auto">
+                        {/* Status badge */}
+                        <div className="flex items-center gap-2">
+                          <Badge variant={selectedBankEx.active ? "default" : "secondary"}>
+                            {selectedBankEx.active ? "Ativo" : "Inativo"}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">{selectedBankEx.type?.replace(/_/g, " ")}</Badge>
+                          <span className="text-xs text-muted-foreground ml-auto">usado {selectedBankEx.times_used || 0}×</span>
+                        </div>
+
+                        {/* Level / Language */}
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Nível</p>
+                          <p className="text-sm">{levels.find(l => l.id === selectedBankEx.level_id)?.name || "—"}</p>
+                        </div>
+
+                        {/* Question */}
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Enunciado</p>
+                          <p className="text-sm whitespace-pre-wrap">{selectedBankEx.question}</p>
+                        </div>
+
+                        {/* Answer */}
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Resposta</p>
+                          <p className="text-sm">{selectedBankEx.answer || "—"}</p>
+                        </div>
+
+                        {/* Explanation */}
+                        {selectedBankEx.explanation && (
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Explicação</p>
+                            <p className="text-sm text-muted-foreground">{selectedBankEx.explanation}</p>
+                          </div>
+                        )}
+
+                        {/* Tags */}
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tags {savingBankTags && <span className="font-normal normal-case">(salvando…)</span>}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(selectedBankEx.tags || []).map((tag: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
+                                {tag}
+                                <button onClick={() => handleRemoveBankTag(idx)} className="hover:text-destructive transition-colors">
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Nova tag…"
+                              value={bankTagInput}
+                              onChange={e => setBankTagInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter" && bankTagInput.trim()) {
+                                  handleAddBankTag(bankTagInput);
+                                  setBankTagInput("");
+                                }
+                              }}
+                              className="h-8 text-xs flex-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 text-xs"
+                              disabled={!bankTagInput.trim() || savingBankTags}
+                              onClick={() => { handleAddBankTag(bankTagInput); setBankTagInput(""); }}
+                            >
+                              Adicionar
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Toggle active */}
+                        <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                          <Switch
+                            checked={selectedBankEx.active}
+                            onCheckedChange={() => handleToggleBankExActive(selectedBankEx)}
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{selectedBankEx.active ? "Exercício ativo" : "Exercício inativo"}</p>
+                            <p className="text-xs text-muted-foreground">Exercícios inativos não aparecem para reutilização</p>
+                          </div>
+                        </div>
+
+                        {/* Add to step */}
+                        <div className="space-y-3 p-3 rounded-lg border bg-muted/10">
+                          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Adicionar a um step</p>
+                          <Select value={bankAddLangId} onValueChange={v => { setBankAddLangId(v); setBankAddLevelId(""); setBankAddUnitId(""); setBankAddStepId(""); }}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Idioma" /></SelectTrigger>
+                            <SelectContent>
+                              {languages.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Select value={bankAddLevelId} onValueChange={setBankAddLevelId} disabled={!bankAddLangId}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nível" /></SelectTrigger>
+                            <SelectContent>
+                              {filteredLevels(bankAddLangId).map(l => <SelectItem key={l.id} value={l.id}>{l.name} ({l.code})</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Select value={bankAddUnitId} onValueChange={setBankAddUnitId} disabled={!bankAddLevelId || bankAddUnits.length === 0}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Unidade" /></SelectTrigger>
+                            <SelectContent>
+                              {bankAddUnits.map(u => <SelectItem key={u.id} value={u.id}>Unidade {u.number}{u.title ? ` — ${u.title}` : ""}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Select value={bankAddStepId} onValueChange={setBankAddStepId} disabled={!bankAddUnitId || bankAddSteps.length === 0}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Step" /></SelectTrigger>
+                            <SelectContent>
+                              {bankAddSteps.map(s => <SelectItem key={s.id} value={s.id}>Step {s.number}{s.title ? ` — ${s.title}` : ""}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            className="w-full text-xs gap-1.5"
+                            disabled={!bankAddStepId || bankAddingToStep}
+                            onClick={handleAddBankExToStep}
+                          >
+                            {bankAddingToStep ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                            Adicionar ao step
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </SheetContent>
+                </Sheet>
               </TabsContent>
 
               {/* Sub-tab: Aprovações */}
