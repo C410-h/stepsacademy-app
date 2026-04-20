@@ -314,7 +314,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
 
       {/* ── Próximas aulas (Google Calendar) ── */}
       <div className="space-y-3">
-        <p className="text-sm font-bold">Próximas aulas</p>
+        <p className="text-sm font-bold">Aulas de hoje</p>
         <TeacherUpcomingClasses />
       </div>
 

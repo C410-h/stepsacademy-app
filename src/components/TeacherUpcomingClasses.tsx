@@ -37,23 +37,11 @@ const isStartingSoon = (startIso: string): boolean => {
   return diff >= 0 && diff <= 30 * 60 * 1000;
 };
 
-/**
- * Extrai o nome do aluno do título do evento.
- * Padrão: "Aula de Inglês — João Silva"
- */
-const extractStudentName = (title: string): string | null => {
-  const match = title?.match(/—\s*(.+)$/);
-  return match ? match[1].trim() : null;
-};
+const extractStudentName = (title: string): string | null =>
+  title?.split(" | ")[1]?.trim() ?? null;
 
-/**
- * Extrai o idioma do título do evento.
- * Padrão: "Aula de Inglês — ..."
- */
-const extractLanguage = (title: string): string | null => {
-  const match = title?.match(/^Aula de (.+?)\s*—/);
-  return match ? match[1].trim() : null;
-};
+const extractLanguage = (title: string): string | null =>
+  title?.split(" | ")[0]?.trim() ?? null;
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
@@ -85,7 +73,11 @@ const TeacherUpcomingClasses = () => {
         },
       });
 
-      if (isMounted.current) setEvents(data?.events || []);
+      const today = new Date().toDateString();
+      const todayEvents = (data?.events || []).filter(
+        (ev: ClassEvent) => new Date(ev.start).toDateString() === today
+      );
+      if (isMounted.current) setEvents(todayEvents);
     } catch {
       if (isMounted.current) setEvents([]);
     } finally {
@@ -123,10 +115,7 @@ const TeacherUpcomingClasses = () => {
         <CardContent className="py-8 flex flex-col items-center gap-2 text-center">
           <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground font-light">
-            Nenhuma aula agendada nos próximos 30 dias.
-          </p>
-          <p className="text-xs text-muted-foreground/60 font-light">
-            Use o botão "Agendar aula" para criar um evento no Google Calendar.
+            Nenhuma aula agendada para hoje.
           </p>
         </CardContent>
       </Card>

@@ -18,6 +18,14 @@ import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+interface GCalEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  meet_link: string | null;
+}
+
 interface SessionWithStudent {
   id: string;
   student_id: string;
@@ -105,6 +113,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
   const [loading, setLoading]     = useState(true);
   const [sessions, setSessions]   = useState<SessionWithStudent[]>([]);
+  const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
 
   // Drawer
   const [drawerOpen, setDrawerOpen]               = useState(false);
@@ -187,6 +196,20 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   }, [weekStart, profileId]);
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  // Fetch GCal events once on mount — covers next 30 days, filtered per week in render
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const { data } = await supabase.functions.invoke("google-calendar", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { action: "list_teacher_events", payload: {} },
+      });
+      setCalEvents(data?.events || []);
+    })();
+  }, []);
 
   // Scroll today column into view after load (mobile)
   useEffect(() => {
@@ -286,6 +309,42 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       toast({ title: "Erro ao marcar aula", variant: "destructive" });
     }
     setMarkingCompleted(false);
+  };
+
+  // ── Render: Google Calendar card (read-only) ─────────────────────────────
+
+  const GCalCard = ({ e }: { e: GCalEvent }) => {
+    const language = e.title.split(" | ")[0]?.trim();
+    const name     = e.title.split(" | ")[1]?.trim();
+    const soon     = isStartingSoon(e.start);
+    return (
+      <Card className={cn(
+        "border-dashed",
+        soon && "border-primary/40"
+      )}>
+        <CardContent className="p-2.5 space-y-1">
+          <p className="text-xs font-bold tabular-nums">
+            {formatTime(e.start)}{e.end ? ` – ${formatTime(e.end)}` : ""}
+          </p>
+          {name && <p className="text-xs font-medium truncate">{name.split(" ")[0]}</p>}
+          {language && <p className="text-[10px] text-muted-foreground font-light">{language}</p>}
+          {e.meet_link && (
+            <button
+              className="text-[10px] text-primary font-semibold flex items-center gap-1 hover:underline"
+              onClick={() => window.open(e.meet_link!, "_blank")}
+            >
+              <ExternalLink className="h-2.5 w-2.5" />
+              Entrar
+            </button>
+          )}
+          {soon && (
+            <span className="inline-block text-[10px] font-bold text-primary animate-pulse">
+              Em breve
+            </span>
+          )}
+        </CardContent>
+      </Card>
+    );
   };
 
   // ── Render: session card ──────────────────────────────────────────────────
@@ -406,6 +465,9 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   const { start: bs } = getEffectiveTimes(b);
                   return new Date(as).getTime() - new Date(bs).getTime();
                 });
+              const colCal = calEvents
+                .filter(e => isSameDay(new Date(e.start), day))
+                .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
               return (
                 <div
@@ -436,16 +498,16 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                       )}>
                         {`${String(day.getDate()).padStart(2, "0")}/${String(day.getMonth() + 1).padStart(2, "0")}`}
                       </p>
-                      {colSess.length > 0 && (
+                      {(colSess.length + colCal.length) > 0 && (
                         <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/15 text-primary text-[9px] font-bold px-1">
-                          {colSess.length}
+                          {colSess.length + colCal.length}
                         </span>
                       )}
                     </div>
                   </div>
 
                   {/* Cards */}
-                  {colSess.length === 0 ? (
+                  {colSess.length === 0 && colCal.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center">
                       <p className="text-[11px] text-muted-foreground/50 font-light text-center">
                         Nenhuma aula
@@ -454,6 +516,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   ) : (
                     <div className="flex flex-col gap-2">
                       {colSess.map(s => <SessionCard key={s.id} s={s} />)}
+                      {colCal.map(e => <GCalCard key={e.id} e={e} />)}
                     </div>
                   )}
                 </div>
