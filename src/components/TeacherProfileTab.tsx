@@ -296,17 +296,16 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         @media (min-width: 1024px) {
           .profile-bento {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: 2fr 1fr 1fr;
             grid-template-rows: auto auto auto;
             gap: 16px;
             grid-template-areas:
-              "info  info  pix     idioma"
-              "info  info  tema    seguranca"
-              "ajuda ajuda ajuda   ajuda";
+              "info  pix       pix"
+              "info  tema      seguranca"
+              "ajuda ajuda     ajuda";
           }
           .bento-info      { grid-area: info; }
           .bento-pix       { grid-area: pix; }
-          .bento-idioma    { grid-area: idioma; }
           .bento-tema      { grid-area: tema; }
           .bento-seguranca { grid-area: seguranca; }
           .bento-ajuda     { grid-area: ajuda; }
@@ -381,6 +380,40 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
                   className="resize-none text-sm font-light"
                 />
               </div>
+
+              {/* Idioma que leciona */}
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Idioma que leciona</label>
+                <Badge
+                  title="Para alterar, contate o administrador"
+                  className="cursor-default select-none"
+                >
+                  {teacherLang ?? "—"}
+                </Badge>
+              </div>
+
+              {/* Disponibilidade compacta */}
+              <div className="flex items-center justify-between pt-0.5">
+                <div className="flex gap-1">
+                  {DAY_LABELS.map((day, i) => (
+                    <div key={day} className="flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] text-muted-foreground">{day}</span>
+                      <span className={cn(
+                        "text-[10px] font-bold w-5 text-center",
+                        slotsPerDay[i] > 0 ? "text-primary" : "text-muted-foreground/40"
+                      )}>
+                        {slotsPerDay[i] > 0 ? slotsPerDay[i] : "·"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={onSwitchToAvailability}
+                  className="text-[10px] text-primary hover:underline font-medium"
+                >
+                  Editar horários →
+                </button>
+              </div>
             </div>
 
             <Button className="w-full mt-4" onClick={handleSaveInfo} disabled={savingInfo || bio.length > BIO_MAX}>
@@ -454,23 +487,9 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
           </CardContent>
         </Card>
 
-        {/* ── Idioma ── */}
-        <Card className="bento-idioma">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-bold">Idioma que leciona</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 flex flex-col items-center justify-center gap-3 py-6">
-            <Badge className="text-base px-5 py-1.5 font-bold">{teacherLang ?? "—"}</Badge>
-            <p className="text-[11px] text-muted-foreground font-light text-center flex items-start gap-1">
-              <Info className="h-3 w-3 shrink-0 mt-0.5" />
-              Para alterar, contate o administrador
-            </p>
-          </CardContent>
-        </Card>
-
         {/* ── Tema ── */}
         <Card className="bento-tema">
-          <CardContent className="p-4 space-y-3">
+          <CardContent className="p-4 space-y-2">
             <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</span>
             <div className="flex flex-wrap gap-2">
               {(Object.entries(themes) as [ThemeKey, typeof themes[ThemeKey]][]).map(([key, t]) => (
@@ -479,32 +498,25 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
                   onClick={() => setTheme(key)}
                   title={t.name}
                   className={cn(
-                    "h-8 w-8 rounded-full transition-all hover:scale-110 focus:outline-none",
+                    "h-7 w-7 rounded-full transition-all hover:scale-110 focus:outline-none",
                     activeTheme === key ? "ring-2 ring-offset-2 ring-primary scale-110" : ""
                   )}
                   style={{ background: t.primary }}
                 />
               ))}
             </div>
-            <p className="text-xs font-medium">
-              {themes[activeTheme as ThemeKey]?.name ?? ""}
-            </p>
+            <p className="text-xs font-medium">{themes[activeTheme as ThemeKey]?.name ?? ""}</p>
           </CardContent>
         </Card>
 
         {/* ── Segurança ── */}
         <Card className="bento-seguranca">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-bold">Segurança</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-3">
+          <CardContent className="p-4 space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Segurança</span>
             <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => setPwOpen(true)}>
               <Lock className="h-3.5 w-3.5" />
               Alterar senha
             </Button>
-            <p className="text-[11px] text-muted-foreground font-light">
-              Sua senha deve ter no mínimo 8 caracteres.
-            </p>
           </CardContent>
         </Card>
 
@@ -580,38 +592,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </Card>
 
       </div>
-
-      {/* ── Disponibilidade (fora do bento) ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold">Disponibilidade</CardTitle>
-            <Button variant="ghost" size="sm" className="text-xs h-7 px-2 text-primary" onClick={onSwitchToAvailability}>
-              Editar disponibilidade →
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-7 gap-1 text-center">
-            {DAY_LABELS.map((day, i) => (
-              <div key={day} className="space-y-1">
-                <p className="text-[10px] font-medium text-muted-foreground">{day}</p>
-                <div className={cn(
-                  "rounded-md py-2 text-xs font-bold",
-                  slotsPerDay[i] > 0
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground font-light"
-                )}>
-                  {slotsPerDay[i] > 0 ? slotsPerDay[i] : "—"}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-muted-foreground font-light mt-2 text-center">
-            Janelas de disponibilidade ativas por dia da semana
-          </p>
-        </CardContent>
-      </Card>
 
       {/* ── Sair da conta ── */}
       <Card>
