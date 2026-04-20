@@ -489,7 +489,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
                   ev.attendees?.some(a => a.email?.toLowerCase() === student.email?.toLowerCase())
                 )
                 .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0]?.start ?? null;
-              const nextSessionDate = student.nextSession?.scheduled_at ?? gcalNext;
+              const nextSessionDate = gcalNext ?? student.nextSession?.scheduled_at;
 
               return (
               <Card
