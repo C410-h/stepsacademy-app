@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useRef, ChangeEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useTheme } from "@/contexts/ThemeContext";
+import type { ThemeKey } from "@/lib/themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +26,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { HELP_CONTENT } from "@/data/helpContent";
 import { Camera, Info, Pencil, Lock, LogOut, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ interface Props {
 const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const { theme: activeTheme, setTheme, themes } = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading]               = useState(true);
@@ -99,32 +101,25 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const [savingPix, setSavingPix]           = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // Personal info
   const [avatarUrl, setAvatarUrl]     = useState<string | null>(null);
   const [name, setName]               = useState("");
   const [phone, setPhone]             = useState("");
   const [bio, setBio]                 = useState("");
-
-  // Teaching language (read-only, set at teacher creation)
   const [teacherLang, setTeacherLang] = useState<string | null>(null);
 
-  // PIX
   const [savedPixKey,  setSavedPixKey]  = useState<string | null>(null);
   const [savedPixType, setSavedPixType] = useState<string | null>(null);
   const [editingPix,   setEditingPix]   = useState(false);
   const [pixType, setPixType] = useState("cpf");
   const [pixKey,  setPixKey]  = useState("");
 
-  // Availability
   const [slotsPerDay, setSlotsPerDay] = useState<number[]>(new Array(7).fill(0));
 
-  // Password dialog
-  const [pwOpen,     setPwOpen]     = useState(false);
-  const [newPw,      setNewPw]      = useState("");
-  const [confirmPw,  setConfirmPw]  = useState("");
-  const [savingPw,   setSavingPw]   = useState(false);
+  const [pwOpen,    setPwOpen]    = useState(false);
+  const [newPw,     setNewPw]     = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [savingPw,  setSavingPw]  = useState(false);
 
-  // Help search
   const [helpSearch, setHelpSearch] = useState("");
 
   useEffect(() => { loadAll(); }, [profileId]);
@@ -259,7 +254,6 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
 
   const pixLabel = PIX_TYPES.find(t => t.value === (editingPix ? pixType : savedPixType))?.label ?? "Chave";
 
-  // Help filtering
   const teacherHelp = HELP_CONTENT.teacher ?? [];
   const filteredHelp = useMemo(() => {
     const term = helpSearch.trim().toLowerCase();
@@ -275,202 +269,319 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
     return results;
   }, [helpSearch]);
 
+  // ── Loading ────────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-36" />
-        <Skeleton className="h-56 rounded-xl" />
-        <Skeleton className="h-40 rounded-xl" />
-        <Skeleton className="h-28 rounded-xl" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Skeleton className="h-64 rounded-xl col-span-2 lg:row-span-2" />
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+        </div>
+        <Skeleton className="h-48 rounded-xl" />
       </div>
     );
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-5">
-      <h2 className="text-2xl font-bold">Perfil</h2>
+    <div className="space-y-4">
 
-      {/* ── 1. Informações pessoais ───────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold">Informações pessoais</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Avatar */}
-          <div className="flex items-center gap-4">
-            <div className="relative shrink-0">
-              <Avatar className="h-16 w-16">
-                <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl font-bold">
-                  {abbr(name || "?")}
-                </AvatarFallback>
-              </Avatar>
-              <button
-                className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-background border shadow flex items-center justify-center hover:bg-muted transition-colors"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploadingAvatar}
-              >
-                <Camera className="h-3 w-3" />
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-            </div>
-            <div className="min-w-0">
-              <p className="font-bold text-sm">{name || "Professor"}</p>
-              <p className="text-xs text-muted-foreground font-light">{user?.email}</p>
-            </div>
-          </div>
+      {/* ── Bento grid CSS ── */}
+      <style>{`
+        @media (min-width: 1024px) {
+          .profile-bento {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: auto auto auto;
+            gap: 16px;
+            grid-template-areas:
+              "info  info  pix     idioma"
+              "info  info  tema    seguranca"
+              "ajuda ajuda ajuda   ajuda";
+          }
+          .bento-info      { grid-area: info; }
+          .bento-pix       { grid-area: pix; }
+          .bento-idioma    { grid-area: idioma; }
+          .bento-tema      { grid-area: tema; }
+          .bento-seguranca { grid-area: seguranca; }
+          .bento-ajuda     { grid-area: ajuda; }
+        }
+      `}</style>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Nome completo</label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome completo" />
-          </div>
+      {/* ── Bento ── */}
+      <div className="profile-bento space-y-4 lg:space-y-0">
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">E-mail</label>
-            <Input value={user?.email ?? ""} readOnly className="bg-muted text-muted-foreground" />
-          </div>
+        {/* ── Info (2×2) ── */}
+        <Card className="bento-info flex flex-col">
+          <CardContent className="p-5 flex flex-col flex-1">
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Telefone</label>
-            <Input
-              value={phone}
-              onChange={e => setPhone(applyPhoneMask(e.target.value))}
-              placeholder="(11) 99999-9999"
-              inputMode="numeric"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Bio</label>
-              <span className={cn("text-[10px]", bio.length > BIO_MAX ? "text-red-500" : "text-muted-foreground")}>
-                {bio.length}/{BIO_MAX}
-              </span>
-            </div>
-            <Textarea
-              value={bio}
-              onChange={e => setBio(e.target.value.slice(0, BIO_MAX))}
-              placeholder="Conte um pouco sobre você e sua metodologia de ensino..."
-              rows={3}
-              className="resize-none text-sm font-light"
-            />
-          </div>
-
-          <Button className="w-full" onClick={handleSaveInfo} disabled={savingInfo || bio.length > BIO_MAX}>
-            {savingInfo ? "Salvando..." : "Salvar alterações"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* ── 2. Chave PIX ──────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold">Chave PIX</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {savedPixKey && !editingPix ? (
-            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted">
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">{pixLabel}</p>
-                <p className="font-mono font-bold text-sm truncate">{savedPixKey}</p>
+            {/* Avatar centrado */}
+            <div className="flex flex-col items-center gap-2 pb-4 mb-4 border-b">
+              <div className="relative">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={avatarUrl || undefined} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
+                    {abbr(name || "?")}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-background border shadow flex items-center justify-center hover:bg-muted transition-colors"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploadingAvatar}
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
               </div>
-              <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setEditingPix(true)}>
-                <Pencil className="h-3 w-3" />
-                Editar
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tipo de chave</label>
-                <Select value={pixType} onValueChange={v => { setPixType(v); setPixKey(""); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PIX_TYPES.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="text-center">
+                <p className="font-bold text-sm">{name || "Professor"}</p>
+                <p className="text-xs text-muted-foreground font-light">{user?.email}</p>
               </div>
+            </div>
+
+            {/* Campos */}
+            <div className="flex-1 space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">{pixLabel}</label>
+                <label className="text-xs font-medium text-muted-foreground">Nome completo</label>
+                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome completo" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">E-mail</label>
+                <Input value={user?.email ?? ""} readOnly className="bg-muted text-muted-foreground" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Telefone</label>
                 <Input
-                  value={pixKey}
-                  onChange={e => setPixKey(applyPixMask(e.target.value, pixType))}
-                  placeholder={
-                    pixType === "cpf"    ? "000.000.000-00"     :
-                    pixType === "cnpj"   ? "00.000.000/0000-00" :
-                    pixType === "phone"  ? "(11) 99999-9999"    :
-                    pixType === "email"  ? "email@exemplo.com"  :
-                                          "Chave aleatória"
-                  }
-                  inputMode={pixType === "cpf" || pixType === "cnpj" || pixType === "phone" ? "numeric" : "text"}
+                  value={phone}
+                  onChange={e => setPhone(applyPhoneMask(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                  inputMode="numeric"
                 />
               </div>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={handleSavePix} disabled={savingPix || !pixKey.trim()}>
-                  {savingPix ? "Salvando..." : "Salvar chave PIX"}
-                </Button>
-                {savedPixKey && (
-                  <Button variant="outline" onClick={() => { setEditingPix(false); setPixKey(savedPixKey); setPixType(savedPixType || "cpf"); }}>
-                    Cancelar
-                  </Button>
-                )}
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">Bio</label>
+                  <span className={cn("text-[10px]", bio.length > BIO_MAX ? "text-red-500" : "text-muted-foreground")}>
+                    {bio.length}/{BIO_MAX}
+                  </span>
+                </div>
+                <Textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value.slice(0, BIO_MAX))}
+                  placeholder="Conte um pouco sobre você e sua metodologia de ensino..."
+                  rows={3}
+                  className="resize-none text-sm font-light"
+                />
               </div>
             </div>
-          )}
-          <div className="flex items-start gap-2 text-xs text-muted-foreground font-light">
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>Sua chave PIX é usada pela steps academy para processar seus pagamentos.</span>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* ── 3. Idioma que leciona ─────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold">Idioma que leciona</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
-            <Badge variant="default" className="shrink-0">
-              {teacherLang ?? "—"}
-            </Badge>
-            <span className="text-sm font-medium">{teacherLang ?? "Não definido"}</span>
-          </div>
-          <p className="text-xs text-muted-foreground font-light flex items-start gap-1.5">
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            Para alterar o idioma, entre em contato com o administrador.
-          </p>
-        </CardContent>
-      </Card>
+            <Button className="w-full mt-4" onClick={handleSaveInfo} disabled={savingInfo || bio.length > BIO_MAX}>
+              {savingInfo ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </CardContent>
+        </Card>
 
-      {/* ── 4. Tema visual ────────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-0.5">Tema da plataforma</p>
-        <ThemeSwitcher />
-      </div>
-
-      {/* ── 5. Segurança ──────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold">Segurança</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Senha</p>
-              <p className="text-xs text-muted-foreground font-light">Defina uma nova senha de acesso à plataforma.</p>
+        {/* ── PIX ── */}
+        <Card className="bento-pix">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold">Chave PIX</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-3">
+            {savedPixKey && !editingPix ? (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted">
+                <div className="min-w-0">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">{pixLabel}</p>
+                  <p className="font-mono font-bold text-sm truncate">{savedPixKey}</p>
+                </div>
+                <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setEditingPix(true)}>
+                  <Pencil className="h-3 w-3" />
+                  Editar
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Tipo de chave</label>
+                  <Select value={pixType} onValueChange={v => { setPixType(v); setPixKey(""); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PIX_TYPES.map(t => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">{pixLabel}</label>
+                  <Input
+                    className="h-8 text-xs"
+                    value={pixKey}
+                    onChange={e => setPixKey(applyPixMask(e.target.value, pixType))}
+                    placeholder={
+                      pixType === "cpf"    ? "000.000.000-00"     :
+                      pixType === "cnpj"   ? "00.000.000/0000-00" :
+                      pixType === "phone"  ? "(11) 99999-9999"    :
+                      pixType === "email"  ? "email@exemplo.com"  :
+                                            "Chave aleatória"
+                    }
+                    inputMode={pixType === "cpf" || pixType === "cnpj" || pixType === "phone" ? "numeric" : "text"}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleSavePix} disabled={savingPix || !pixKey.trim()}>
+                    {savingPix ? "Salvando..." : "Salvar"}
+                  </Button>
+                  {savedPixKey && (
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setEditingPix(false); setPixKey(savedPixKey); setPixType(savedPixType || "cpf"); }}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground font-light">
+              <Info className="h-3 w-3 shrink-0 mt-0.5" />
+              <span>Usada pela steps academy para processar seus pagamentos.</span>
             </div>
-            <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setPwOpen(true)}>
+          </CardContent>
+        </Card>
+
+        {/* ── Idioma ── */}
+        <Card className="bento-idioma">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold">Idioma que leciona</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 flex flex-col items-center justify-center gap-3 py-6">
+            <Badge className="text-base px-5 py-1.5 font-bold">{teacherLang ?? "—"}</Badge>
+            <p className="text-[11px] text-muted-foreground font-light text-center flex items-start gap-1">
+              <Info className="h-3 w-3 shrink-0 mt-0.5" />
+              Para alterar, contate o administrador
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* ── Tema ── */}
+        <Card className="bento-tema">
+          <CardContent className="p-4 space-y-3">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</span>
+            <div className="flex flex-wrap gap-2">
+              {(Object.entries(themes) as [ThemeKey, typeof themes[ThemeKey]][]).map(([key, t]) => (
+                <button
+                  key={key}
+                  onClick={() => setTheme(key)}
+                  title={t.name}
+                  className={cn(
+                    "h-8 w-8 rounded-full transition-all hover:scale-110 focus:outline-none",
+                    activeTheme === key ? "ring-2 ring-offset-2 ring-primary scale-110" : ""
+                  )}
+                  style={{ background: t.primary }}
+                />
+              ))}
+            </div>
+            <p className="text-xs font-medium">
+              {themes[activeTheme as ThemeKey]?.name ?? ""}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* ── Segurança ── */}
+        <Card className="bento-seguranca">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold">Segurança</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-3">
+            <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => setPwOpen(true)}>
               <Lock className="h-3.5 w-3.5" />
               Alterar senha
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <p className="text-[11px] text-muted-foreground font-light">
+              Sua senha deve ter no mínimo 8 caracteres.
+            </p>
+          </CardContent>
+        </Card>
 
-      {/* ── 6. Disponibilidade ────────────────────────────────────────────── */}
+        {/* ── Ajuda (4 colunas) ── */}
+        <Card className="bento-ajuda">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold">Central de Ajuda</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Buscar pergunta ou palavra-chave…"
+                value={helpSearch}
+                onChange={e => setHelpSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            {filteredHelp !== null ? (
+              filteredHelp.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-8 text-center">
+                  <HelpCircle className="h-8 w-8 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground font-light">
+                    Nenhum resultado para{" "}
+                    <span className="font-medium text-foreground">"{helpSearch}"</span>.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">
+                    {filteredHelp.length} {filteredHelp.length === 1 ? "resultado" : "resultados"}
+                  </p>
+                  <Accordion type="multiple">
+                    {filteredHelp.map((item, i) => (
+                      <AccordionItem key={i} value={`search-${i}`}>
+                        <AccordionTrigger className="text-sm font-semibold text-left">
+                          {item.question}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <p className="text-sm text-muted-foreground font-light leading-relaxed">{item.answer}</p>
+                          <p className="text-[10px] text-muted-foreground/60 mt-2 uppercase tracking-wide">{item.section}</p>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+              )
+            ) : (
+              <div className="space-y-6">
+                {teacherHelp.map((sec, si) => (
+                  <div key={si} className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      {sec.section}
+                    </h3>
+                    <Accordion type="multiple">
+                      {sec.items.map((item, ii) => (
+                        <AccordionItem key={ii} value={`${si}-${ii}`}>
+                          <AccordionTrigger className="text-sm font-semibold text-left">
+                            {item.question}
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className="text-sm text-muted-foreground font-light leading-relaxed">{item.answer}</p>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+      </div>
+
+      {/* ── Disponibilidade (fora do bento) ── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -502,78 +613,7 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </CardContent>
       </Card>
 
-      {/* ── 7. Central de Ajuda ───────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold">Central de Ajuda</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Buscar pergunta ou palavra-chave…"
-              value={helpSearch}
-              onChange={e => setHelpSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
-          {filteredHelp !== null ? (
-            filteredHelp.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <HelpCircle className="h-8 w-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground font-light">
-                  Nenhum resultado para{" "}
-                  <span className="font-medium text-foreground">"{helpSearch}"</span>.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">
-                  {filteredHelp.length} {filteredHelp.length === 1 ? "resultado" : "resultados"}
-                </p>
-                <Accordion type="multiple">
-                  {filteredHelp.map((item, i) => (
-                    <AccordionItem key={i} value={`search-${i}`}>
-                      <AccordionTrigger className="text-sm font-semibold text-left">
-                        {item.question}
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <p className="text-sm text-muted-foreground font-light leading-relaxed">{item.answer}</p>
-                        <p className="text-[10px] text-muted-foreground/60 mt-2 uppercase tracking-wide">{item.section}</p>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </div>
-            )
-          ) : (
-            <div className="space-y-6">
-              {teacherHelp.map((sec, si) => (
-                <div key={si} className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    {sec.section}
-                  </h3>
-                  <Accordion type="multiple">
-                    {sec.items.map((item, ii) => (
-                      <AccordionItem key={ii} value={`${si}-${ii}`}>
-                        <AccordionTrigger className="text-sm font-semibold text-left">
-                          {item.question}
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <p className="text-sm text-muted-foreground font-light leading-relaxed">{item.answer}</p>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Sair da conta ─────────────────────────────────────────────────── */}
+      {/* ── Sair da conta ── */}
       <Card>
         <CardContent className="p-4">
           <Button
@@ -587,7 +627,7 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         </CardContent>
       </Card>
 
-      {/* ── Password dialog ───────────────────────────────────────────────── */}
+      {/* ── Password dialog ── */}
       <Dialog open={pwOpen} onOpenChange={open => { setPwOpen(open); if (!open) { setNewPw(""); setConfirmPw(""); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -627,6 +667,7 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };
