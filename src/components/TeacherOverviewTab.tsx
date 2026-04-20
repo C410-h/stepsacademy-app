@@ -104,7 +104,6 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
   });
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [allGcalEvents, setAllGcalEvents] = useState<UpcomingEvent[]>([]);
-  const [gcalMonthCount, setGcalMonthCount] = useState<number | null>(null);
   const [upcomingDayLabel, setUpcomingDayLabel] = useState<string>("Hoje");
   const [loading, setLoading] = useState(true);
 
@@ -124,15 +123,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
 
       const events: UpcomingEvent[] = data?.events || [];
       setAllGcalEvents(events);
-
-      const now = new Date();
-      const pastThisMonth = events.filter(ev => {
-        const d = new Date(ev.start);
-        return d < now && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      });
-      setGcalMonthCount(pastThisMonth.length);
-
-      const todayStr = now.toDateString();
+      const todayStr = new Date().toDateString();
       const todayEvents = events.filter(ev => new Date(ev.start).toDateString() === todayStr);
 
       if (todayEvents.length > 0) {
@@ -340,7 +331,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
                 </span>
                 <CalendarCheck className="h-4 w-4 text-green-600" />
               </div>
-              <p className="text-3xl font-bold">{gcalMonthCount ?? metrics.completedThisMonth}</p>
+              <p className="text-3xl font-bold">{metrics.completedThisMonth}</p>
             </CardContent>
           </Card>
 

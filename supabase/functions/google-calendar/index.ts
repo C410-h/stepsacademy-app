@@ -54,16 +54,14 @@ async function fetchCalendarEvents(
   accessToken: string,
   filterFn: (e: any) => boolean,
   mapFn: (e: any) => any,
-  timeMin?: string,
-  timeMax?: string,
 ): Promise<any[]> {
-  const min = timeMin ?? new Date().toISOString()
-  const max = timeMax ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  const now = new Date().toISOString()
+  const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-    `timeMin=${encodeURIComponent(min)}&timeMax=${encodeURIComponent(max)}` +
-    `&singleEvents=true&orderBy=startTime&maxResults=100`,
+    `timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(future)}` +
+    `&singleEvents=true&orderBy=startTime&maxResults=50`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   )
   const data = await res.json()
@@ -182,11 +180,6 @@ serve(async (req) => {
     if (action === 'list_teacher_events') {
       const accessToken = await resolveAccessToken(supabase, user.id)
 
-      const startOfMonth = new Date()
-      startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
-      const endOfRange = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
       const events = await fetchCalendarEvents(
         accessToken,
         (e) => (e.summary ?? '').includes(' | '),
@@ -202,8 +195,6 @@ serve(async (req) => {
             name: a.displayName || null,
           })),
         }),
-        startOfMonth.toISOString(),
-        endOfRange.toISOString(),
       )
 
       return new Response(JSON.stringify({ events }), {
