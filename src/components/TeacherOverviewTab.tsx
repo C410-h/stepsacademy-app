@@ -12,6 +12,7 @@ import {
   CalendarPlus, BookOpen, CheckCircle2,
 } from "lucide-react";
 import type { ScheduleStudent } from "@/components/ScheduleClassSheet";
+import TeacherUpcomingClasses from "@/components/TeacherUpcomingClasses";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -310,6 +311,12 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
           </Button>
         </div>
       )}
+
+      {/* ── Próximas aulas (Google Calendar) ── */}
+      <div className="space-y-3">
+        <p className="text-sm font-bold">Próximas aulas</p>
+        <TeacherUpcomingClasses />
+      </div>
 
       {/* ── Cards de alunos ── */}
       {students.length === 0 ? (
