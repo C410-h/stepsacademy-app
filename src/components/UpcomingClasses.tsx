@@ -100,6 +100,7 @@ const UpcomingClasses = () => {
             action: "list_student_events",
             payload: {
               student_email: user.email,
+              student_profile_id: profile.id,
               student_db_id: studentDbId,
               teacher_id: teacherInfo.teacher_user_id,
             },

@@ -93,11 +93,21 @@ serve(async (req) => {
 
     // ── AÇÃO 1: Listar próximas aulas do aluno ────────────────────────────────
     if (action === 'list_student_events') {
-      const { student_email, student_db_id, teacher_id } = payload
+      const { student_email, student_db_id, student_profile_id, teacher_id } = payload
 
       const calendarOwner = teacher_id ?? user.id
       const accessToken = await resolveAccessToken(supabase, calendarOwner)
       const normalizedEmail = student_email?.toLowerCase().trim()
+
+      // Busca emails alternativos do aluno para ampliar a detecção de attendees
+      const { data: altEmailRows } = student_profile_id
+        ? await supabase.from('profile_alternate_emails').select('email').eq('profile_id', student_profile_id)
+        : { data: [] }
+
+      const allStudentEmails = [
+        normalizedEmail,
+        ...(altEmailRows ?? []).map((e: any) => e.email?.toLowerCase().trim()),
+      ].filter(Boolean)
 
       const now = new Date().toISOString()
       const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -119,7 +129,7 @@ serve(async (req) => {
       for (const e of stepsItems) {
         const attendees: any[] = e.attendees || []
         const hasStudent = attendees.some(
-          (a: any) => a.email?.toLowerCase().trim() === normalizedEmail
+          (a: any) => allStudentEmails.includes(a.email?.toLowerCase().trim())
         )
 
         let classType: 'individual' | 'duo' | 'group' = 'individual'

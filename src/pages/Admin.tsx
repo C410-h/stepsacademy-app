@@ -37,7 +37,7 @@ import ThemeSwitcher from "@/components/ThemeSwitcher";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StudentRow {
-  id: string; status: string; currentStepNumber: number;
+  id: string; status: string; currentStepNumber: number; userId: string;
   profile: { name: string } | null; language: { name: string } | null;
   level: { name: string; code: string } | null; teacherName: string | null;
   teacherId: string | null;
@@ -166,6 +166,13 @@ const Admin = () => {
   const [personalMatSelect, setPersonalMatSelect] = useState("");
   const [personalMatNote, setPersonalMatNote] = useState("");
   const [addingPersonalMat, setAddingPersonalMat] = useState(false);
+
+  // ── Alternate emails
+  const [drawerAltEmails, setDrawerAltEmails] = useState<{ id: string; email: string; label: string | null }[]>([]);
+  const [showAddAltEmail, setShowAddAltEmail] = useState(false);
+  const [newAltEmail, setNewAltEmail] = useState("");
+  const [newAltLabel, setNewAltLabel] = useState("");
+  const [addingAltEmail, setAddingAltEmail] = useState(false);
 
   // ── Add language enrollment
   const [showAddEnrollment, setShowAddEnrollment] = useState(false);
@@ -444,7 +451,7 @@ const Admin = () => {
         const langData = (langs || []).find((l: any) => l.id === s.language_id);
         const levelData = (lvls || []).find((l: any) => l.id === s.level_id);
         return {
-          id: s.id, status: s.status, currentStepNumber: s.steps?.number || 0,
+          id: s.id, status: s.status, currentStepNumber: s.steps?.number || 0, userId: s.user_id,
           profile: s.profiles ? { name: s.profiles.name } : null,
           language: langData ? { name: langData.name } : null,
           level: levelData ? { name: levelData.name, code: levelData.code } : null,
@@ -469,18 +476,24 @@ const Admin = () => {
     setShowAddPersonalMat(false);
     setPersonalMatSelect("");
     setPersonalMatNote("");
+    setDrawerAltEmails([]);
+    setShowAddAltEmail(false);
+    setNewAltEmail("");
+    setNewAltLabel("");
     const [
       { data: gamif },
       { data: placements },
       { data: classes },
       { data: progress },
       { data: personalMats },
+      { data: altEmails },
     ] = await Promise.all([
       (supabase as any).from("student_gamification").select("xp_total, coins, streak_current, streak_best").eq("student_id", student.id).single(),
       (supabase as any).from("placement_tests").select("assigned_level, test_type, notes, completed_at").eq("student_id", student.id).order("created_at", { ascending: false }).limit(1),
       supabase.from("classes").select("scheduled_at, steps!classes_step_id_fkey(number)").eq("student_id", student.id).eq("status", "completed").order("scheduled_at", { ascending: false }).limit(5),
       supabase.from("student_progress").select("status").eq("student_id", student.id),
       (supabase as any).from("student_materials").select("id, material_id, note, materials(id, title, type)").eq("student_id", student.id).eq("is_personal", true),
+      (supabase as any).from("profile_alternate_emails").select("id, email, label").eq("profile_id", student.userId),
     ]);
     setDrawerGamification(gamif || null);
     setDrawerPlacement(placements?.[0] || null);
@@ -490,8 +503,41 @@ const Admin = () => {
     const locked = (progress || []).filter((p: any) => p.status === "locked").length;
     setDrawerProgress({ done, available, locked });
     setDrawerPersonalMats((personalMats as any[]) || []);
+    setDrawerAltEmails((altEmails as any[]) || []);
     setDrawerLoading(false);
     await loadDrawerCerts(student.id);
+  };
+
+  const handleAddAltEmail = async () => {
+    if (!selectedStudent || !newAltEmail.trim()) return;
+    setAddingAltEmail(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("profile_alternate_emails")
+        .insert({ profile_id: selectedStudent.userId, email: newAltEmail.trim().toLowerCase(), label: newAltLabel.trim() || null });
+      if (error) throw error;
+      toast({ title: "Email alternativo adicionado!" });
+      setShowAddAltEmail(false);
+      setNewAltEmail("");
+      setNewAltLabel("");
+      const { data } = await (supabase as any).from("profile_alternate_emails").select("id, email, label").eq("profile_id", selectedStudent.userId);
+      setDrawerAltEmails(data || []);
+    } catch (e: any) {
+      toast({ title: "Erro ao adicionar email", description: e.message, variant: "destructive" });
+    } finally {
+      setAddingAltEmail(false);
+    }
+  };
+
+  const handleRemoveAltEmail = async (altId: string) => {
+    try {
+      const { error } = await (supabase as any).from("profile_alternate_emails").delete().eq("id", altId);
+      if (error) throw error;
+      setDrawerAltEmails(prev => prev.filter(e => e.id !== altId));
+      toast({ title: "Email removido." });
+    } catch {
+      toast({ title: "Erro ao remover email", variant: "destructive" });
+    }
   };
 
   const loadDrawerCerts = async (studentId: string) => {
@@ -1534,7 +1580,7 @@ const Admin = () => {
             )}
 
             {/* Student Drawer */}
-            <Sheet open={studentDrawerOpen} onOpenChange={v => { setStudentDrawerOpen(v); if (!v) { setShowAddEnrollment(false); setEnrollLangId(""); setEnrollLevelId(""); } }}>
+            <Sheet open={studentDrawerOpen} onOpenChange={v => { setStudentDrawerOpen(v); if (!v) { setShowAddEnrollment(false); setEnrollLangId(""); setEnrollLevelId(""); setShowAddAltEmail(false); setNewAltEmail(""); setNewAltLabel(""); } }}>
               <SheetContent className="w-full sm:max-w-lg lg:max-w-2xl overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>{selectedStudent?.profile?.name || "Aluno"}</SheetTitle>
@@ -1737,6 +1783,48 @@ const Admin = () => {
                         <GraduationCap className="h-3.5 w-3.5" />
                         {issuingCert ? "Emitindo..." : "Emitir certificado manualmente"}
                       </Button>
+                    </div>
+
+                    {/* Emails alternativos */}
+                    <div className="space-y-3 pt-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Emails alternativos</p>
+                      {drawerAltEmails.length === 0 && !showAddAltEmail && (
+                        <p className="text-xs text-muted-foreground font-light">Nenhum email alternativo cadastrado.</p>
+                      )}
+                      {drawerAltEmails.map(ae => (
+                        <div key={ae.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{ae.email}</p>
+                            {ae.label && <p className="text-muted-foreground">{ae.label}</p>}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs h-7 px-2 shrink-0"
+                            onClick={() => handleRemoveAltEmail(ae.id)}
+                          >
+                            Remover
+                          </Button>
+                        </div>
+                      ))}
+                      {!showAddAltEmail ? (
+                        <Button size="sm" variant="outline" className="w-full text-xs gap-1.5" onClick={() => setShowAddAltEmail(true)}>
+                          + Adicionar email alternativo
+                        </Button>
+                      ) : (
+                        <div className="space-y-2 p-2 rounded-lg border bg-muted/30">
+                          <Input type="email" placeholder="email@exemplo.com" className="text-xs h-8" value={newAltEmail} onChange={e => setNewAltEmail(e.target.value)} />
+                          <Input placeholder="Label (ex: AllGreen, Trabalho)" className="text-xs h-8" value={newAltLabel} onChange={e => setNewAltLabel(e.target.value)} />
+                          <div className="flex gap-2">
+                            <Button size="sm" className="flex-1 text-xs" onClick={handleAddAltEmail} disabled={!newAltEmail || addingAltEmail}>
+                              {addingAltEmail ? "Salvando..." : "Salvar"}
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setShowAddAltEmail(false); setNewAltEmail(""); setNewAltLabel(""); }}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Materiais pessoais */}
