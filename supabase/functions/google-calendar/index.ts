@@ -189,7 +189,10 @@ serve(async (req) => {
 
       const events = await fetchCalendarEvents(
         accessToken,
-        (e) => (e.summary ?? '').includes(' | '),
+        (e) => {
+          const s = e.summary ?? ''
+          return s.includes(' | ') || s.toLowerCase().startsWith('aula de ')
+        },
         (e) => ({
           id: e.id,
           title: e.summary,
