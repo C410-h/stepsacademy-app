@@ -89,15 +89,14 @@ interface Props {
   teacherId: string;
 }
 
-interface LangOption { id: string; name: string; }
 interface LevelOption { id: string; name: string; code: string; language_id: string; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
-  complete: "bg-lime/80",
-  partial: "bg-yellow-400/80",
-  empty: "bg-muted",
+const STATUS_BADGE: Record<string, string> = {
+  complete: "bg-lime/80 text-lime-900",
+  partial: "bg-yellow-400/80 text-yellow-900",
+  empty: "bg-muted text-muted-foreground",
 };
 
 const statusLabel: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -697,7 +696,6 @@ function PublishDialog({
 
 const TeacherContentTab = ({ teacherId }: Props) => {
   const { toast } = useToast();
-  const [languages, setLanguages] = useState<LangOption[]>([]);
   const [levels, setLevels] = useState<LevelOption[]>([]);
   const [languageId, setLanguageId] = useState<string | null>(null);
   const [levelId, setLevelId] = useState<string | null>(null);
@@ -712,16 +710,29 @@ const TeacherContentTab = ({ teacherId }: Props) => {
   const [currentSubmissionId, setCurrentSubmissionId] = useState<string | null>(null);
   const [bankPickerEntryId, setBankPickerEntryId] = useState<string | null>(null);
 
-  // Load languages and levels
+  // Load levels + auto-detect teacher's language via their students
   useEffect(() => {
     Promise.all([
-      supabase.from("languages").select("id, name").order("name"),
       supabase.from("levels").select("id, name, code, language_id").order("code"),
-    ]).then(([{ data: langs }, { data: lvls }]) => {
-      setLanguages(langs || []);
+      supabase
+        .from("teacher_students")
+        .select("students!inner(language_id)")
+        .eq("teacher_id", teacherId),
+    ]).then(([{ data: lvls }, { data: ts }]) => {
       setLevels(lvls || []);
+
+      if (ts && ts.length > 0) {
+        // Count occurrences per language_id and pick the most common
+        const counts: Record<string, number> = {};
+        for (const row of ts as any[]) {
+          const lid = row.students?.language_id;
+          if (lid) counts[lid] = (counts[lid] || 0) + 1;
+        }
+        const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (dominant) setLanguageId(dominant);
+      }
     });
-  }, []);
+  }, [teacherId]);
 
   // ── Load steps ──────────────────────────────────────────────────────────────
 
@@ -1197,30 +1208,20 @@ const TeacherContentTab = ({ teacherId }: Props) => {
 
   return (
     <div className="space-y-4">
-      {/* Language / Level selectors */}
-      <div className="flex gap-2">
-        <Select value={languageId || ""} onValueChange={v => { setLanguageId(v || null); setLevelId(null); setSteps([]); }}>
-          <SelectTrigger className="flex-1 h-9 text-xs">
-            <SelectValue placeholder="Idioma" />
-          </SelectTrigger>
-          <SelectContent>
-            {languages.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={levelId || ""} onValueChange={v => setLevelId(v || null)} disabled={!languageId}>
-          <SelectTrigger className="flex-1 h-9 text-xs">
-            <SelectValue placeholder="Nível" />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredLevels.map(l => <SelectItem key={l.id} value={l.id}>{l.name} ({l.code})</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Level selector — language is auto-detected from teacher's students */}
+      <Select value={levelId || ""} onValueChange={v => setLevelId(v || null)} disabled={!languageId}>
+        <SelectTrigger className="h-9 text-xs">
+          <SelectValue placeholder="Selecione o nível" />
+        </SelectTrigger>
+        <SelectContent>
+          {filteredLevels.map(l => <SelectItem key={l.id} value={l.id}>{l.name} ({l.code})</SelectItem>)}
+        </SelectContent>
+      </Select>
 
-      {!languageId || !levelId ? (
+      {!levelId ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
           <Globe className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-          Selecione um idioma e nível para ver os passos.
+          Selecione um nível para ver os passos.
         </div>
       ) : loading ? (
         <div className="space-y-2">
@@ -1240,23 +1241,33 @@ const TeacherContentTab = ({ teacherId }: Props) => {
                 <button
                   key={step.id}
                   onClick={() => openStep(step)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border bg-card hover:border-primary/30 hover:bg-muted/30 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border bg-card hover:border-primary/30 hover:bg-muted/30 transition-colors text-left"
                 >
-                  <div className={cn("h-3 w-3 rounded-full shrink-0", STATUS_COLORS[step.status])} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">
-                      Passo {step.number}{step.title ? ` — ${step.title}` : ""}
-                    </p>
-                    {statusInfo && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-muted-foreground">{statusInfo.icon}</span>
-                        <span className="text-xs text-muted-foreground">{statusInfo.label}</span>
-                      </div>
-                    )}
-                    {step.adminComment && sub === "rejected" && (
-                      <p className="text-xs text-destructive mt-0.5 truncate">"{step.adminComment}"</p>
-                    )}
+                  {/* Number badge */}
+                  <div className={cn(
+                    "h-7 w-7 rounded-md shrink-0 flex items-center justify-center text-xs font-bold",
+                    STATUS_BADGE[step.status]
+                  )}>
+                    {step.number}
                   </div>
+
+                  {/* Title (blank if none) */}
+                  <span className="flex-1 text-sm truncate min-w-0">
+                    {step.title ?? ""}
+                  </span>
+
+                  {/* Submission status badge */}
+                  {statusInfo && (
+                    <Badge variant={statusInfo.variant} className="shrink-0 gap-1 text-[10px] py-0 px-1.5">
+                      {statusInfo.icon}
+                      <span className="hidden sm:inline">{statusInfo.label}</span>
+                    </Badge>
+                  )}
+
+                  {step.adminComment && sub === "rejected" && (
+                    <span className="text-xs text-destructive truncate max-w-[100px] hidden sm:block">"{step.adminComment}"</span>
+                  )}
+
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </button>
               );
