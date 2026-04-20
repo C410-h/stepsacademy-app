@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, ExternalLink, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import RescheduleSheet, { type RescheduleSessionData } from "@/components/RescheduleSheet";
@@ -21,6 +22,8 @@ interface ClassEvent {
   description: string | null;
   class_type: "individual" | "duo" | "group";
   is_rescheduled: boolean;
+  is_holiday: boolean;
+  holiday_name: string | null;
 }
 
 interface ClassSession {
@@ -213,7 +216,13 @@ const UpcomingClasses = () => {
           return (
             <Card
               key={ev.id}
-              className={soon ? "border-primary/40 bg-primary/5" : undefined}
+              className={cn(
+                ev.is_holiday
+                  ? "opacity-60 bg-muted/40"
+                  : soon
+                  ? "border-primary/40 bg-primary/5"
+                  : undefined
+              )}
             >
               <CardContent className="py-4 flex items-center justify-between gap-3">
                 {/* Info */}
@@ -227,48 +236,71 @@ const UpcomingClasses = () => {
                   <p className="text-xs text-muted-foreground font-light">
                     {teacherName}
                   </p>
-                  {typeBadge && <div className="pt-0.5">{typeBadge}</div>}
-                  {soon && (
-                    <span className="inline-block text-[10px] font-bold text-primary uppercase tracking-wide">
-                      Começando em breve
-                    </span>
+                  {ev.is_holiday ? (
+                    <div className="pt-0.5 space-y-0.5">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 border-gray-400 text-gray-600 bg-gray-50 dark:bg-gray-900 dark:text-gray-400"
+                      >
+                        Feriado Nacional
+                      </Badge>
+                      {ev.holiday_name && (
+                        <p className="text-[10px] text-muted-foreground font-light">
+                          {ev.holiday_name}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground font-light">
+                        Aula cancelada
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {typeBadge && <div className="pt-0.5">{typeBadge}</div>}
+                      {soon && (
+                        <span className="inline-block text-[10px] font-bold text-primary uppercase tracking-wide">
+                          Começando em breve
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
 
-                {/* Botões */}
-                <div className="flex flex-col gap-2 shrink-0 items-end">
-                  {ev.meet_link ? (
-                    <Button
-                      size="sm"
-                      className="gap-1.5 font-bold"
-                      style={
-                        soon
-                          ? { background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }
-                          : undefined
-                      }
-                      variant={soon ? "default" : "outline"}
-                      onClick={() => window.open(ev.meet_link!, "_blank")}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Entrar
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground font-light">
-                      Link indisponível
-                    </span>
-                  )}
-                  {matchedSession && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1.5 text-muted-foreground hover:text-foreground text-xs h-7 px-2"
-                      onClick={() => openReschedule(matchedSession)}
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Remarcar
-                    </Button>
-                  )}
-                </div>
+                {/* Botões — ocultos em feriados */}
+                {!ev.is_holiday && (
+                  <div className="flex flex-col gap-2 shrink-0 items-end">
+                    {ev.meet_link ? (
+                      <Button
+                        size="sm"
+                        className="gap-1.5 font-bold"
+                        style={
+                          soon
+                            ? { background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }
+                            : undefined
+                        }
+                        variant={soon ? "default" : "outline"}
+                        onClick={() => window.open(ev.meet_link!, "_blank")}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Entrar
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground font-light">
+                        Link indisponível
+                      </span>
+                    )}
+                    {matchedSession && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1.5 text-muted-foreground hover:text-foreground text-xs h-7 px-2"
+                        onClick={() => openReschedule(matchedSession)}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Remarcar
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           );

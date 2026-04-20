@@ -114,6 +114,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [loading, setLoading]     = useState(true);
   const [sessions, setSessions]   = useState<SessionWithStudent[]>([]);
   const [calEvents, setCalEvents] = useState<GCalEvent[]>([]);
+  const [holidays, setHolidays]   = useState<Map<string, string>>(new Map());
 
   // Drawer
   const [drawerOpen, setDrawerOpen]               = useState(false);
@@ -192,6 +193,19 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     });
 
     setSessions(enriched);
+
+    // Load holidays for this week
+    const weekDateStrings = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(ws);
+      d.setDate(d.getDate() + i);
+      return format(d, "yyyy-MM-dd");
+    });
+    const { data: holidayRows } = await (supabase as any)
+      .from("national_holidays")
+      .select("date, name")
+      .in("date", weekDateStrings);
+    setHolidays(new Map((holidayRows || []).map((h: any) => [h.date, h.name])));
+
     setLoading(false);
   }, [weekStart, profileId]);
 
@@ -313,14 +327,14 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
 
   // ── Render: Google Calendar card (read-only) ─────────────────────────────
 
-  const GCalCard = ({ e }: { e: GCalEvent }) => {
+  const GCalCard = ({ e, holidayName }: { e: GCalEvent; holidayName?: string }) => {
     const language = e.title.split(" | ")[0]?.trim();
     const name     = e.title.split(" | ")[1]?.trim();
-    const soon     = isStartingSoon(e.start);
+    const soon     = !holidayName && isStartingSoon(e.start);
     return (
       <Card className={cn(
         "border-dashed",
-        soon && "border-primary/40"
+        holidayName ? "opacity-60" : soon && "border-primary/40"
       )}>
         <CardContent className="p-2.5 space-y-1">
           <p className="text-xs font-bold tabular-nums">
@@ -328,19 +342,27 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
           </p>
           {name && <p className="text-xs font-medium truncate">{name.split(" ")[0]}</p>}
           {language && <p className="text-[10px] text-muted-foreground font-light">{language}</p>}
-          {e.meet_link && (
-            <button
-              className="text-[10px] text-primary font-semibold flex items-center gap-1 hover:underline"
-              onClick={() => window.open(e.meet_link!, "_blank")}
-            >
-              <ExternalLink className="h-2.5 w-2.5" />
-              Entrar
-            </button>
-          )}
-          {soon && (
-            <span className="inline-block text-[10px] font-bold text-primary animate-pulse">
-              Em breve
+          {holidayName ? (
+            <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              Feriado Nacional
             </span>
+          ) : (
+            <>
+              {e.meet_link && (
+                <button
+                  className="text-[10px] text-primary font-semibold flex items-center gap-1 hover:underline"
+                  onClick={() => window.open(e.meet_link!, "_blank")}
+                >
+                  <ExternalLink className="h-2.5 w-2.5" />
+                  Entrar
+                </button>
+              )}
+              {soon && (
+                <span className="inline-block text-[10px] font-bold text-primary animate-pulse">
+                  Em breve
+                </span>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -349,15 +371,15 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
 
   // ── Render: session card ──────────────────────────────────────────────────
 
-  const SessionCard = ({ s }: { s: SessionWithStudent }) => {
+  const SessionCard = ({ s, holidayName }: { s: SessionWithStudent; holidayName?: string }) => {
     const { start, end } = getEffectiveTimes(s);
     const cfg            = STATUS_CONFIG[s.status] ?? { label: s.status, badge: "bg-muted text-muted-foreground" };
-    const soon           = s.status === "scheduled" && isStartingSoon(start);
+    const soon           = !holidayName && s.status === "scheduled" && isStartingSoon(start);
     return (
       <button className="w-full text-left" onClick={() => openDrawer(s)}>
         <Card className={cn(
           "hover:shadow-sm transition-all cursor-pointer",
-          s.status === "missed_pending" && "border-amber-300/60",
+          holidayName ? "opacity-60" : s.status === "missed_pending" && "border-amber-300/60",
           soon && "border-primary/40"
         )}>
           <CardContent className="p-2.5 space-y-1.5">
@@ -376,15 +398,21 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
               </Avatar>
               <p className="text-xs font-medium truncate">{s.student_name.split(" ")[0]}</p>
             </div>
-            {/* Status + alert */}
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", cfg.badge)}>
-                {cfg.label}
+            {/* Status / Holiday badge */}
+            {holidayName ? (
+              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                Feriado Nacional
               </span>
-              {s.status === "missed_pending" && (
-                <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
-              )}
-            </div>
+            ) : (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", cfg.badge)}>
+                  {cfg.label}
+                </span>
+                {s.status === "missed_pending" && (
+                  <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                )}
+              </div>
+            )}
             {/* Language */}
             {s.language_name && (
               <p className="text-[10px] text-muted-foreground font-light">{s.language_name}</p>
@@ -454,7 +482,9 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
         <div ref={scrollContRef} className="overflow-x-auto pb-4 md:overflow-visible -mx-4 px-4 md:mx-0 md:px-0">
           <div className="flex gap-2 md:grid md:grid-cols-7">
             {weekDays.map((day, colIdx) => {
-              const isToday   = isSameDay(day, today);
+              const isToday    = isSameDay(day, today);
+              const dateStr    = format(day, "yyyy-MM-dd");
+              const holidayName = holidays.get(dateStr);
               const colSess   = sessions
                 .filter(s => {
                   const { start } = getEffectiveTimes(s);
@@ -504,6 +534,11 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                         </span>
                       )}
                     </div>
+                    {holidayName && (
+                      <p className="text-[9px] text-muted-foreground font-medium truncate mt-0.5 leading-tight">
+                        {holidayName}
+                      </p>
+                    )}
                   </div>
 
                   {/* Cards */}
@@ -515,8 +550,8 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      {colSess.map(s => <SessionCard key={s.id} s={s} />)}
-                      {colCal.map(e => <GCalCard key={e.id} e={e} />)}
+                      {colSess.map(s => <SessionCard key={s.id} s={s} holidayName={holidayName} />)}
+                      {colCal.map(e => <GCalCard key={e.id} e={e} holidayName={holidayName} />)}
                     </div>
                   )}
                 </div>
@@ -532,8 +567,10 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
           {selected && (() => {
             const { start, end } = getEffectiveTimes(selected);
             const cfg = STATUS_CONFIG[selected.status] ?? { label: selected.status, badge: "bg-muted text-muted-foreground" };
-            const canConfirmMissed   = selected.status === "missed_pending";
-            const canMarkCompleted   = selected.status === "scheduled" && hasPassed(selected.scheduled_at);
+            const sessionDateStr     = start.substring(0, 10);
+            const sessionHoliday     = holidays.get(sessionDateStr);
+            const canConfirmMissed   = !sessionHoliday && selected.status === "missed_pending";
+            const canMarkCompleted   = !sessionHoliday && selected.status === "scheduled" && hasPassed(selected.scheduled_at);
             return (
               <>
                 <SheetHeader className="pb-4">

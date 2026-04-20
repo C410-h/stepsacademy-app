@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,12 @@ import {
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { updateStudentStep } from "@/lib/studentProgress";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -180,6 +186,24 @@ const Admin = () => {
   const [enrollLevelId, setEnrollLevelId] = useState("");
   const [addingEnrollment, setAddingEnrollment] = useState(false);
 
+  // ── Student step update
+  const [stepLevelId, setStepLevelId] = useState("");
+  const [stepUnitId, setStepUnitId] = useState("");
+  const [newStepId, setNewStepId] = useState("");
+  const [stepUnits, setStepUnits] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [stepSteps, setStepSteps] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [confirmStepOpen, setConfirmStepOpen] = useState(false);
+  const [updatingStep, setUpdatingStep] = useState(false);
+
+  // ── Group step update
+  const [grpStepLevelId, setGrpStepLevelId] = useState("");
+  const [grpStepUnitId, setGrpStepUnitId] = useState("");
+  const [grpNewStepId, setGrpNewStepId] = useState("");
+  const [grpStepUnits, setGrpStepUnits] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [grpStepSteps, setGrpStepSteps] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [confirmGrpStepOpen, setConfirmGrpStepOpen] = useState(false);
+  const [updatingGrpStep, setUpdatingGrpStep] = useState(false);
+
   // ── Dashboard tab
   const [metrics, setMetrics] = useState<DashMetrics | null>(null);
   const [engagement, setEngagement] = useState<EngagementMetrics | null>(null);
@@ -324,6 +348,57 @@ const Admin = () => {
   const [recessStart, setRecessStart] = useState(() => localStorage.getItem("recessStart") || "");
   const [recessEnd, setRecessEnd] = useState(() => localStorage.getItem("recessEnd") || "");
   const [admins, setAdmins] = useState<any[]>([]);
+
+  // ── Holidays tab
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [holidayYear, setHolidayYear] = useState<number>(new Date().getFullYear());
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [newHolidayName, setNewHolidayName] = useState("");
+  const [loadingHolidays, setLoadingHolidays] = useState(false);
+  const [savingHoliday, setSavingHoliday] = useState(false);
+
+  const loadHolidays = useCallback(async (year: number) => {
+    setLoadingHolidays(true);
+    const { data } = await (supabase as any)
+      .from("national_holidays")
+      .select("id, date, name")
+      .eq("year", year)
+      .order("date", { ascending: true });
+    setHolidays(data || []);
+    setLoadingHolidays(false);
+  }, []);
+
+  useEffect(() => { loadHolidays(holidayYear); }, [holidayYear, loadHolidays]);
+
+  const addHoliday = async () => {
+    if (!newHolidayDate || !newHolidayName) return;
+    setSavingHoliday(true);
+    const { error } = await (supabase as any)
+      .from("national_holidays")
+      .insert({ date: newHolidayDate, name: newHolidayName });
+    if (!error) {
+      setNewHolidayDate("");
+      setNewHolidayName("");
+      loadHolidays(holidayYear);
+      toast({ title: "Feriado adicionado!" });
+    } else {
+      toast({ title: "Erro ao adicionar feriado", variant: "destructive" });
+    }
+    setSavingHoliday(false);
+  };
+
+  const deleteHoliday = async (id: string) => {
+    const { error } = await (supabase as any)
+      .from("national_holidays")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      setHolidays(prev => prev.filter(h => h.id !== id));
+      toast({ title: "Feriado removido!" });
+    } else {
+      toast({ title: "Erro ao remover feriado", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     loadReference();
@@ -480,6 +555,8 @@ const Admin = () => {
     setShowAddAltEmail(false);
     setNewAltEmail("");
     setNewAltLabel("");
+    setNewStepId(""); setStepUnitId(""); setStepSteps([]);
+    setStepLevelId(student.levelId || "");
     const [
       { data: gamif },
       { data: placements },
@@ -547,6 +624,67 @@ const Admin = () => {
       .eq("student_id", studentId)
       .order("issued_at", { ascending: false });
     setDrawerCerts(data || []);
+  };
+
+  // ── Step update cascade (student drawer) ─────────────────────────────────────
+
+  useEffect(() => {
+    if (!stepLevelId) { setStepUnits([]); setStepUnitId(""); setStepSteps([]); setNewStepId(""); return; }
+    (supabase as any).from("units").select("id, number, title").eq("level_id", stepLevelId).order("number")
+      .then(({ data }: any) => { setStepUnits(data || []); setStepUnitId(""); setStepSteps([]); setNewStepId(""); });
+  }, [stepLevelId]);
+
+  useEffect(() => {
+    if (!stepUnitId) { setStepSteps([]); setNewStepId(""); return; }
+    (supabase as any).from("steps").select("id, number, title").eq("unit_id", stepUnitId).order("number")
+      .then(({ data }: any) => { setStepSteps(data || []); setNewStepId(""); });
+  }, [stepUnitId]);
+
+  const handleUpdateStep = async () => {
+    if (!selectedStudent || !newStepId) return;
+    setUpdatingStep(true);
+    try {
+      await updateStudentStep(supabase as any, selectedStudent.id, newStepId);
+      toast({ title: "Step atualizado!", description: "O progresso do aluno foi atualizado com sucesso." });
+      setConfirmStepOpen(false);
+      setNewStepId(""); setStepUnitId(""); setStepLevelId("");
+      await loadStudents();
+    } catch (e: any) {
+      toast({ title: "Erro ao atualizar step", description: e.message, variant: "destructive" });
+    }
+    setUpdatingStep(false);
+  };
+
+  // ── Step update cascade (groups) ──────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!grpStepLevelId) { setGrpStepUnits([]); setGrpStepUnitId(""); setGrpStepSteps([]); setGrpNewStepId(""); return; }
+    (supabase as any).from("units").select("id, number, title").eq("level_id", grpStepLevelId).order("number")
+      .then(({ data }: any) => { setGrpStepUnits(data || []); setGrpStepUnitId(""); setGrpStepSteps([]); setGrpNewStepId(""); });
+  }, [grpStepLevelId]);
+
+  useEffect(() => {
+    if (!grpStepUnitId) { setGrpStepSteps([]); setGrpNewStepId(""); return; }
+    (supabase as any).from("steps").select("id, number, title").eq("unit_id", grpStepUnitId).order("number")
+      .then(({ data }: any) => { setGrpStepSteps(data || []); setGrpNewStepId(""); });
+  }, [grpStepUnitId]);
+
+  const handleUpdateGroupStep = async () => {
+    if (!selectedGroup || !grpNewStepId || groupStudents.length === 0) return;
+    setUpdatingGrpStep(true);
+    try {
+      await Promise.all(
+        groupStudents.map((gs: any) =>
+          updateStudentStep(supabase as any, gs.student_id, grpNewStepId)
+        )
+      );
+      toast({ title: "Turma atualizada!", description: `Step atualizado para ${groupStudents.length} aluno(s).` });
+      setConfirmGrpStepOpen(false);
+      setGrpNewStepId(""); setGrpStepUnitId(""); setGrpStepLevelId("");
+    } catch (e: any) {
+      toast({ title: "Erro ao atualizar turma", description: e.message, variant: "destructive" });
+    }
+    setUpdatingGrpStep(false);
   };
 
   const handleAddEnrollment = async () => {
@@ -775,7 +913,7 @@ const Admin = () => {
   const loadGroups = async () => {
     setGroupsLoading(true);
     const { data, error } = await (supabase as any).from("groups").select(`
-      id, name, meet_link, active, created_at,
+      id, name, meet_link, active, created_at, language_id, level_id,
       languages!groups_language_id_fkey(name),
       levels!groups_level_id_fkey(name, code),
       group_students!group_students_group_id_fkey(student_id)
@@ -1883,10 +2021,77 @@ const Admin = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* Atualizar step */}
+                    <div className="space-y-3 pt-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Step atual</p>
+                      <div className="space-y-2">
+                        <Select value={stepLevelId} onValueChange={setStepLevelId}>
+                          <SelectTrigger className="text-xs h-8">
+                            <SelectValue placeholder="Selecionar nível…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {levels.filter(l => l.language_id === selectedStudent?.languageId).map(l => (
+                              <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {stepLevelId && (
+                          <Select value={stepUnitId} onValueChange={setStepUnitId}>
+                            <SelectTrigger className="text-xs h-8">
+                              <SelectValue placeholder="Selecionar unidade…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stepUnits.map(u => (
+                                <SelectItem key={u.id} value={u.id}>Unidade {u.number} — {u.title}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {stepUnitId && (
+                          <Select value={newStepId} onValueChange={setNewStepId}>
+                            <SelectTrigger className="text-xs h-8">
+                              <SelectValue placeholder="Selecionar step…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stepSteps.map(s => (
+                                <SelectItem key={s.id} value={s.id}>Step {s.number} — {s.title}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs"
+                          disabled={!newStepId}
+                          onClick={() => setConfirmStepOpen(true)}
+                        >
+                          Atualizar step
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </SheetContent>
             </Sheet>
+
+            <AlertDialog open={confirmStepOpen} onOpenChange={setConfirmStepOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Atualizar step do aluno?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Todos os steps anteriores serão marcados como concluídos. O step selecionado será definido como o atual. Esta ação não pode ser desfeita facilmente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={updatingStep}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction disabled={updatingStep} onClick={handleUpdateStep}>
+                    {updatingStep ? "Atualizando…" : "Confirmar"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
 
           {/* ── Tab: Professores ──────────────────────────────────────────────── */}
@@ -2063,8 +2268,8 @@ const Admin = () => {
                   <div key={g.id}>
                     <Card className={`cursor-pointer hover:shadow-sm transition-shadow ${selectedGroup?.id === g.id ? "border-primary" : ""}`}
                       onClick={() => {
-                        if (selectedGroup?.id === g.id) { setSelectedGroup(null); setGroupStudents([]); }
-                        else { setSelectedGroup(g); loadGroupStudents(g.id); }
+                        if (selectedGroup?.id === g.id) { setSelectedGroup(null); setGroupStudents([]); setGrpStepLevelId(""); setGrpStepUnitId(""); setGrpNewStepId(""); }
+                        else { setSelectedGroup(g); loadGroupStudents(g.id); setGrpStepLevelId(g.level_id || ""); setGrpStepUnitId(""); setGrpNewStepId(""); }
                       }}>
                       <CardContent className="p-3">
                         <div className="flex items-center justify-between">
@@ -2124,6 +2329,50 @@ const Admin = () => {
                               <UserPlus className="h-3 w-3" />
                             </Button>
                           </div>
+
+                          {/* Step atual da turma */}
+                          {groupStudents.length > 0 && (
+                            <div className="space-y-2 pt-1 border-t">
+                              <p className="text-xs font-bold pt-1">Step atual da turma</p>
+                              <Select value={grpStepLevelId} onValueChange={setGrpStepLevelId}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar nível…" /></SelectTrigger>
+                                <SelectContent>
+                                  {levels.filter(l => l.language_id === g.language_id).map(l => (
+                                    <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {grpStepLevelId && (
+                                <Select value={grpStepUnitId} onValueChange={setGrpStepUnitId}>
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar unidade…" /></SelectTrigger>
+                                  <SelectContent>
+                                    {grpStepUnits.map(u => (
+                                      <SelectItem key={u.id} value={u.id}>Unidade {u.number} — {u.title}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {grpStepUnitId && (
+                                <Select value={grpNewStepId} onValueChange={setGrpNewStepId}>
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar step…" /></SelectTrigger>
+                                  <SelectContent>
+                                    {grpStepSteps.map(s => (
+                                      <SelectItem key={s.id} value={s.id}>Step {s.number} — {s.title}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full text-xs"
+                                disabled={!grpNewStepId}
+                                onClick={() => setConfirmGrpStepOpen(true)}
+                              >
+                                Atualizar turma inteira
+                              </Button>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     )}
@@ -2131,6 +2380,23 @@ const Admin = () => {
                 ))}
               </div>
             )}
+
+            <AlertDialog open={confirmGrpStepOpen} onOpenChange={setConfirmGrpStepOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Atualizar step da turma?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Todos os steps anteriores de cada aluno desta turma serão marcados como concluídos. O step selecionado será definido como o atual para todos os {groupStudents.length} aluno(s).
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={updatingGrpStep}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction disabled={updatingGrpStep} onClick={handleUpdateGroupStep}>
+                    {updatingGrpStep ? "Atualizando…" : "Confirmar"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
 
           {/* ── Tab: Conteúdo ─────────────────────────────────────────────────── */}
@@ -2685,6 +2951,82 @@ const Admin = () => {
                 }}>
                   Salvar configurações
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Holidays management */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4" />Feriados nacionais
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Select value={String(holidayYear)} onValueChange={v => setHolidayYear(Number(v))}>
+                    <SelectTrigger className="h-8 w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[2025, 2026, 2027].map(y => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">{holidays.length} feriados</span>
+                </div>
+
+                {loadingHolidays ? (
+                  <Skeleton className="h-20 w-full" />
+                ) : holidays.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum feriado cadastrado para {holidayYear}.</p>
+                ) : (
+                  <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                    {holidays.map(h => (
+                      <div key={h.id} className="flex items-center justify-between text-xs py-1.5 border-b last:border-0">
+                        <div>
+                          <span className="font-medium">
+                            {new Date(h.date + "T12:00:00").toLocaleDateString("pt-BR")}
+                          </span>
+                          <span className="ml-2 text-muted-foreground">{h.name}</span>
+                        </div>
+                        <button
+                          onClick={() => deleteHoliday(h.id)}
+                          className="text-destructive/50 hover:text-destructive transition-colors p-1"
+                          aria-label="Remover feriado"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-xs font-medium">Adicionar feriado</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="date"
+                      value={newHolidayDate}
+                      onChange={e => setNewHolidayDate(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={newHolidayName}
+                      onChange={e => setNewHolidayName(e.target.value)}
+                      placeholder="Nome do feriado"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={!newHolidayDate || !newHolidayName || savingHoliday}
+                    onClick={addHoliday}
+                  >
+                    {savingHoliday ? "Adicionando..." : "Adicionar feriado"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

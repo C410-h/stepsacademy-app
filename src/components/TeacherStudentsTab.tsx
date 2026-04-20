@@ -15,7 +15,13 @@ import {
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { updateStudentStep } from "@/lib/studentProgress";
 import {
   Search, CalendarPlus, BookOpen, AlertTriangle,
   Phone, Mail, CalendarCheck, Flame, TrendingUp,
@@ -41,7 +47,9 @@ interface StudentsTabStudent {
   userId: string;
   name: string;
   avatarUrl: string | null;
+  languageId: string;
   languageName: string;
+  levelId: string;
   levelName: string;
   levelCode: string;
   totalSteps: number;
@@ -134,6 +142,16 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
   const [savingNotes, setSavingNotes] = useState(false);
   const [confirmingAbsence, setConfirmingAbsence] = useState<string | null>(null);
 
+  // Step update
+  const [stepLevelId, setStepLevelId] = useState("");
+  const [stepUnitId, setStepUnitId] = useState("");
+  const [newStepId, setNewStepId] = useState("");
+  const [stepLevels, setStepLevels] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [stepUnits, setStepUnits] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [stepSteps, setStepSteps] = useState<{ id: string; number: number; title: string }[]>([]);
+  const [confirmStepOpen, setConfirmStepOpen] = useState(false);
+  const [updatingStep, setUpdatingStep] = useState(false);
+
   useEffect(() => {
     loadData();
   }, [profileId, teacherId]);
@@ -147,7 +165,7 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
         .from("teacher_students")
         .select(`
           students!inner(
-            id, user_id, current_step_id, status,
+            id, user_id, current_step_id, status, language_id, level_id,
             levels!students_level_id_fkey(name, code, total_steps),
             languages!students_language_id_fkey(name)
           )
@@ -215,7 +233,9 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
           userId: s.user_id,
           name: prof?.name ?? "Aluno",
           avatarUrl: prof?.avatar_url ?? null,
+          languageId: s.language_id ?? "",
           languageName: s.languages?.name ?? "—",
+          levelId: s.level_id ?? "",
           levelName: s.levels?.name ?? "—",
           levelCode: s.levels?.code ?? "",
           totalSteps: s.levels?.total_steps ?? 30,
@@ -257,6 +277,14 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
     setDrawerOpen(true);
     setDrawerLoading(true);
     setDrawerData(null);
+    setNewStepId(""); setStepUnitId(""); setStepSteps([]);
+
+    // Pre-load levels for the student's language
+    if (student.languageId) {
+      supabase.from("levels").select("id, name, code").eq("language_id", student.languageId).order("order_index")
+        .then(({ data }) => { setStepLevels(data || []); });
+    }
+    setStepLevelId(student.levelId || "");
 
     const [{ data: prof }, { data: allSessions }, { data: progress }] = await Promise.all([
       supabase.from("profiles").select("email, phone").eq("id", student.userId).maybeSingle() as any,
@@ -326,6 +354,35 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
       setDrawerOpen(false);
     }
     setConfirmingAbsence(null);
+  };
+
+  // ── Step update cascade ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!stepLevelId) { setStepUnits([]); setStepUnitId(""); setStepSteps([]); setNewStepId(""); return; }
+    supabase.from("units").select("id, number, title").eq("level_id", stepLevelId).order("number")
+      .then(({ data }) => { setStepUnits(data || []); setStepUnitId(""); setStepSteps([]); setNewStepId(""); });
+  }, [stepLevelId]);
+
+  useEffect(() => {
+    if (!stepUnitId) { setStepSteps([]); setNewStepId(""); return; }
+    supabase.from("steps").select("id, number, title").eq("unit_id", stepUnitId).order("number")
+      .then(({ data }) => { setStepSteps(data || []); setNewStepId(""); });
+  }, [stepUnitId]);
+
+  const handleUpdateStep = async () => {
+    if (!drawerStudent || !newStepId) return;
+    setUpdatingStep(true);
+    try {
+      await updateStudentStep(supabase as any, drawerStudent.studentId, newStepId);
+      toast({ title: "Step atualizado!", description: "O progresso do aluno foi atualizado com sucesso." });
+      setConfirmStepOpen(false);
+      setNewStepId(""); setStepUnitId(""); setStepLevelId("");
+      await loadData();
+    } catch (e: any) {
+      toast({ title: "Erro ao atualizar step", description: e.message, variant: "destructive" });
+    }
+    setUpdatingStep(false);
   };
 
   // ── Skeleton ───────────────────────────────────────────────────────────────
@@ -694,11 +751,82 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
                 </Button>
               </div>
 
+              <Separator />
+
+              {/* Atualizar step */}
+              <div className="px-6 py-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  Step atual
+                </p>
+                <div className="space-y-2">
+                  <Select value={stepLevelId} onValueChange={setStepLevelId}>
+                    <SelectTrigger className="text-xs h-8">
+                      <SelectValue placeholder="Selecionar nível…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stepLevels.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {stepLevelId && (
+                    <Select value={stepUnitId} onValueChange={setStepUnitId}>
+                      <SelectTrigger className="text-xs h-8">
+                        <SelectValue placeholder="Selecionar unidade…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stepUnits.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>Unidade {u.number} — {u.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {stepUnitId && (
+                    <Select value={newStepId} onValueChange={setNewStepId}>
+                      <SelectTrigger className="text-xs h-8">
+                        <SelectValue placeholder="Selecionar step…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stepSteps.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>Step {s.number} — {s.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs"
+                    disabled={!newStepId}
+                    onClick={() => setConfirmStepOpen(true)}
+                  >
+                    Atualizar step
+                  </Button>
+                </div>
+              </div>
+
               <div className="h-6" />
             </div>
           )}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={confirmStepOpen} onOpenChange={setConfirmStepOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Atualizar step do aluno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todos os steps anteriores serão marcados como concluídos. O step selecionado será definido como o atual. Esta ação não pode ser desfeita facilmente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updatingStep}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={updatingStep} onClick={handleUpdateStep}>
+              {updatingStep ? "Atualizando…" : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

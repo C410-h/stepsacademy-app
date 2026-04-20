@@ -93,6 +93,9 @@ const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId, pr
   const [availableSlots, setAvailableSlots] = useState<string[] | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  // Feriados nacionais (desabilitados no calendário)
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+
   // Resultado de sucesso
   const [meetLink, setMeetLink] = useState<string | null>(null);
   const [meetCopied, setMeetCopied] = useState(false);
@@ -104,6 +107,21 @@ const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId, pr
       setSelectedStudent(preSelectedStudent);
     }
   }, [open, preSelectedStudent]);
+
+  // Carregar feriados ao abrir (próximos 3 meses)
+  useEffect(() => {
+    if (!open) return;
+    const start = format(new Date(), "yyyy-MM-dd");
+    const end = format(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
+    (supabase as any)
+      .from("national_holidays")
+      .select("date")
+      .gte("date", start)
+      .lte("date", end)
+      .then(({ data }: { data: any[] | null }) => {
+        setHolidayDates(new Set((data || []).map((h: any) => h.date)));
+      });
+  }, [open]);
 
   // Limpar ao fechar
   useEffect(() => {
@@ -533,10 +551,18 @@ const ScheduleClassSheet = ({ open, onOpenChange, students, teacherProfileId, pr
                     setDate(d);
                     setCalendarOpen(false);
                   }}
-                  disabled={(d) => d < today}
+                  disabled={(d) =>
+                    d < today ||
+                    holidayDates.has(format(d, "yyyy-MM-dd"))
+                  }
                   initialFocus
                   locale={ptBR}
                 />
+                {holidayDates.size > 0 && (
+                  <p className="text-[11px] text-muted-foreground font-light px-3 pb-2">
+                    Datas em cinza são feriados nacionais.
+                  </p>
+                )}
               </PopoverContent>
             </Popover>
           </div>

@@ -173,6 +173,22 @@ serve(async (req) => {
         })
       }
 
+      // Enrich events with national holiday info
+      if (events.length > 0) {
+        const datesToCheck = [...new Set(events.map((e: any) => e.start.substring(0, 10)))]
+        const { data: holidayRows } = await supabase
+          .from('national_holidays')
+          .select('date, name')
+          .in('date', datesToCheck)
+        const holidayMap = new Map((holidayRows ?? []).map((h: any) => [h.date, h.name]))
+        for (const ev of events) {
+          const dateKey = ev.start.substring(0, 10)
+          const holidayName = holidayMap.get(dateKey) ?? null
+          ev.is_holiday = !!holidayName
+          ev.holiday_name = holidayName
+        }
+      }
+
       return new Response(JSON.stringify({ events }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
