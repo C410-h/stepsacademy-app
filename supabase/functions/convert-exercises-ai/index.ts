@@ -6,19 +6,68 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const BASE_PROMPT = `Você é um assistente pedagógico especializado em criar exercícios de idiomas.
-Analise o documento abaixo e extraia ou crie exercícios no formato JSON.
+type GenerateType = "exercises" | "vocabulary" | "grammar";
 
-Retorne APENAS um array JSON válido, sem nenhum texto adicional, sem markdown, sem backticks:
-[
-  {
-    "type": "fill_blank" | "association" | "rewrite" | "dialogue" | "production",
-    "question": "texto da pergunta",
-    "options": ["opção1", "opção2", "opção3", "opção4"] ou null,
-    "answer": "resposta correta",
-    "explanation": "explicação opcional"
+function buildPrompt(generate: GenerateType[], teacherInstructions: string | null): string {
+  const sections: string[] = [];
+
+  if (generate.includes("exercises")) {
+    sections.push(`  "exercises": [
+    {
+      "type": "fill_blank" | "association" | "rewrite" | "dialogue" | "production",
+      "question": "texto da pergunta (use [___] para lacunas em fill_blank)",
+      "options": [{"left": "palavra", "right": "tradução"}] somente para type association, null para outros tipos,
+      "answer": "resposta correta",
+      "explanation": "explicação opcional"
+    }
+    // gerar entre 5 e 8 exercícios variados cobrindo o conteúdo da aula
+  ]`);
   }
-]`;
+
+  if (generate.includes("vocabulary")) {
+    sections.push(`  "vocabulary": [
+    {
+      "word": "palavra no idioma ensinado",
+      "translation": "tradução em português",
+      "example_sentence": "frase de exemplo natural com a palavra em contexto",
+      "part_of_speech": "noun" | "verb" | "adjective" | "adverb" | "expression" | "other",
+      "difficulty": 1 | 2 | 3,
+      "distractors": ["tradução errada 1", "tradução errada 2", "tradução errada 3"]
+    }
+    // extrair entre 8 e 15 palavras-chave do vocabulário da aula
+  ]`);
+  }
+
+  if (generate.includes("grammar")) {
+    sections.push(`  "grammar": [
+    {
+      "title": "Nome claro e conciso da regra gramatical",
+      "explanation": "Explicação didática em português, clara para estudantes",
+      "examples": [
+        {
+          "sentence": "Frase de exemplo no idioma ensinado",
+          "translation": "Tradução em português",
+          "highlight": "parte da frase a destacar (a estrutura gramatical em si)"
+        }
+      ],
+      "tip": "Dica prática e memorável para o aluno (opcional)"
+    }
+    // extrair entre 1 e 3 regras gramaticais principais abordadas na aula
+  ]`);
+  }
+
+  const instructionsNote = teacherInstructions
+    ? `\n\nInstruções específicas do professor: ${teacherInstructions}`
+    : "";
+
+  return `Você é um assistente pedagógico especializado em criar materiais de ensino de idiomas.
+Analise o documento/slide abaixo e gere o conteúdo pedagógico solicitado em formato JSON.
+
+Retorne APENAS um objeto JSON válido, sem texto adicional, sem markdown, sem backticks:
+{
+${sections.join(",\n")}
+}${instructionsNote}`;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -35,6 +84,10 @@ Deno.serve(async (req: Request) => {
       teacher_instructions,
       fileUrl: legacyFileUrl,
       submissionFileId: sfId,
+      generate = ["exercises"],
+      step_id: _step_id,
+      level_id: _level_id,
+      unit_id: _unit_id,
     } = body;
     submissionFileId = sfId;
 
@@ -47,10 +100,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const instructionsNote = teacher_instructions
-      ? `\n\nInstruções do professor: ${teacher_instructions}`
-      : "";
-    const EXTRACTION_PROMPT = BASE_PROMPT + instructionsNote;
+    const EXTRACTION_PROMPT = buildPrompt(generate as GenerateType[], teacher_instructions || null);
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY não configurada");
@@ -61,14 +111,14 @@ Deno.serve(async (req: Request) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // Atualiza status → converting
+    // Update status → converting
     if (submissionFileId) {
       await sb.from("submission_files")
         .update({ ai_conversion_status: "converting" })
         .eq("id", submissionFileId);
     }
 
-    // Fetch do arquivo
+    // Fetch file
     const fileRes = await fetch(fileUrl);
     if (!fileRes.ok) throw new Error(`Falha ao buscar arquivo: ${fileRes.status}`);
 
@@ -78,7 +128,6 @@ Deno.serve(async (req: Request) => {
     let content: any[];
 
     if (isPdf) {
-      // PDF → base64 para Claude
       const buffer = await fileRes.arrayBuffer();
       const uint8 = new Uint8Array(buffer);
       let binary = "";
@@ -89,19 +138,14 @@ Deno.serve(async (req: Request) => {
       content = [
         {
           type: "document",
-          source: {
-            type: "base64",
-            media_type: "application/pdf",
-            data: base64,
-          },
+          source: { type: "base64", media_type: "application/pdf", data: base64 },
         },
         {
           type: "text",
-          text: EXTRACTION_PROMPT + "\n\nExtrai os exercícios do documento acima.",
+          text: EXTRACTION_PROMPT + "\n\nAnalise o documento acima e gere o conteúdo solicitado.",
         },
       ];
     } else {
-      // DOCX, TXT → extrai texto bruto
       let text: string;
       try {
         const raw = await fileRes.text();
@@ -112,14 +156,14 @@ Deno.serve(async (req: Request) => {
       content = [{ type: "text", text: `${EXTRACTION_PROMPT}\n\nDocumento:\n${text}` }];
     }
 
-    // Atualiza status → processing
+    // Update status → processing
     if (submissionFileId) {
       await sb.from("submission_files")
         .update({ ai_conversion_status: "processing" })
         .eq("id", submissionFileId);
     }
 
-    // Chama Claude
+    // Call Claude Sonnet
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -129,8 +173,8 @@ Deno.serve(async (req: Request) => {
         "anthropic-beta": "pdfs-2024-09-25",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 4000,
+        model: "claude-sonnet-4-5",
+        max_tokens: 8000,
         messages: [{ role: "user", content }],
       }),
     });
@@ -141,26 +185,34 @@ Deno.serve(async (req: Request) => {
     }
 
     const claudeData = await claudeRes.json();
-    const rawText: string = claudeData.content?.[0]?.text || "[]";
+    const rawText: string = claudeData.content?.[0]?.text || "{}";
 
-    // Parse da resposta
-    let exercises: any[];
+    // Parse response — handle both legacy array and new object format
+    let result: { exercises?: any[]; vocabulary?: any[]; grammar?: any[] };
     try {
       const cleaned = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
       const parsed = JSON.parse(cleaned);
-      exercises = Array.isArray(parsed) ? parsed : (parsed.exercises || []);
+      if (Array.isArray(parsed)) {
+        result = { exercises: parsed, vocabulary: [], grammar: [] };
+      } else {
+        result = {
+          exercises: parsed.exercises || [],
+          vocabulary: parsed.vocabulary || [],
+          grammar: parsed.grammar || [],
+        };
+      }
     } catch {
       throw new Error("Claude retornou JSON inválido: " + rawText.slice(0, 200));
     }
 
-    // Salva resultado e atualiza status → done
+    // Save result to submission_files
     if (submissionFileId) {
       await sb.from("submission_files")
-        .update({ exercises, ai_conversion_status: "done" })
+        .update({ exercises: result, ai_conversion_status: "done" })
         .eq("id", submissionFileId);
     }
 
-    return new Response(JSON.stringify({ exercises }), {
+    return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
