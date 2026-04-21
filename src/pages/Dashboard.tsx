@@ -338,14 +338,27 @@ const Dashboard = () => {
 
           {/* Progress */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-bold">Seu progresso</span>
-                <span className="text-xs text-muted-foreground">
-                  Passo {studentData.currentStepNumber} de {totalSteps}
-                </span>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <p className="text-sm text-muted-foreground font-light">
+                    {studentData.language?.name} · {studentData.level?.name} · {studentData.level?.code}
+                  </p>
+                  <p className="text-2xl font-bold text-primary mt-0.5">
+                    {Math.round(progressPercent)}% concluído
+                  </p>
+                  <p className="text-xs text-muted-foreground font-light mt-0.5">
+                    {studentData.currentStepNumber} de {totalSteps} aulas
+                  </p>
+                </div>
+                <img
+                  src="/steppie/steppie-orgulhoso.webp"
+                  alt=""
+                  aria-hidden="true"
+                  className="w-14 shrink-0 self-end"
+                />
               </div>
-              <Progress value={progressPercent} className="h-3" />
+              <Progress value={progressPercent} className="h-2.5 mt-3" />
             </CardContent>
           </Card>
 
