@@ -35,12 +35,13 @@ interface ClassEvent {
 
 interface ClassSession {
   id: string;
-  google_event_id: string;
+  google_event_id: string | null;
   scheduled_at: string;
-  scheduled_ends_at: string;
+  scheduled_ends_at: string | null;
+  rescheduled_at: string | null;
+  rescheduled_ends_at: string | null;
   teacher_id: string;
   status: string;
-  reschedule_count: number;
   student_cancel_requested_at: string | null;
 }
 
@@ -74,7 +75,7 @@ const UpcomingClasses = () => {
   const [loading, setLoading]       = useState(true);
   const [events, setEvents]         = useState<ClassEvent[]>([]);
   const [teacherName, setTeacherName] = useState<string>("");
-  const [sessionByEventId, setSessionByEventId] = useState<Map<string, ClassSession>>(new Map());
+  const [sessionByTime, setSessionByTime] = useState<Map<string, ClassSession>>(new Map());
 
   // Sheet de detalhes da sessão
   const [sheetOpen, setSheetOpen]     = useState(false);
@@ -128,7 +129,7 @@ const UpcomingClasses = () => {
         studentDbId
           ? (supabase as any)
               .from("class_sessions")
-              .select("id, google_event_id, scheduled_at, scheduled_ends_at, teacher_id, status, reschedule_count, student_cancel_requested_at")
+              .select("id, google_event_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, teacher_id, status, student_cancel_requested_at")
               .eq("student_id", studentDbId)
               .in("status", ["scheduled", "rescheduled"])
           : Promise.resolve({ data: [] }),
@@ -141,10 +142,17 @@ const UpcomingClasses = () => {
       if (isMounted.current) setEvents(calEvents);
 
       if (isMounted.current && sessionsRes.data) {
-        const map = new Map<string, ClassSession>(
-          sessionsRes.data.map((s: ClassSession) => [s.google_event_id, s])
-        );
-        setSessionByEventId(map);
+        // Index by first 16 chars of scheduled_at ("YYYY-MM-DDTHH:MM") so we can
+        // match against ev.start regardless of Google Calendar instance-ID format.
+        const map = new Map<string, ClassSession>();
+        for (const s of sessionsRes.data as ClassSession[]) {
+          map.set(s.scheduled_at.substring(0, 16), s);
+          // Also index by rescheduled time for rescheduled sessions
+          if (s.rescheduled_at) {
+            map.set(s.rescheduled_at.substring(0, 16), s);
+          }
+        }
+        setSessionByTime(map);
       }
     } catch {
       if (isMounted.current) setEvents([]);
@@ -173,15 +181,16 @@ const UpcomingClasses = () => {
     setSheetOpen(true);
   };
 
-  const openReschedule = (session: ClassSession) => {
+  const openReschedule = (session: ClassSession, evStart: string) => {
+    if (!session.google_event_id) return;
     setSheetOpen(false);
     setSheetEvent(null);
     setTimeout(() => {
       setRescheduleSession({
         id: session.id,
-        google_event_id: session.google_event_id,
-        scheduled_at: session.scheduled_at,
-        scheduled_ends_at: session.scheduled_ends_at,
+        google_event_id: session.google_event_id!,
+        scheduled_at: session.rescheduled_at ?? session.scheduled_at,
+        scheduled_ends_at: session.rescheduled_ends_at ?? session.scheduled_ends_at ?? evStart,
         teacher_id: session.teacher_id,
       });
       setRescheduleOpen(true);
@@ -266,7 +275,7 @@ const UpcomingClasses = () => {
         {events.map((ev) => {
           const soon           = isStartingSoon(ev.start);
           const passed         = hasPassed(ev.start);
-          const matchedSession = sessionByEventId.get(ev.id);
+          const matchedSession = sessionByTime.get(ev.start.substring(0, 16));
           const studentCancelled = !!matchedSession?.student_cancel_requested_at;
 
           const typeBadge = ev.is_rescheduled ? (
@@ -362,7 +371,7 @@ const UpcomingClasses = () => {
         <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
           {sheetEvent && (() => {
             const ev      = sheetEvent;
-            const session = sessionByEventId.get(ev.id);
+            const session = sessionByTime.get(ev.start.substring(0, 16));
             const soon    = isStartingSoon(ev.start);
             const isFuture = !hasPassed(ev.start);
             const alreadyCancelled = !!session?.student_cancel_requested_at;
@@ -440,7 +449,7 @@ const UpcomingClasses = () => {
                       <Button
                         variant="outline"
                         className="w-full gap-2"
-                        onClick={() => openReschedule(session)}
+                        onClick={() => openReschedule(session, ev.start)}
                       >
                         <RefreshCw className="h-4 w-4" />
                         Remarcar aula
