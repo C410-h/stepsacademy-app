@@ -5,7 +5,7 @@ import { useGamification } from "@/contexts/GamificationContext";
 import { usePaymentAlert } from "@/contexts/PaymentAlertContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp } from "lucide-react";
+import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp, Trophy } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -119,10 +119,19 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
         <div className="flex items-center gap-2">
           <LanguageSwitcher direction="down" />
           {gamification.studentId && (
-            <div className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 12%, transparent)" }}>
-              <Zap className="h-3.5 w-3.5" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
-              <span className="text-xs font-bold" style={{ color: "var(--theme-primary)" }}>{gamification.xp_total} XP</span>
-            </div>
+            <>
+              <Link
+                to="/ranking"
+                aria-label="Ranking"
+                className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <Trophy className="h-5 w-5" />
+              </Link>
+              <div className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 12%, transparent)" }}>
+                <Zap className="h-3.5 w-3.5" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
+                <span className="text-xs font-bold" style={{ color: "var(--theme-primary)" }}>{gamification.xp_total} XP</span>
+              </div>
+            </>
           )}
           <Link
             to="/ajuda"
