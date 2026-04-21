@@ -16,6 +16,7 @@ import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap,
   RotateCcw, Mic, GraduationCap, ExternalLink, AlertTriangle,
+  Lock, Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,22 @@ interface Exercise {
 }
 
 type ExStatus = "pending" | "correct" | "wrong" | "submitted";
+
+interface StepProgress {
+  id: string;
+  number: number;
+  title: string | null;
+  type: string;
+  status: "done" | "available" | "locked";
+  isCurrentStep: boolean;
+}
+
+interface UnitWithSteps {
+  id: string;
+  number: number;
+  title: string;
+  steps: StepProgress[];
+}
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
@@ -537,11 +554,121 @@ const ExercisesEngine = ({
   );
 };
 
+// ─── StepCard ─────────────────────────────────────────────────────────────────
+
+const StepCard = ({
+  step,
+  onClick,
+}: {
+  step: StepProgress;
+  onClick: () => void;
+}) => {
+  const isLocked = step.status === "locked";
+  return (
+    <button
+      disabled={isLocked}
+      onClick={isLocked ? undefined : onClick}
+      className={cn(
+        "w-full text-left rounded-xl border px-3 py-2.5 flex items-center gap-3 transition-colors",
+        isLocked
+          ? "opacity-50 cursor-not-allowed border-border"
+          : "hover:border-primary/30 bg-card",
+        step.isCurrentStep && "border-[color:var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_8%,transparent)]"
+      )}
+    >
+      {/* Status icon */}
+      <div className="shrink-0 flex items-center justify-center w-5 h-5">
+        {step.status === "done" && (
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+        )}
+        {step.status === "available" && step.isCurrentStep && (
+          <div
+            className="h-5 w-5 rounded-full flex items-center justify-center"
+            style={{ background: "var(--theme-accent)" }}
+          >
+            <div className="h-2 w-2 rounded-full bg-white" />
+          </div>
+        )}
+        {step.status === "available" && !step.isCurrentStep && (
+          <Circle className="h-5 w-5 text-muted-foreground" />
+        )}
+        {step.status === "locked" && (
+          <Lock className="h-4 w-4 text-muted-foreground" />
+        )}
+      </div>
+
+      {/* Label */}
+      <p className={cn("flex-1 min-w-0 text-sm truncate", isLocked ? "text-muted-foreground font-light" : "font-medium")}>
+        Aula {step.number}{step.title ? ` — ${step.title}` : ""}
+      </p>
+
+      {/* Current badge */}
+      {step.isCurrentStep && (
+        <Badge
+          className="shrink-0 text-[10px] px-1.5 py-0"
+          style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+        >
+          Atual
+        </Badge>
+      )}
+    </button>
+  );
+};
+
+// ─── UnitAccordion ────────────────────────────────────────────────────────────
+
+const UnitAccordion = ({
+  unit,
+  onStepClick,
+}: {
+  unit: UnitWithSteps;
+  onStepClick: () => void;
+}) => {
+  const doneCount = unit.steps.filter(s => s.status === "done").length;
+  const hasProgress = doneCount > 0 || unit.steps.some(s => s.isCurrentStep);
+  const [open, setOpen] = useState(hasProgress);
+
+  return (
+    <div className="space-y-2">
+      <button
+        className="flex items-center justify-between w-full group py-0.5"
+        onClick={() => setOpen(p => !p)}
+      >
+        <div className="text-left min-w-0 pr-2">
+          <p className="text-sm font-bold">
+            Unidade {unit.number} — {unit.title}
+          </p>
+          <p className="text-xs text-muted-foreground font-light">
+            {doneCount}/{unit.steps.length} aulas concluídas
+          </p>
+        </div>
+        {open
+          ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+        }
+      </button>
+
+      {open && (
+        <div className="space-y-1.5 pl-1">
+          {unit.steps.map(step => (
+            <StepCard key={step.id} step={step} onClick={onStepClick} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const AulaPage = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+
+  const [view, setView] = useState<"current" | "all">("current");
+  const [allUnits, setAllUnits] = useState<UnitWithSteps[]>([]);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allLoaded, setAllLoaded] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<StudentInfo | null>(null);
@@ -665,6 +792,88 @@ const AulaPage = () => {
     setLoading(false);
   };
 
+  // Lazy-load units map when user switches to 'all' view
+  useEffect(() => {
+    if (view === "all" && !allLoaded && student) {
+      loadAllUnits();
+    }
+  }, [view, student, allLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadAllUnits = async () => {
+    if (!student?.levelId) return;
+    setAllLoading(true);
+    try {
+      const { data: unitsData } = await (supabase as any)
+        .from("units")
+        .select("id, number, title")
+        .eq("level_id", student.levelId)
+        .order("number");
+
+      if (!unitsData || unitsData.length === 0) {
+        setAllUnits([]);
+        setAllLoaded(true);
+        return;
+      }
+
+      const unitIds = (unitsData as any[]).map((u: any) => u.id);
+
+      const { data: stepsData } = await (supabase as any)
+        .from("steps")
+        .select("id, number, title, type, unit_id")
+        .in("unit_id", unitIds)
+        .order("number");
+
+      if (!stepsData || (stepsData as any[]).length === 0) {
+        setAllUnits((unitsData as any[]).map((u: any) => ({ ...u, steps: [] })));
+        setAllLoaded(true);
+        return;
+      }
+
+      const stepIds = (stepsData as any[]).map((s: any) => s.id);
+
+      const { data: progressData } = await (supabase as any)
+        .from("student_progress")
+        .select("step_id, status")
+        .eq("student_id", student.id)
+        .in("step_id", stepIds);
+
+      const progressMap = new Map<string, string>(
+        ((progressData || []) as any[]).map((p: any) => [p.step_id, p.status])
+      );
+
+      const units: UnitWithSteps[] = (unitsData as any[]).map((unit: any) => ({
+        id: unit.id,
+        number: unit.number,
+        title: unit.title,
+        steps: (stepsData as any[])
+          .filter((s: any) => s.unit_id === unit.id)
+          .map((step: any) => {
+            const progressStatus = progressMap.get(step.id);
+            const isCurrentStep = step.id === student.current_step_id;
+            let status: "done" | "available" | "locked";
+            if (progressStatus === "done") status = "done";
+            else if (progressStatus === "available" || isCurrentStep) status = "available";
+            else status = "locked";
+            return {
+              id: step.id,
+              number: step.number,
+              title: step.title ?? null,
+              type: step.type,
+              status,
+              isCurrentStep,
+            };
+          }),
+      }));
+
+      setAllUnits(units);
+      setAllLoaded(true);
+    } catch {
+      setAllUnits([]);
+    } finally {
+      setAllLoading(false);
+    }
+  };
+
   const openMaterial = async (m: Material) => {
     if (!m.file_url || !student) return;
     if (m.type === "audio") {
@@ -735,199 +944,254 @@ const AulaPage = () => {
           </div>
         )}
 
-        {/* ── Header ── */}
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">Aula atual</p>
-          <h1 className="text-xl font-bold leading-tight">
-            {student.stepTitle || `Passo ${student.stepNumber}`}
-          </h1>
-          <p className="text-xs text-muted-foreground font-light">
-            {student.languageName} · {student.levelCode} · Step {student.stepNumber} de {student.totalSteps}
-          </p>
+        {/* ── View selector ── */}
+        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+          <button
+            className={cn(
+              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+              view === "current"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setView("current")}
+          >
+            Aula atual
+          </button>
+          <button
+            className={cn(
+              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+              view === "all"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setView("all")}
+          >
+            Todas as aulas
+          </button>
         </div>
 
-        {/* ── Meet button ── */}
-        {student.meetLink && (
-          <Button
-            className="w-full font-bold h-12"
-            style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
-            onClick={() => window.open(student.meetLink!, "_blank")}
-          >
-            <ExternalLink className="h-5 w-5 mr-2" />
-            Entrar na aula
-          </Button>
-        )}
-
-        {/* ── Antes da aula ── */}
-        <CollapsibleSection title="Antes da aula">
-          {beforeMats.length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-sm text-muted-foreground font-light">Nenhum material disponível para este momento.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            beforeMats.map(m => <MaterialCard key={m.id} material={m} onOpen={openMaterial} />)
-          )}
-        </CollapsibleSection>
-
-        {/* ── Exercícios ── */}
-        <CollapsibleSection
-          title="Exercícios da aula"
-          badge={exercises.length > 0 ? `${exercises.length} exercício${exercises.length !== 1 ? "s" : ""}` : undefined}
-        >
-          {exercises.length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-sm text-muted-foreground font-light">Nenhum exercício cadastrado para esta aula ainda.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <ExercisesEngine exercises={exercises} studentId={student.id} initialAttempts={attemptMap} />
-          )}
-        </CollapsibleSection>
-
-        {/* ── Vocabulário da Aula ── */}
-        <CollapsibleSection
-          title="Vocabulário da Aula"
-          badge={vocabulary.length > 0 ? `${vocabulary.length}` : undefined}
-          defaultOpen={false}
-        >
-          {vocabulary.length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-sm text-muted-foreground font-light">Nenhum vocabulário cadastrado para esta aula ainda.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {vocabulary.map(word => {
-                const isNew = new Date(word.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-                const posLabels: Record<string, string> = {
-                  noun: "subs.", verb: "verbo", adjective: "adj.", adverb: "adv.",
-                  expression: "expr.", other: "outro",
-                };
-                return (
-                  <Card key={word.id}>
-                    <CardContent className="py-3 px-4 space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-bold text-sm">{word.word}</p>
-                          <p className="text-xs text-muted-foreground font-light">{word.translation}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-light">
-                            {posLabels[word.part_of_speech] || word.part_of_speech}
-                          </Badge>
-                          {isNew && (
-                            <Badge className="text-[10px] px-1.5 py-0" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}>
-                              Novo
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      {word.example_sentence && (
-                        <p className="text-xs text-muted-foreground italic font-light">{word.example_sentence}</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+        {view === "current" ? (
+          <>
+            {/* ── Header ── */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">Aula atual</p>
+              <h1 className="text-xl font-bold leading-tight">
+                {student.stepTitle || `Passo ${student.stepNumber}`}
+              </h1>
+              <p className="text-xs text-muted-foreground font-light">
+                {student.languageName} · {student.levelCode} · Step {student.stepNumber} de {student.totalSteps}
+              </p>
             </div>
-          )}
-        </CollapsibleSection>
 
-        {/* ── Gramática da Aula ── */}
-        <CollapsibleSection
-          title="Gramática da Aula"
-          badge={grammar.length > 0 ? `${grammar.length} regr${grammar.length !== 1 ? "as" : "a"}` : undefined}
-          defaultOpen={false}
-        >
-          {grammar.length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-sm text-muted-foreground font-light">Nenhuma regra gramatical cadastrada para esta aula ainda.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {grammar.map(rule => (
-                <Card key={rule.id}>
-                  <CardContent className="pt-4 pb-4 space-y-2">
-                    <p className="font-bold text-sm">{rule.title}</p>
-                    <p className="text-sm font-light text-muted-foreground leading-relaxed">{rule.explanation}</p>
-                    {rule.examples && rule.examples.length > 0 && (
-                      <div className="space-y-2 pt-1">
-                        {rule.examples.map((ex, i) => (
-                          <div key={i} className="border-l-2 pl-3" style={{ borderColor: "var(--theme-accent)" }}>
-                            <p
-                              className="text-sm"
-                              dangerouslySetInnerHTML={{
-                                __html: ex.highlight && ex.sentence
-                                  ? ex.sentence.replace(
-                                      new RegExp(`(${ex.highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
-                                      '<mark style="background:color-mix(in srgb, var(--theme-accent) 25%, transparent);padding:0 2px;border-radius:2px">$1</mark>'
-                                    )
-                                  : (ex.sentence || ""),
-                              }}
-                            />
-                            <p className="text-xs text-muted-foreground font-light">{ex.translation}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {rule.tip && (
-                      <div className="flex items-start gap-1.5 bg-muted/50 rounded-lg p-2.5 text-xs font-light text-muted-foreground">
-                        <span className="shrink-0">💡</span>
-                        <span>{rule.tip}</span>
-                      </div>
-                    )}
+            {/* ── Meet button ── */}
+            {student.meetLink && (
+              <Button
+                className="w-full font-bold h-12"
+                style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+                onClick={() => window.open(student.meetLink!, "_blank")}
+              >
+                <ExternalLink className="h-5 w-5 mr-2" />
+                Entrar na aula
+              </Button>
+            )}
+
+            {/* ── Antes da aula ── */}
+            <CollapsibleSection title="Antes da aula">
+              {beforeMats.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground font-light">Nenhum material disponível para este momento.</p>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
-        </CollapsibleSection>
+              ) : (
+                beforeMats.map(m => <MaterialCard key={m.id} material={m} onOpen={openMaterial} />)
+              )}
+            </CollapsibleSection>
 
-        {/* ── Após a aula ── */}
-        <CollapsibleSection title="Após a aula">
-          {afterMats.length === 0 ? (
+            {/* ── Exercícios ── */}
+            <CollapsibleSection
+              title="Exercícios da aula"
+              badge={exercises.length > 0 ? `${exercises.length} exercício${exercises.length !== 1 ? "s" : ""}` : undefined}
+            >
+              {exercises.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground font-light">Nenhum exercício cadastrado para esta aula ainda.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <ExercisesEngine exercises={exercises} studentId={student.id} initialAttempts={attemptMap} />
+              )}
+            </CollapsibleSection>
+
+            {/* ── Vocabulário da Aula ── */}
+            <CollapsibleSection
+              title="Vocabulário da Aula"
+              badge={vocabulary.length > 0 ? `${vocabulary.length}` : undefined}
+              defaultOpen={false}
+            >
+              {vocabulary.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground font-light">Nenhum vocabulário cadastrado para esta aula ainda.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {vocabulary.map(word => {
+                    const isNew = new Date(word.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                    const posLabels: Record<string, string> = {
+                      noun: "subs.", verb: "verbo", adjective: "adj.", adverb: "adv.",
+                      expression: "expr.", other: "outro",
+                    };
+                    return (
+                      <Card key={word.id}>
+                        <CardContent className="py-3 px-4 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-sm">{word.word}</p>
+                              <p className="text-xs text-muted-foreground font-light">{word.translation}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-light">
+                                {posLabels[word.part_of_speech] || word.part_of_speech}
+                              </Badge>
+                              {isNew && (
+                                <Badge className="text-[10px] px-1.5 py-0" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}>
+                                  Novo
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {word.example_sentence && (
+                            <p className="text-xs text-muted-foreground italic font-light">{word.example_sentence}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* ── Gramática da Aula ── */}
+            <CollapsibleSection
+              title="Gramática da Aula"
+              badge={grammar.length > 0 ? `${grammar.length} regr${grammar.length !== 1 ? "as" : "a"}` : undefined}
+              defaultOpen={false}
+            >
+              {grammar.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground font-light">Nenhuma regra gramatical cadastrada para esta aula ainda.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {grammar.map(rule => (
+                    <Card key={rule.id}>
+                      <CardContent className="pt-4 pb-4 space-y-2">
+                        <p className="font-bold text-sm">{rule.title}</p>
+                        <p className="text-sm font-light text-muted-foreground leading-relaxed">{rule.explanation}</p>
+                        {rule.examples && rule.examples.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            {rule.examples.map((ex, i) => (
+                              <div key={i} className="border-l-2 pl-3" style={{ borderColor: "var(--theme-accent)" }}>
+                                <p
+                                  className="text-sm"
+                                  dangerouslySetInnerHTML={{
+                                    __html: ex.highlight && ex.sentence
+                                      ? ex.sentence.replace(
+                                          new RegExp(`(${ex.highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
+                                          '<mark style="background:color-mix(in srgb, var(--theme-accent) 25%, transparent);padding:0 2px;border-radius:2px">$1</mark>'
+                                        )
+                                      : (ex.sentence || ""),
+                                  }}
+                                />
+                                <p className="text-xs text-muted-foreground font-light">{ex.translation}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {rule.tip && (
+                          <div className="flex items-start gap-1.5 bg-muted/50 rounded-lg p-2.5 text-xs font-light text-muted-foreground">
+                            <span className="shrink-0">💡</span>
+                            <span>{rule.tip}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* ── Após a aula ── */}
+            <CollapsibleSection title="Após a aula">
+              {afterMats.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground font-light">Nenhum material disponível para este momento.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                afterMats.map(m => <MaterialCard key={m.id} material={m} onOpen={openMaterial} />)
+              )}
+            </CollapsibleSection>
+
+            {/* ── Speaking ── */}
             <Card>
-              <CardContent className="py-6 text-center">
-                <p className="text-sm text-muted-foreground font-light">Nenhum material disponível para este momento.</p>
+              <CardContent className="pt-5 pb-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Mic className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">Pratique sua pronúncia</p>
+                    <p className="text-xs text-muted-foreground font-light">
+                      Envie uma gravação para o seu professor avaliar.
+                    </p>
+                  </div>
+                </div>
+                <VoiceRecorder studentId={student.id} stepId={student.current_step_id} />
               </CardContent>
             </Card>
-          ) : (
-            afterMats.map(m => <MaterialCard key={m.id} material={m} onOpen={openMaterial} />)
-          )}
-        </CollapsibleSection>
 
-        {/* ── Speaking ── */}
-        <Card>
-          <CardContent className="pt-5 pb-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Mic className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="font-bold text-sm">Pratique sua pronúncia</p>
-                <p className="text-xs text-muted-foreground font-light">
-                  Envie uma gravação para o seu professor avaliar.
-                </p>
-              </div>
-            </div>
-            <VoiceRecorder studentId={student.id} stepId={student.current_step_id} />
-          </CardContent>
-        </Card>
-
-        {/* ── Audio player ── */}
-        {audioUrl && (
-          <Card>
-            <CardContent className="py-4">
-              <audio controls className="w-full" src={audioUrl}>Seu navegador não suporta áudio.</audio>
-              <Button variant="ghost" size="sm" className="mt-2 text-xs" onClick={() => setAudioUrl(null)}>Fechar player</Button>
-            </CardContent>
-          </Card>
+            {/* ── Audio player ── */}
+            {audioUrl && (
+              <Card>
+                <CardContent className="py-4">
+                  <audio controls className="w-full" src={audioUrl}>Seu navegador não suporta áudio.</audio>
+                  <Button variant="ghost" size="sm" className="mt-2 text-xs" onClick={() => setAudioUrl(null)}>Fechar player</Button>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        ) : (
+          /* ── All units view ── */
+          <div className="space-y-6">
+            {allLoading ? (
+              <>
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+              </>
+            ) : allUnits.length === 0 ? (
+              <Card>
+                <CardContent className="py-10 text-center">
+                  <p className="text-sm text-muted-foreground font-light">Nenhuma unidade encontrada.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              allUnits.map(unit => (
+                <UnitAccordion
+                  key={unit.id}
+                  unit={unit}
+                  onStepClick={() => setView("current")}
+                />
+              ))
+            )}
+          </div>
         )}
       </div>
 
