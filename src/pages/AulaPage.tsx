@@ -16,7 +16,7 @@ import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap,
   RotateCcw, Mic, GraduationCap, ExternalLink, AlertTriangle,
-  Lock, Circle,
+  Lock, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -565,53 +565,38 @@ const StepCard = ({
 }) => {
   const isLocked = step.status === "locked";
   return (
-    <button
-      disabled={isLocked}
+    <div
       onClick={isLocked ? undefined : onClick}
+      style={{
+        cursor: isLocked ? "not-allowed" : "pointer",
+        transition: "transform 0.15s",
+      }}
       className={cn(
-        "w-full text-left rounded-xl border px-3 py-2.5 flex items-center gap-3 transition-colors",
-        isLocked
-          ? "opacity-50 cursor-not-allowed border-border"
-          : "hover:border-primary/30 bg-card",
-        step.isCurrentStep && "border-[color:var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_8%,transparent)]"
+        "aspect-square rounded-lg flex flex-col items-center justify-center text-sm relative select-none",
+        !isLocked && "hover:scale-105 active:scale-95",
+        step.status === "done" && "bg-primary text-primary-foreground",
+        step.status === "available" && "border-2 bg-card",
+        step.status === "available" && !step.isCurrentStep && "border-muted-foreground/30 text-foreground",
+        step.isCurrentStep && "border-primary text-primary",
+        step.status === "locked" && "bg-muted text-muted-foreground",
       )}
     >
-      {/* Status icon */}
-      <div className="shrink-0 flex items-center justify-center w-5 h-5">
-        {step.status === "done" && (
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-        )}
-        {step.status === "available" && step.isCurrentStep && (
-          <div
-            className="h-5 w-5 rounded-full flex items-center justify-center"
-            style={{ background: "var(--theme-accent)" }}
-          >
-            <div className="h-2 w-2 rounded-full bg-white" />
-          </div>
-        )}
-        {step.status === "available" && !step.isCurrentStep && (
-          <Circle className="h-5 w-5 text-muted-foreground" />
-        )}
-        {step.status === "locked" && (
-          <Lock className="h-4 w-4 text-muted-foreground" />
-        )}
-      </div>
-
-      {/* Label */}
-      <p className={cn("flex-1 min-w-0 text-sm truncate", isLocked ? "text-muted-foreground font-light" : "font-medium")}>
-        Aula {step.number}{step.title ? ` — ${step.title}` : ""}
-      </p>
-
-      {/* Current badge */}
-      {step.isCurrentStep && (
-        <Badge
-          className="shrink-0 text-[10px] px-1.5 py-0"
-          style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
-        >
-          Atual
-        </Badge>
+      {step.status === "done" ? (
+        <>
+          <Check className="h-4 w-4" style={{ color: "var(--theme-accent)" }} />
+          <span className="text-xs font-bold mt-0.5">{step.number}</span>
+        </>
+      ) : step.status === "locked" ? (
+        <>
+          <Lock className="h-3 w-3" />
+          <span className="text-xs mt-0.5">{step.number}</span>
+        </>
+      ) : (
+        <span className={cn("font-bold", step.isCurrentStep ? "text-base" : "text-sm")}>
+          {step.number}
+        </span>
       )}
-    </button>
+    </div>
   );
 };
 
@@ -649,7 +634,7 @@ const UnitAccordion = ({
       </button>
 
       {open && (
-        <div className="space-y-1.5 pl-1">
+        <div className="grid grid-cols-5 gap-2">
           {unit.steps.map(step => (
             <StepCard key={step.id} step={step} onClick={onStepClick} />
           ))}
@@ -1183,13 +1168,35 @@ const AulaPage = () => {
                 </CardContent>
               </Card>
             ) : (
-              allUnits.map(unit => (
-                <UnitAccordion
-                  key={unit.id}
-                  unit={unit}
-                  onStepClick={() => setView("current")}
-                />
-              ))
+              <>
+                {allUnits.map(unit => (
+                  <UnitAccordion
+                    key={unit.id}
+                    unit={unit}
+                    onStepClick={() => setView("current")}
+                  />
+                ))}
+                {allUnits.length > 0 && (
+                  <div className="flex items-center justify-center gap-5 pt-1 pb-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+                        <Check className="h-2.5 w-2.5" style={{ color: "var(--theme-accent)" }} />
+                      </div>
+                      <span className="text-xs text-muted-foreground font-light">Concluído</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded border-2 border-primary bg-card" />
+                      <span className="text-xs text-muted-foreground font-light">Atual</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-muted flex items-center justify-center">
+                        <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+                      </div>
+                      <span className="text-xs text-muted-foreground font-light">Bloqueado</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
