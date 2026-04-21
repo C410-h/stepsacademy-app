@@ -23,6 +23,7 @@ import StepByStep from "./pages/StepByStep";
 import Perfil from "./pages/Perfil";
 import Nivelamento from "./pages/Nivelamento";
 import Loja from "./pages/Loja";
+import Ranking from "./pages/Ranking";
 import Certificado from "./pages/Certificado";
 import Planos from "./pages/Planos";
 import Cadastro from "./pages/Cadastro";
@@ -73,6 +74,7 @@ const App = () => (
               <Route path="/admin/professor/:id" element={<ProtectedRoute requiredRole="admin"><AdminTeacherDetail /></ProtectedRoute>} />
               <Route path="/nivelamento" element={<ProtectedRoute><Nivelamento /></ProtectedRoute>} />
               <Route path="/loja" element={<ProtectedRoute><Loja /></ProtectedRoute>} />
+              <Route path="/ranking" element={<ProtectedRoute><Ranking /></ProtectedRoute>} />
               <Route path="/certificado/:id" element={<Certificado />} />
               <Route path="/planos" element={<Planos />} />
               <Route path="/cadastro" element={<Cadastro />} />
