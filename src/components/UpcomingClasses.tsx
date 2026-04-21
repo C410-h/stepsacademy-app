@@ -296,7 +296,7 @@ const UpcomingClasses = () => {
               Remarcada
             </Badge>
           ) : ev.class_type === "duo" ? (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Aula em dupla</Badge>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Dupla</Badge>
           ) : ev.class_type === "group" ? (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0">{groupLabel(ev.title)}</Badge>
           ) : null;
@@ -416,7 +416,7 @@ const UpcomingClasses = () => {
                         </Badge>
                       )}
                       {ev.class_type === "duo" && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">Aula em dupla</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">Dupla</Badge>
                       )}
                       {ev.class_type === "group" && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">{groupLabel(ev.title)}</Badge>
