@@ -5,7 +5,7 @@ import { useGamification } from "@/contexts/GamificationContext";
 import { usePaymentAlert } from "@/contexts/PaymentAlertContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp, Coins } from "lucide-react";
+import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp, Coins, Trophy } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
