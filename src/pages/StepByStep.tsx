@@ -1874,20 +1874,31 @@ const StepByStep = () => {
                     {/* Hints */}
                     {isPlaying && (
                       <div className="space-y-2">
-                        {hintsUsed >= 1 && word?.translation && (
+                        {/* Dica 1: frase de contexto (não entrega a resposta) */}
+                        {hintsUsed >= 1 && (word?.example_sentence || (!word?.example_sentence && word?.translation)) && (
+                          word?.example_sentence ? (
+                            <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
+                              <span className="shrink-0">💡</span>
+                              <span className="italic">"{word.example_sentence}"</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
+                              <span>💡</span>
+                              <span>Tradução: <span className="font-bold text-foreground">{word.translation}</span></span>
+                            </div>
+                          )
+                        )}
+                        {/* Dica 2: tradução (último recurso, só quando há exemplo como dica 1) */}
+                        {hintsUsed >= 2 && word?.example_sentence && word?.translation && (
                           <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
                             <span>💡</span>
                             <span>Tradução: <span className="font-bold text-foreground">{word.translation}</span></span>
                           </div>
                         )}
-                        {hintsUsed >= 2 && word?.example_sentence && (
-                          <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-lg py-2 px-3">
-                            <span className="shrink-0">💡</span>
-                            <span className="italic">"{word.example_sentence}"</span>
-                          </div>
-                        )}
                         {(() => {
-                          const maxHints = word?.example_sentence ? 2 : (word?.translation ? 1 : 0);
+                          const maxHints = word?.example_sentence
+                            ? (word?.translation ? 2 : 1)
+                            : (word?.translation ? 1 : 0);
                           const canHint = hintsUsed < maxHints && errors < MAX_ERRORS - 1;
                           if (maxHints === 0) return null;
                           return (
