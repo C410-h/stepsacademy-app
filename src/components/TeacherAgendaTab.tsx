@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -40,6 +40,7 @@ interface SessionWithStudent {
   notes: string | null;
   missed_confirmed_at: string | null;
   missed_confirmed_by: string | null;
+  student_cancel_requested_at: string | null;
   student_name: string;
   student_avatar: string | null;
   language_name: string;
@@ -143,13 +144,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by")
+        .select("id, student_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by")
+        .select("id, student_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -430,6 +431,12 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                 {s.status === "missed_pending" && (
                   <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
                 )}
+                {s.student_cancel_requested_at && (
+                  <span className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                    <UserX className="h-3 w-3 shrink-0" />
+                    Aluno avisou
+                  </span>
+                )}
               </div>
             )}
             {/* Language */}
@@ -658,6 +665,21 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   <span className={cn("inline-block text-xs px-2.5 py-1 rounded-full font-medium", cfg.badge)}>
                     {cfg.label}
                   </span>
+
+                  {/* Student absence warning */}
+                  {selected.student_cancel_requested_at && (
+                    <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3.5 py-3">
+                      <UserX className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                          Aluno avisou que não poderá comparecer
+                        </p>
+                        <p className="text-xs text-amber-700/80 dark:text-amber-400/80 font-light">
+                          Avisado em {format(new Date(selected.student_cancel_requested_at), "d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Meet link */}
                   {selected.meet_link && (
