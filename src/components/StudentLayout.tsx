@@ -17,6 +17,7 @@ const navItems = [
   { to: "/aula", icon: GraduationCap, label: "Aula" },
   { to: "/step-by-step", icon: Zap, label: "Step by Step" },
   { to: "/progresso", icon: BarChart3, label: "Progresso" },
+  { to: "/ranking", icon: Trophy, label: "Ranking" },
   { to: "/perfil", icon: User, label: "Perfil" },
 ];
 
