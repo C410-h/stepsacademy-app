@@ -211,7 +211,9 @@ const UpcomingClasses = () => {
   };
 
   const handleReportAbsence = async () => {
-    const session = sheetEvent ? sessionByEventId.get(sheetEvent.id) : null;
+    const session = sheetEvent
+      ? sessionByTime.get(new Date(sheetEvent.start).toISOString().substring(0, 16))
+      : null;
     if (!session) return;
     setCancelling(true);
     try {
@@ -280,12 +282,15 @@ const UpcomingClasses = () => {
 
   // ── Render: lista de aulas ─────────────────────────────────────────────────
 
+  const visibleEvents = events.slice(0, 2);
+  const hasMore = events.length > 2;
+
   return (
     <>
       <div className="space-y-3">
         <p className="text-sm font-bold">Próximas aulas</p>
 
-        {events.map((ev) => {
+        {visibleEvents.map((ev) => {
           const soon           = isStartingSoon(ev.start);
           const passed         = hasPassed(ev.start);
           const matchedSession = sessionByTime.get(new Date(ev.start).toISOString().substring(0, 16));
@@ -377,6 +382,15 @@ const UpcomingClasses = () => {
             </Card>
           );
         })}
+
+        {hasMore && (
+          <button
+            className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 font-medium"
+            onClick={() => toast({ title: "Em breve!", description: "A visualização de todas as aulas estará disponível em breve." })}
+          >
+            Ver todas as aulas →
+          </button>
+        )}
       </div>
 
       {/* ── Sheet de detalhes / ações ───────────────────────────────────────── */}
