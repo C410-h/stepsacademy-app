@@ -13,9 +13,12 @@ import { CalendarDays, Clock, RefreshCw, CalendarClock } from "lucide-react";
 export interface RescheduleSessionData {
   id: string;
   google_event_id: string;
+  /** Horário efetivo para cálculo de duração (pode ser rescheduled_at se já remarcado) */
   scheduled_at: string;
   scheduled_ends_at: string;
   teacher_id: string;
+  /** O scheduled_at original do banco — usado para encontrar todas as sessões do mesmo horário (ex: dupla) */
+  original_scheduled_at?: string;
   /** 'single' = só esta ocorrência | 'recurring' = esta e todas as seguintes */
   mode?: "single" | "recurring";
 }
@@ -154,19 +157,20 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
       const endTotal = slotH * 60 + slotM + origDuration;
       const newEndISO = `${dateStr}T${pad(Math.floor(endTotal / 60))}:${pad(endTotal % 60)}:00-03:00`;
 
-      // For a single occurrence: update this class_session record in DB
+      // For a single occurrence: update ALL sessions at this time slot.
+      // Matching by teacher_id + scheduled_at covers both individual classes
+      // (1 row) and duo classes (2 rows — one per student) automatically.
       if (!isRecurring) {
+        const matchAt = session.original_scheduled_at ?? session.scheduled_at;
         const { error: dbErr } = await (supabase as any)
           .from("class_sessions")
           .update({
             status: "rescheduled",
             rescheduled_at: newStartISO,
             rescheduled_ends_at: newEndISO,
-            reschedule_count: (session as any).reschedule_count
-              ? (session as any).reschedule_count + 1
-              : 1,
           })
-          .eq("id", session.id);
+          .eq("teacher_id", session.teacher_id)
+          .eq("scheduled_at", matchAt);
         if (dbErr) throw dbErr;
       }
 

@@ -340,6 +340,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       scheduled_at: start,
       scheduled_ends_at: end || start,
       teacher_id: profileId,
+      original_scheduled_at: s.scheduled_at,
     });
     setDrawerOpen(false);
     setRescheduleOpen(true);

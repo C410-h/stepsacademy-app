@@ -197,6 +197,7 @@ const UpcomingClasses = () => {
         scheduled_at: session.rescheduled_at ?? session.scheduled_at,
         scheduled_ends_at: session.rescheduled_ends_at ?? session.ends_at ?? evStart,
         teacher_id: session.teacher_id,
+        original_scheduled_at: session.scheduled_at,
         mode,
       });
       setRescheduleOpen(true);
