@@ -69,7 +69,7 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
         const [bookedRes, rescheduledRes] = await Promise.all([
           (supabase as any)
             .from("class_sessions")
-            .select("scheduled_at, scheduled_ends_at")
+            .select("scheduled_at, ends_at")
             .eq("teacher_id", session.teacher_id)
             .eq("status", "scheduled")
             .gte("scheduled_at", `${dateStr}T00:00:00-03:00`)
@@ -94,7 +94,7 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
         const bookedRanges: Range[] = [
           ...((bookedRes.data || []) as any[]).map((s: any) => ({
             startM: toMinutes(s.scheduled_at),
-            endM: toMinutes(s.scheduled_ends_at),
+            endM: toMinutes(s.ends_at),
           })),
           ...((rescheduledRes.data || []) as any[])
             .filter((s: any) => s.rescheduled_at)

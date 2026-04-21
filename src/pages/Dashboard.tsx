@@ -132,12 +132,12 @@ const Dashboard = () => {
     // Aulas com falta pendente (missed_pending)
     const { data: missedRows } = await (supabase as any)
       .from("class_sessions")
-      .select("id, google_event_id, scheduled_at, scheduled_ends_at, teacher_id")
+      .select("id, google_event_id, scheduled_at, ends_at, teacher_id")
       .eq("student_id", s.id)
       .eq("status", "missed_pending")
       .order("scheduled_at", { ascending: false })
       .limit(5);
-    setMissedSessions((missedRows as RescheduleSessionData[]) || []);
+    setMissedSessions(((missedRows || []) as any[]).map((r: any) => ({ ...r, scheduled_ends_at: r.ends_at })) as RescheduleSessionData[]);
 
     // Materiais do step atual + materiais pessoais
     const [stepRes, personalRes] = await Promise.all([

@@ -31,7 +31,7 @@ interface SessionWithStudent {
   id: string;
   student_id: string;
   scheduled_at: string;
-  scheduled_ends_at: string | null;
+  ends_at: string | null;
   rescheduled_at: string | null;
   rescheduled_ends_at: string | null;
   status: string;
@@ -93,7 +93,7 @@ function getEffectiveTimes(s: SessionWithStudent) {
   if (s.status === "rescheduled" && s.rescheduled_at) {
     return { start: s.rescheduled_at, end: s.rescheduled_ends_at };
   }
-  return { start: s.scheduled_at, end: s.scheduled_ends_at };
+  return { start: s.scheduled_at, end: s.ends_at };
 }
 
 const isStartingSoon = (startISO: string) => {
@@ -144,13 +144,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, scheduled_ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
