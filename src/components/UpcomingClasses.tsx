@@ -457,28 +457,29 @@ const UpcomingClasses = () => {
                       </Button>
                     )}
 
-                    {/* Remarcar esta aula (sempre disponível se tiver sessão futura) */}
-                    {session && isFuture && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={() => openReschedule(ev.id, "single", session, ev.start)}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        Remarcar esta aula
-                      </Button>
-                    )}
+                    {/* Remarcar / Alterar horário — indisponível para aulas em turma */}
+                    {session && isFuture && ev.class_type !== "group" && (
+                      <>
+                        <Button
+                          variant="outline"
+                          className="w-full gap-2"
+                          onClick={() => openReschedule(ev.id, "single", session, ev.start)}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Remarcar esta aula
+                        </Button>
 
-                    {/* Alterar horário (só para eventos recorrentes) */}
-                    {session && isFuture && isRecurring && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2 text-blue-700 border-blue-300 hover:bg-blue-50 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-950/20"
-                        onClick={() => openReschedule(baseEventId, "recurring", session, ev.start)}
-                      >
-                        <CalendarClock className="h-4 w-4" />
-                        Alterar horário das aulas
-                      </Button>
+                        {isRecurring && (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 text-blue-700 border-blue-300 hover:bg-blue-50 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-950/20"
+                            onClick={() => openReschedule(baseEventId, "recurring", session, ev.start)}
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                            Alterar horário das aulas
+                          </Button>
+                        )}
+                      </>
                     )}
 
                     {/* Não posso comparecer */}
