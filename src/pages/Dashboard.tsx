@@ -244,7 +244,7 @@ const Dashboard = () => {
   return (
     <StudentLayout>
       {/* Onboarding Modal */}
-      <Dialog open={showOnboarding} onOpenChange={setShowOnboarding}>
+      <Dialog open={showOnboarding} onOpenChange={(open) => { if (!open) completeOnboarding(); }}>
         <DialogContent className="max-w-md mx-auto h-[90vh] flex flex-col items-center justify-center gap-6 p-6">
           <h2 className="text-2xl font-bold text-primary text-center">Bem-vindo à steps academy! 🎉</h2>
           <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
