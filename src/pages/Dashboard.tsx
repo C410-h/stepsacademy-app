@@ -337,7 +337,10 @@ const Dashboard = () => {
           )}
 
           {/* Progress */}
-          <Card>
+          <Card
+            className="cursor-pointer hover:border-primary/30 transition-colors"
+            onClick={() => navigate("/aula?tab=all")}
+          >
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center justify-between mb-1">
                 <div>

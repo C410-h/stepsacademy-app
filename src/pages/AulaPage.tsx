@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -606,8 +606,11 @@ const StepCard = ({
 const AulaPage = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [view, setView] = useState<"current" | "all">("current");
+  const [view, setView] = useState<"current" | "all">(
+    searchParams.get("tab") === "all" ? "all" : "current"
+  );
   const [allUnits, setAllUnits] = useState<UnitWithSteps[]>([]);
   const [allLoading, setAllLoading] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
@@ -1132,15 +1135,30 @@ const AulaPage = () => {
                   const total = allSteps.length;
                   const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
                   return (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold">{percent}% concluído</span>
-                        <span className="text-xs text-muted-foreground font-light">
-                          {doneCount} de {total} aulas
-                        </span>
-                      </div>
-                      <Progress value={percent} className="h-2.5" />
-                    </div>
+                    <Card>
+                      <CardContent className="pt-4 pb-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <div>
+                            <p className="text-sm text-muted-foreground font-light">
+                              {student.languageName} · {student.levelName} · {student.levelCode}
+                            </p>
+                            <p className="text-2xl font-bold text-primary mt-0.5">
+                              {percent}% concluído
+                            </p>
+                            <p className="text-xs text-muted-foreground font-light mt-0.5">
+                              {doneCount} de {total} aulas
+                            </p>
+                          </div>
+                          <img
+                            src="/steppie/steppie-orgulhoso.webp"
+                            alt=""
+                            aria-hidden="true"
+                            className="w-14 shrink-0 self-end"
+                          />
+                        </div>
+                        <Progress value={percent} className="h-2.5 mt-3" />
+                      </CardContent>
+                    </Card>
                   );
                 })()}
                 <div className="grid grid-cols-5 gap-2">
