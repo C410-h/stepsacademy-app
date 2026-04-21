@@ -600,50 +600,6 @@ const StepCard = ({
   );
 };
 
-// ─── UnitAccordion ────────────────────────────────────────────────────────────
-
-const UnitAccordion = ({
-  unit,
-  onStepClick,
-}: {
-  unit: UnitWithSteps;
-  onStepClick: () => void;
-}) => {
-  const doneCount = unit.steps.filter(s => s.status === "done").length;
-  const hasProgress = doneCount > 0 || unit.steps.some(s => s.isCurrentStep);
-  const [open, setOpen] = useState(hasProgress);
-
-  return (
-    <div className="space-y-2">
-      <button
-        className="flex items-center justify-between w-full group py-0.5"
-        onClick={() => setOpen(p => !p)}
-      >
-        <div className="text-left min-w-0 pr-2">
-          <p className="text-sm font-bold">
-            Unidade {unit.number} — {unit.title}
-          </p>
-          <p className="text-xs text-muted-foreground font-light">
-            {doneCount}/{unit.steps.length} aulas concluídas
-          </p>
-        </div>
-        {open
-          ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-        }
-      </button>
-
-      {open && (
-        <div className="grid grid-cols-5 gap-2">
-          {unit.steps.map(step => (
-            <StepCard key={step.id} step={step} onClick={onStepClick} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const AulaPage = () => {
@@ -1169,13 +1125,11 @@ const AulaPage = () => {
               </Card>
             ) : (
               <>
-                {allUnits.map(unit => (
-                  <UnitAccordion
-                    key={unit.id}
-                    unit={unit}
-                    onStepClick={() => setView("current")}
-                  />
-                ))}
+                <div className="grid grid-cols-5 gap-2">
+                  {allUnits.flatMap(u => u.steps).map(step => (
+                    <StepCard key={step.id} step={step} onClick={() => setView("current")} />
+                  ))}
+                </div>
                 {allUnits.length > 0 && (
                   <div className="flex items-center justify-center gap-5 pt-1 pb-1">
                     <div className="flex items-center gap-1.5">
