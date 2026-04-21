@@ -191,13 +191,13 @@ const DATA: Record<LangKey, ThemeData> = {
     tag: "japonês · aulas ao vivo",
     h1: "Uma das línguas mais\ncomplexas do mundo",
     em: "— e uma das culturas mais ricas.",
-    body: "Anime, mangá, gastronomia, filosofia. O japonês atrai quem já tem uma relação com o Japão antes mesmo de abrir o primeiro livro. Nossas aulas são desenvolvidas com curadoria de professor japonês — para garantir que você aprenda o idioma de verdade, não uma versão simplificada.",
-    sub: "Curadoria de professor japonês. Aulas particulares disponíveis agora.",
+    body: "Anime, mangá, gastronomia, filosofia. O japonês atrai quem já tem uma relação com o Japão antes mesmo de abrir o primeiro livro. Nossas aulas são desenvolvidas com curadoria de professor nativo japonês — para garantir que você aprenda o idioma de verdade, não uma versão simplificada.",
+    sub: "Curadoria de professor nativo japonês. Aulas particulares disponíveis agora.",
     cta: "quero aprender japonês",
     dLabel: "por que a steps · japonês",
     dTitle: "Japonês de verdade,\nnão uma versão simplificada.",
     difs: [
-      { n: "01", title: "curadoria de professor japonês", body: "Nossa metodologia é desenvolvida com curadoria de professor japonês — para garantir autenticidade em cada aula." },
+      { n: "01", title: "curadoria de professor nativo japonês", body: "Nossa metodologia é desenvolvida com curadoria de professor nativo japonês — para garantir autenticidade em cada aula." },
       { n: "02", title: "uma cultura que você já ama", body: "Anime, mangá, gastronomia, filosofia. O japonês faz sentido quando você já tem uma relação com o Japão." },
       { n: "03", title: "aulas particulares agora", body: "Sem esperar turma. Você começa quando quiser, no ritmo que funciona pra você." },
       { n: "04", title: "material próprio da Steps", body: "Slides, fichas e exercícios produzidos pela Steps Academy com linguagem e identidade próprias." },
@@ -228,14 +228,20 @@ const BUBBLES: { key: LangKey; sym: string; label: string; fontSize?: string }[]
 // ─── WAVE TRANSITION COMPONENT ───────────────────────────────────
 // ─── LIBRAS SVG ICON ─────────────────────────────────────────────
 const LibrasIcon = ({ color = "currentColor", size = 24 }: { color?: string; size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M7 12c0-2 1-4 3-5" />
-    <path d="M12 3c0 0-1 2-1 4s1 3 1 3" />
-    <path d="M16 7c1 1 2 3 2 5" />
-    <path d="M6 17c0 0 2 4 6 4s6-4 6-4" />
-    <circle cx="8" cy="9" r="1.2" fill={color} stroke="none" />
-    <circle cx="16" cy="10" r="1.2" fill={color} stroke="none" />
-    <path d="M10 15c0 0 1 1.5 2 1.5s2-1.5 2-1.5" />
+  /* ILY hand sign: polegar + indicador + mindinho estendidos */
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    {/* Palma */}
+    <path d="M7 11h10v7a2 2 0 01-2 2H9a2 2 0 01-2-2v-7z" />
+    {/* Indicador — estendido para cima */}
+    <rect x="8" y="3.5" width="3" height="8.5" rx="1.5" />
+    {/* Médio — dobrado, menor */}
+    <rect x="11.5" y="7" width="2.5" height="4.5" rx="1.25" />
+    {/* Anelar — dobrado, menor */}
+    <rect x="14.5" y="8" width="2.5" height="3.5" rx="1.25" />
+    {/* Mindinho — estendido para cima */}
+    <rect x="17.5" y="4.5" width="2.5" height="7" rx="1.25" />
+    {/* Polegar — estendido para a esquerda */}
+    <rect x="2" y="11" width="6.5" height="2.8" rx="1.4" />
   </svg>
 );
 

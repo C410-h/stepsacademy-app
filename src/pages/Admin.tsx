@@ -20,6 +20,7 @@ import { AdminCommandPalette } from "@/components/AdminCommandPalette";
 import AdminApprovalsTab from "@/components/AdminApprovalsTab";
 import AdminContentByStepTab from "@/components/AdminContentByStepTab";
 import AdminPaymentsTab from "@/components/AdminPaymentsTab";
+import AdminSuggestionsDrawer from "@/components/AdminSuggestionsDrawer";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -29,7 +30,7 @@ import {
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
   UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
-  Library, X,
+  Library, X, MessageSquarePlus,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -340,6 +341,9 @@ const Admin = () => {
 
   // ── Active tab (controlled, needed for desktop sidebar)
   const [activeTab, setActiveTab] = useState("overview");
+
+  // ── Suggestions drawer
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   // ── Command palette
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -1405,6 +1409,14 @@ const Admin = () => {
             <Search className="h-3.5 w-3.5" />
             Buscar…
             <kbd className="ml-1 font-mono text-[10px] border rounded px-1">⌘K</kbd>
+          </button>
+          <button
+            onClick={() => setSuggestionsOpen(true)}
+            title="Sugestões dos alunos"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground border rounded-md px-3 py-1.5 hover:bg-muted transition-colors"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Sugestões</span>
           </button>
           <span className="text-sm font-light text-muted-foreground hidden sm:block">{firstName} · Admin</span>
           <Button variant="ghost" size="sm" onClick={signOut} className="text-muted-foreground">
@@ -3652,6 +3664,11 @@ const Admin = () => {
             setActiveTab("groups");
           }
         }}
+      />
+
+      <AdminSuggestionsDrawer
+        open={suggestionsOpen}
+        onOpenChange={setSuggestionsOpen}
       />
     </div>
   );

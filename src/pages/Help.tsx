@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import StudentLayout from "@/components/StudentLayout";
 import {
   Accordion,
@@ -8,7 +9,12 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
-import { Search, HelpCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
+import { Search, HelpCircle, Lightbulb, CheckCircle2 } from "lucide-react";
 import { HELP_CONTENT } from "@/data/helpContent";
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -16,6 +22,43 @@ import { HELP_CONTENT } from "@/data/helpContent";
 const Help = () => {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
+
+  // ── Sugestões ─────────────────────────────────────────────────────────────
+  const [studentId, setStudentId] = useState<string | null>(null);
+  const [category, setCategory] = useState("geral");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    supabase
+      .from("students")
+      .select("id")
+      .eq("user_id", profile.id)
+      .maybeSingle()
+      .then(({ data }) => setStudentId(data?.id ?? null));
+  }, [profile]);
+
+  const handleSubmit = async () => {
+    if (!message.trim() || !profile) return;
+    setSubmitting(true);
+    try {
+      await (supabase as any).from("suggestions").insert({
+        student_id: studentId,
+        profile_id: profile.id,
+        message: message.trim(),
+        category,
+      });
+      setSubmitted(true);
+      setMessage("");
+      toast({ title: "✅ Sugestão enviada!", description: "Obrigado! Nossa equipe vai analisar em breve." });
+    } catch {
+      toast({ title: "Erro ao enviar sugestão", description: "Tente novamente.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const role = (profile?.role as keyof typeof HELP_CONTENT) ?? "student";
   const sections = HELP_CONTENT[role] ?? HELP_CONTENT.student;
@@ -125,6 +168,75 @@ const Help = () => {
         )}
 
       </div>
+
+      {/* ── Caixa de sugestões ── */}
+      {profile?.role === "student" && (
+        <Card className="mt-8">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-yellow-500" />
+              Tem uma sugestão?
+            </CardTitle>
+            <p className="text-xs text-muted-foreground font-light">
+              Sugira novos minigames, funções, atividades ou qualquer ideia para melhorar a plataforma.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {submitted ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <CheckCircle2 className="h-8 w-8 text-green-500" />
+                <p className="text-sm font-medium">Sugestão enviada!</p>
+                <p className="text-xs text-muted-foreground font-light">Nossa equipe vai analisar em breve.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-xs"
+                  onClick={() => setSubmitted(false)}
+                >
+                  Enviar outra sugestão
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minigame">🎮 Minigame</SelectItem>
+                    <SelectItem value="funcao">⚙️ Função da plataforma</SelectItem>
+                    <SelectItem value="atividade">📚 Atividade de aula</SelectItem>
+                    <SelectItem value="geral">💬 Geral</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Textarea
+                  placeholder="Escreva sua sugestão aqui…"
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  rows={4}
+                  className="text-sm resize-none"
+                  maxLength={1000}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-muted-foreground font-light">
+                    {message.length}/1000 caracteres
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    disabled={submitting || !message.trim()}
+                    className="font-bold"
+                  >
+                    {submitting ? "Enviando…" : "Enviar sugestão"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
     </StudentLayout>
   );
 };
