@@ -11,7 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CalendarDays, ExternalLink, RefreshCw, Calendar,
-  Loader2, AlertTriangle, ChevronRight, BanIcon,
+  Loader2, AlertTriangle, ChevronRight, BanIcon, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -181,20 +181,32 @@ const UpcomingClasses = () => {
     setSheetOpen(true);
   };
 
-  const openReschedule = (session: ClassSession, evStart: string) => {
-    if (!session.google_event_id) return;
+  // eventId = instance ID (single) or base event ID (recurring)
+  const openReschedule = (
+    eventId: string,
+    mode: "single" | "recurring",
+    session: ClassSession,
+    evStart: string
+  ) => {
     setSheetOpen(false);
     setSheetEvent(null);
     setTimeout(() => {
       setRescheduleSession({
         id: session.id,
-        google_event_id: session.google_event_id!,
+        google_event_id: eventId,
         scheduled_at: session.rescheduled_at ?? session.scheduled_at,
         scheduled_ends_at: session.rescheduled_ends_at ?? session.ends_at ?? evStart,
         teacher_id: session.teacher_id,
+        mode,
       });
       setRescheduleOpen(true);
     }, 150);
+  };
+
+  // Detects whether a Google Calendar event is a recurring instance
+  const getRecurringInfo = (evId: string) => {
+    const match = evId.match(/^(.+)_(\d{8}T\d{6}Z)$/);
+    return { isRecurring: !!match, baseEventId: match ? match[1] : evId };
   };
 
   const handleReportAbsence = async () => {
@@ -375,6 +387,7 @@ const UpcomingClasses = () => {
             const soon    = isStartingSoon(ev.start);
             const isFuture = !hasPassed(ev.start);
             const alreadyCancelled = !!session?.student_cancel_requested_at;
+            const { isRecurring, baseEventId } = getRecurringInfo(ev.id);
 
             return (
               <>
@@ -444,15 +457,27 @@ const UpcomingClasses = () => {
                       </Button>
                     )}
 
-                    {/* Remarcar */}
+                    {/* Remarcar esta aula (sempre disponível se tiver sessão futura) */}
                     {session && isFuture && (
                       <Button
                         variant="outline"
                         className="w-full gap-2"
-                        onClick={() => openReschedule(session, ev.start)}
+                        onClick={() => openReschedule(ev.id, "single", session, ev.start)}
                       >
                         <RefreshCw className="h-4 w-4" />
-                        Remarcar aula
+                        Remarcar esta aula
+                      </Button>
+                    )}
+
+                    {/* Alterar horário (só para eventos recorrentes) */}
+                    {session && isFuture && isRecurring && (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2 text-blue-700 border-blue-300 hover:bg-blue-50 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-950/20"
+                        onClick={() => openReschedule(baseEventId, "recurring", session, ev.start)}
+                      >
+                        <CalendarClock className="h-4 w-4" />
+                        Alterar horário das aulas
                       </Button>
                     )}
 

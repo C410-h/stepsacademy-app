@@ -6,9 +6,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, Clock, RefreshCw, CalendarClock } from "lucide-react";
 
 export interface RescheduleSessionData {
   id: string;
@@ -16,6 +16,8 @@ export interface RescheduleSessionData {
   scheduled_at: string;
   scheduled_ends_at: string;
   teacher_id: string;
+  /** 'single' = só esta ocorrência | 'recurring' = esta e todas as seguintes */
+  mode?: "single" | "recurring";
 }
 
 interface Props {
@@ -140,6 +142,7 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
   const handleConfirm = async () => {
     if (!session || !date || !selectedSlot) return;
     setSaving(true);
+    const isRecurring = session.mode === "recurring";
     try {
       const [slotH, slotM] = selectedSlot.split(":").map(Number);
       const origDuration = Math.round(
@@ -151,21 +154,24 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
       const endTotal = slotH * 60 + slotM + origDuration;
       const newEndISO = `${dateStr}T${pad(Math.floor(endTotal / 60))}:${pad(endTotal % 60)}:00-03:00`;
 
-      const { error: dbErr } = await (supabase as any)
-        .from("class_sessions")
-        .update({
-          status: "rescheduled",
-          rescheduled_at: newStartISO,
-          rescheduled_ends_at: newEndISO,
-          reschedule_count: (session as any).reschedule_count
-            ? (session as any).reschedule_count + 1
-            : 1,
-        })
-        .eq("id", session.id);
+      // For a single occurrence: update this class_session record in DB
+      if (!isRecurring) {
+        const { error: dbErr } = await (supabase as any)
+          .from("class_sessions")
+          .update({
+            status: "rescheduled",
+            rescheduled_at: newStartISO,
+            rescheduled_ends_at: newEndISO,
+            reschedule_count: (session as any).reschedule_count
+              ? (session as any).reschedule_count + 1
+              : 1,
+          })
+          .eq("id", session.id);
+        if (dbErr) throw dbErr;
+      }
 
-      if (dbErr) throw dbErr;
-
-      // Refresh auth token before calling edge function
+      // Always update Google Calendar
+      // google_event_id is the instance ID for 'single' or the base event ID for 'recurring'
       let { data: { session: authSess } } = await supabase.auth.getSession();
       if (!authSess?.access_token) {
         const { data: r } = await supabase.auth.refreshSession();
@@ -186,8 +192,10 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
       });
 
       toast({
-        title: "Aula remarcada!",
-        description: `Nova data: ${format(date, "d 'de' MMMM", { locale: ptBR })} às ${selectedSlot}`,
+        title: isRecurring ? "Horário alterado!" : "Aula remarcada!",
+        description: isRecurring
+          ? `Esta e as próximas aulas passarão a ser ${format(date, "EEEE", { locale: ptBR })} às ${selectedSlot}`
+          : `Nova data: ${format(date, "d 'de' MMMM", { locale: ptBR })} às ${selectedSlot}`,
       });
       onSuccess?.();
       onOpenChange(false);
@@ -200,24 +208,46 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
 
   if (!session) return null;
 
+  const isRecurring = session.mode === "recurring";
   const originalDate = new Date(session.scheduled_at);
-  const monthEnd = endOfMonth(originalDate);
-  const fromDate = new Date(Math.max(startOfMonth(originalDate).getTime(), Date.now()));
+  const today = new Date();
+  const fromDate = new Date(Math.max(today.setHours(0, 0, 0, 0), Date.now()));
+  const toDate = addMonths(new Date(), isRecurring ? 6 : 3);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[90vh] overflow-y-auto rounded-t-2xl">
         <SheetHeader className="pb-4">
-          <SheetTitle>Remarcar aula</SheetTitle>
+          <div className="flex items-center gap-2">
+            {isRecurring
+              ? <CalendarClock className="h-5 w-5 text-primary shrink-0" />
+              : <RefreshCw className="h-5 w-5 text-primary shrink-0" />
+            }
+            <SheetTitle>{isRecurring ? "Alterar horário das aulas" : "Remarcar esta aula"}</SheetTitle>
+          </div>
         </SheetHeader>
 
         <div className="space-y-5">
-          {/* Original date info */}
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted text-sm">
-            <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-muted-foreground font-light">
-              Original: {format(originalDate, "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-            </span>
+          {/* Context banner */}
+          <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${isRecurring ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300" : "bg-muted text-muted-foreground"}`}>
+            <CalendarDays className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              {isRecurring ? (
+                <>
+                  <p className="font-medium">Esta e todas as próximas aulas serão alteradas.</p>
+                  <p className="font-light text-xs opacity-80">
+                    Original: {format(originalDate, "EEEE 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Apenas esta aula será remarcada.</p>
+                  <p className="font-light text-xs opacity-80">
+                    Original: {format(originalDate, "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Date picker */}
@@ -229,7 +259,7 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
               onSelect={setDate}
               locale={ptBR}
               fromDate={fromDate}
-              toDate={monthEnd}
+              toDate={toDate}
               className="rounded-lg border mx-auto w-fit"
             />
           </div>
@@ -276,7 +306,10 @@ const RescheduleSheet = ({ open, onOpenChange, session, onSuccess }: Props) => {
             disabled={!date || !selectedSlot || saving}
             onClick={handleConfirm}
           >
-            {saving ? "Remarcando..." : "Confirmar remarcação"}
+            {saving
+            ? (isRecurring ? "Alterando..." : "Remarcando...")
+            : (isRecurring ? "Confirmar alteração de horário" : "Confirmar remarcação")
+          }
           </Button>
         </SheetFooter>
       </SheetContent>
