@@ -1,4 +1,4 @@
-import { Home, BookOpen, Zap, BarChart3 } from "lucide-react";
+import { Home, BookOpen, Zap, Gift } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,7 +12,7 @@ const LEFT_ITEMS = [
 ];
 
 const RIGHT_ITEMS = [
-  { to: "/progresso", icon: BarChart3, label: "Progresso", end: false },
+  { to: "/recompensas", icon: Gift, label: "Recompensas", end: false },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────

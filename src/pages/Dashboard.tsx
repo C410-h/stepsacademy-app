@@ -308,7 +308,7 @@ const Dashboard = () => {
             <Card
               className="cursor-pointer transition-colors hover:border-primary/30"
               style={{ borderColor: "color-mix(in srgb, var(--theme-accent) 35%, transparent)" }}
-              onClick={() => navigate("/ranking")}
+              onClick={() => navigate("/recompensas?tab=ranking")}
             >
               <CardContent className="py-3 px-4 flex items-center gap-3">
                 <div
