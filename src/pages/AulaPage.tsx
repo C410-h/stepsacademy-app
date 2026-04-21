@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
@@ -1125,6 +1126,23 @@ const AulaPage = () => {
               </Card>
             ) : (
               <>
+                {(() => {
+                  const allSteps = allUnits.flatMap(u => u.steps);
+                  const doneCount = allSteps.filter(s => s.status === "done").length;
+                  const total = allSteps.length;
+                  const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold">{percent}% concluído</span>
+                        <span className="text-xs text-muted-foreground font-light">
+                          {doneCount} de {total} aulas
+                        </span>
+                      </div>
+                      <Progress value={percent} className="h-2.5" />
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-5 gap-2">
                   {allUnits.flatMap(u => u.steps).map(step => (
                     <StepCard key={step.id} step={step} onClick={() => setView("current")} />
