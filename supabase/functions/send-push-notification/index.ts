@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
     const notifPayload = JSON.stringify({
       title,
       body,
-      icon: "/notification-icon.png",
+      icon: "/brand/pwa-icon.webp",
       badge: "/notification-icon.png",
       url: url || "/",
     });
