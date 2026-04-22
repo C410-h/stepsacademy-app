@@ -748,9 +748,27 @@ const LandingPage = () => {
       {/* ─── FOOTER ─────────────────────────────────── */}
       <footer className="flex flex-col md:flex-row items-center justify-between px-6 md:px-14 py-9 pb-28 sm:pb-9 gap-4 text-center md:text-left relative" style={{ background: "#0c0c0c" }}>
         <img src="/brand/logo-reto-lime.webp" alt="steps academy" className="h-32" />
-        <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
-          © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
-        </p>
+        <div className="flex flex-col items-center md:items-start gap-1.5">
+          <p className="text-[12px]" style={{ color: "rgba(255,255,255,.28)" }}>
+            © 2026 steps academy · Rio de Janeiro · escola de idiomas online · aulas ao vivo
+          </p>
+          <div className="flex gap-4">
+            <Link
+              to="/privacidade"
+              className="text-[11px] transition-opacity hover:opacity-100"
+              style={{ color: "rgba(255,255,255,.35)", textDecoration: "none" }}
+            >
+              Política de Privacidade
+            </Link>
+            <Link
+              to="/termos"
+              className="text-[11px] transition-opacity hover:opacity-100"
+              style={{ color: "rgba(255,255,255,.35)", textDecoration: "none" }}
+            >
+              Termos de Serviço
+            </Link>
+          </div>
+        </div>
         <div className="flex flex-col items-center md:items-end gap-2">
           <Link
             to="/login"
