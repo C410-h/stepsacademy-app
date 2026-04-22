@@ -140,7 +140,10 @@ serve(async (req) => {
         if (hasStudent) {
           matched = true
           // professor conta como 1 attendee; alunos = attendees.length - 1
-          classType = attendees.length <= 2 ? 'individual' : 'duo'
+          // ≤2 = individual (professor + 1 aluno)
+          // =3  = duo/dupla (professor + 2 alunos)
+          // >3  = group    (professor + 3+ alunos, ex: turma Squad)
+          classType = attendees.length <= 2 ? 'individual' : attendees.length === 3 ? 'duo' : 'group'
         } else if (student_db_id) {
           // Caso turma: extrair identificador após ' | ' e buscar no banco
           const identifier = e.summary.split(' | ')[1]?.trim()

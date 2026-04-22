@@ -29,6 +29,8 @@ import Cadastro from "./pages/Cadastro";
 import AuthCallback from "./pages/AuthCallback";
 import AguardandoAtivacao from "./pages/AguardandoAtivacao";
 import AcessoSuspensoPage from "./pages/AcessoSuspensoPage";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
 import { Navigate } from "react-router-dom";
 
@@ -87,6 +89,8 @@ const App = () => (
               <Route path="/cadastro" element={<Cadastro />} />
               <Route path="/aguardando-ativacao" element={<AguardandoAtivacao />} />
               <Route path="/acesso-suspenso" element={<AcessoSuspensoPage />} />
+              <Route path="/privacidade" element={<PrivacyPolicy />} />
+              <Route path="/termos" element={<TermsOfService />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
             </GamificationProvider>
