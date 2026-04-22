@@ -145,9 +145,12 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
       toast({ title: "Perfil atualizado!" });
       onComplete();
     } catch (err: any) {
+      const isCpfDuplicate = err?.message?.includes("profiles_cpf_unique");
       toast({
-        title: "Erro ao salvar perfil",
-        description: err?.message ?? "Tente novamente.",
+        title: isCpfDuplicate ? "CPF já cadastrado" : "Erro ao salvar perfil",
+        description: isCpfDuplicate
+          ? "CPF já cadastrado. Para mais informações, entre em contato com nossa equipe."
+          : "Tente novamente.",
         variant: "destructive",
       });
     } finally {
