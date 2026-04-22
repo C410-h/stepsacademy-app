@@ -55,10 +55,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Força troca de senha no primeiro acesso (user_metadata ou flag no profile)
+  // Força troca de senha no primeiro acesso — only user_metadata (GoTrue JWT).
+  // Do NOT check profile.force_password_change: that DB update can fail silently
+  // (RLS), causing a redirect loop even after the password has been changed.
   const mustChangePassword =
-    session.user?.user_metadata?.must_change_password === true ||
-    profile?.force_password_change === true;
+    session.user?.user_metadata?.must_change_password === true;
   if (mustChangePassword && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
   }

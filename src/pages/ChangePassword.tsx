@@ -28,10 +28,12 @@ const ChangePassword = () => {
     setLoading(true);
     const { data: { user: currentUser }, error } = await supabase.auth.updateUser({
       password,
-      data: { must_change_password: false },
+      // Set to null (not just false) to fully remove the key from user_metadata
+      data: { must_change_password: null },
     });
     if (!error && currentUser) {
-      await Promise.all([
+      // DB update is best-effort; the JWT metadata (above) drives the redirect.
+      const [profileRes] = await Promise.all([
         (supabase as any)
           .from("profiles")
           .update({ force_password_change: false })
@@ -43,6 +45,9 @@ const ChangePassword = () => {
           user_email: currentUser.email ?? null,
         }),
       ]);
+      if (profileRes?.error) {
+        console.warn("ChangePassword: could not clear force_password_change flag", profileRes.error);
+      }
     }
     setLoading(false);
     if (error) {

@@ -43,9 +43,10 @@ const HomeRedirect = () => {
   if (profile.role === "teacher") return <Navigate to="/teacher" replace />;
   // Force password change must happen before activation check so temp-password
   // users are redirected even before their account is fully activated.
+  // We ONLY check user_metadata (GoTrue JWT) — the profiles.force_password_change
+  // DB column can silently fail to update due to RLS, causing a redirect loop.
   const mustChangePassword =
-    session.user?.user_metadata?.must_change_password === true ||
-    (profile as any).force_password_change === true;
+    session.user?.user_metadata?.must_change_password === true;
   if (mustChangePassword) return <Navigate to="/change-password" replace />;
   if (profile.role === "student" && !isActivated) return <Navigate to="/aguardando-ativacao" replace />;
   return <Dashboard />;
