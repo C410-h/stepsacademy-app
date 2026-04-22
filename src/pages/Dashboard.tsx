@@ -55,7 +55,7 @@ const typeLabels: Record<string, string> = {
 };
 
 const Dashboard = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<StudentData | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
@@ -251,8 +251,12 @@ const Dashboard = () => {
   return (
     <StudentLayout>
       {/* Onboarding Modal */}
-      <Dialog open={showOnboarding} onOpenChange={(open) => { if (!open) completeOnboarding(); }}>
-        <DialogContent className="max-w-md mx-auto h-[90vh] flex flex-col items-center justify-center gap-6 p-6">
+      <Dialog open={showOnboarding}>
+        <DialogContent
+          className="max-w-md mx-auto h-[90vh] flex flex-col items-center justify-center gap-6 p-6"
+          onInteractOutside={e => e.preventDefault()}
+          onEscapeKeyDown={e => e.preventDefault()}
+        >
           <h2 className="text-2xl font-bold text-primary text-center">Bem-vindo à steps academy! 🎉</h2>
           <p className="text-center text-sm text-muted-foreground">
             Aqui você encontra seus materiais, acompanha seu progresso e acessa suas aulas ao vivo.
