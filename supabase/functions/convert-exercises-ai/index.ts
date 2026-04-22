@@ -130,9 +130,11 @@ Deno.serve(async (req: Request) => {
     if (isPdf) {
       const buffer = await fileRes.arrayBuffer();
       const uint8 = new Uint8Array(buffer);
+      // Chunked base64 encoding — evita OOM com PDFs grandes (O(n) em vez de O(n²))
+      const CHUNK = 32768;
       let binary = "";
-      for (let i = 0; i < uint8.length; i++) {
-        binary += String.fromCharCode(uint8[i]);
+      for (let offset = 0; offset < uint8.length; offset += CHUNK) {
+        binary += String.fromCharCode(...uint8.subarray(offset, offset + CHUNK));
       }
       const base64 = btoa(binary);
       content = [
@@ -163,7 +165,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", submissionFileId);
     }
 
-    // Call Claude Sonnet
+    // Call Claude
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -173,7 +175,7 @@ Deno.serve(async (req: Request) => {
         "anthropic-beta": "pdfs-2024-09-25",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: "claude-opus-4-5",
         max_tokens: 8000,
         messages: [{ role: "user", content }],
       }),
@@ -181,7 +183,8 @@ Deno.serve(async (req: Request) => {
 
     if (!claudeRes.ok) {
       const err = await claudeRes.text();
-      throw new Error(`Anthropic API error: ${err}`);
+      console.error("[convert-exercises-ai] Anthropic error:", claudeRes.status, err);
+      throw new Error(`Anthropic API error ${claudeRes.status}: ${err}`);
     }
 
     const claudeData = await claudeRes.json();
