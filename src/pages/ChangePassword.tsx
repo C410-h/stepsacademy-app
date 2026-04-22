@@ -31,17 +31,26 @@ const ChangePassword = () => {
       data: { must_change_password: false },
     });
     if (!error && currentUser) {
-      await (supabase as any)
-        .from("profiles")
-        .update({ force_password_change: false })
-        .eq("id", currentUser.id);
+      await Promise.all([
+        (supabase as any)
+          .from("profiles")
+          .update({ force_password_change: false })
+          .eq("id", currentUser.id),
+        (supabase as any).from("admin_notifications").insert({
+          type: "password_changed",
+          user_id: currentUser.id,
+          user_name: currentUser.user_metadata?.name ?? null,
+          user_email: currentUser.email ?? null,
+        }),
+      ]);
     }
     setLoading(false);
     if (error) {
       toast({ title: "Erro", description: "Não foi possível salvar a senha.", variant: "destructive" });
     } else {
       toast({ title: "Senha criada!", description: "Bem-vindo à steps academy." });
-      navigate("/");
+      // Full reload so AuthContext re-fetches the updated profile (force_password_change = false)
+      window.location.replace("/");
     }
   };
 

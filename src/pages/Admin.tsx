@@ -329,6 +329,7 @@ const Admin = () => {
   const [notifSettings, setNotifSettings] = useState<any[]>([]);
   const [notifLog, setNotifLog] = useState<any[]>([]);
   const [notifLoading, setNotifLoading] = useState(true);
+  const [adminNotifs, setAdminNotifs] = useState<any[]>([]);
 
   // ── Manual push notification modal
   const [pushModalOpen, setPushModalOpen] = useState(false);
@@ -436,6 +437,7 @@ const Admin = () => {
     loadBankExercises();
     loadNotificationSettings();
     loadNotifLog();
+    loadAdminNotifs();
     loadMaterials();
     loadAllSteps();
     loadAdmins();
@@ -1033,6 +1035,22 @@ const Admin = () => {
     setNotifLog(data || []);
   };
 
+  const loadAdminNotifs = async () => {
+    const { data } = await (supabase as any).from("admin_notifications")
+      .select("*").order("created_at", { ascending: false }).limit(100);
+    setAdminNotifs(data || []);
+  };
+
+  const markAdminNotifRead = async (id: string) => {
+    await (supabase as any).from("admin_notifications").update({ read: true }).eq("id", id);
+    setAdminNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const markAllAdminNotifsRead = async () => {
+    await (supabase as any).from("admin_notifications").update({ read: true }).eq("read", false);
+    setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
   // ── Admins ────────────────────────────────────────────────────────────────────
   const loadAdmins = async () => {
     const { data } = await supabase.from("profiles").select("id, name, phone").eq("role", "admin");
@@ -1434,7 +1452,14 @@ const Admin = () => {
             <TabsTrigger value="teachers" className="shrink-0 text-xs px-3 py-1.5">Professores</TabsTrigger>
             <TabsTrigger value="groups" className="shrink-0 text-xs px-3 py-1.5">Turmas</TabsTrigger>
             <TabsTrigger value="content" className="shrink-0 text-xs px-3 py-1.5">Conteúdo</TabsTrigger>
-            <TabsTrigger value="notifications" className="shrink-0 text-xs px-3 py-1.5">Notificações</TabsTrigger>
+            <TabsTrigger value="notifications" className="shrink-0 text-xs px-3 py-1.5">
+              Notificações
+              {adminNotifs.filter(n => !n.read).length > 0 && (
+                <span className="ml-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {adminNotifs.filter(n => !n.read).length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="settings" className="shrink-0 text-xs px-3 py-1.5">Config</TabsTrigger>
             <TabsTrigger value="payments" className="shrink-0 text-xs px-3 py-1.5">Pagamentos</TabsTrigger>
             <TabsTrigger value="cadastros" className="shrink-0 text-xs px-3 py-1.5">Cadastros</TabsTrigger>
@@ -1471,6 +1496,11 @@ const Admin = () => {
                     {item.value === "students" && (metrics?.studentsInactive7d ?? 0) > 0 && (
                       <span className="ml-auto text-[10px] font-bold bg-orange-500 text-white rounded-full px-1.5 py-0.5 leading-none">
                         {metrics!.studentsInactive7d}
+                      </span>
+                    )}
+                    {item.value === "notifications" && adminNotifs.filter(n => !n.read).length > 0 && (
+                      <span className="ml-auto text-[10px] font-bold bg-destructive text-destructive-foreground rounded-full px-1.5 py-0.5 leading-none">
+                        {adminNotifs.filter(n => !n.read).length}
                       </span>
                     )}
                   </button>
@@ -3166,7 +3196,69 @@ const Admin = () => {
           </TabsContent>
 
           {/* ── Tab: Notificações ─────────────────────────────────────────────── */}
-          <TabsContent value="notifications" className="space-y-4">
+          <TabsContent value="notifications" className="space-y-6">
+
+            {/* ── Atividade dos alunos ── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Atividade dos alunos
+                    {adminNotifs.filter(n => !n.read).length > 0 && (
+                      <span className="bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                        {adminNotifs.filter(n => !n.read).length} nova{adminNotifs.filter(n => !n.read).length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </CardTitle>
+                  {adminNotifs.some(n => !n.read) && (
+                    <Button size="sm" variant="ghost" className="text-xs h-7" onClick={markAllAdminNotifsRead}>
+                      Marcar todas como lidas
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {adminNotifs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">Nenhuma atividade ainda.</p>
+                ) : (
+                  <div className="divide-y">
+                    {adminNotifs.map((n: any) => (
+                      <div
+                        key={n.id}
+                        className={cn("flex items-start gap-3 py-3 cursor-pointer", !n.read && "bg-primary/5 -mx-6 px-6 rounded")}
+                        onClick={() => !n.read && markAdminNotifRead(n.id)}
+                      >
+                        <div className={cn("h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
+                          n.type === "first_login" ? "bg-lime-500" : "bg-blue-500"
+                        )}>
+                          {n.type === "first_login" ? "🎉" : "🔑"}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium leading-tight">
+                            {n.type === "first_login" ? "Primeiro acesso" : "Senha alterada"}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {n.user_name || n.user_email || "Aluno desconhecido"}
+                            {n.user_name && n.user_email && <span className="opacity-60"> · {n.user_email}</span>}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(n.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(n.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                          {!n.read && <span className="inline-block h-2 w-2 rounded-full bg-destructive mt-1" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">Configurações de notificações push</p>
               <Button size="sm" className="gap-1.5" onClick={() => setPushModalOpen(true)}>

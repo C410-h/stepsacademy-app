@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Video, BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy } from "lucide-react";
+import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 import UpcomingClasses from "@/components/UpcomingClasses";
@@ -207,6 +207,13 @@ const Dashboard = () => {
   const completeOnboarding = async () => {
     if (!studentData) return;
     await supabase.from("students").update({ onboarding_completed: true }).eq("id", studentData.id);
+    // Notify admin of first login
+    await (supabase as any).from("admin_notifications").insert({
+      type: "first_login",
+      user_id: profile?.id,
+      user_name: profile?.name ?? null,
+      user_email: user?.email ?? null,
+    });
     setShowOnboarding(false);
   };
 
@@ -247,13 +254,23 @@ const Dashboard = () => {
       <Dialog open={showOnboarding} onOpenChange={(open) => { if (!open) completeOnboarding(); }}>
         <DialogContent className="max-w-md mx-auto h-[90vh] flex flex-col items-center justify-center gap-6 p-6">
           <h2 className="text-2xl font-bold text-primary text-center">Bem-vindo à steps academy! 🎉</h2>
-          <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
-            <Video className="h-12 w-12 text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">Vídeo de boas-vindas</span>
-          </div>
           <p className="text-center text-sm text-muted-foreground">
             Aqui você encontra seus materiais, acompanha seu progresso e acessa suas aulas ao vivo.
           </p>
+          {/* Help center link — video will be added once recorded */}
+          <a
+            href="/ajuda"
+            className="w-full flex items-center gap-4 rounded-xl border bg-muted/50 hover:bg-muted transition-colors p-4 text-left"
+          >
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <HelpCircle className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Central de ajuda</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Veja nossos guias e tutoriais para aproveitar ao máximo a plataforma.</p>
+            </div>
+            <ExternalLink className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+          </a>
           <Button onClick={completeOnboarding} className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold">
             Começar minha jornada
           </Button>
