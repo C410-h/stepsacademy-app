@@ -1187,7 +1187,7 @@ const Admin = () => {
         await (supabase as any).from("students").update(updates).eq("id", addStudentToGroupId);
       }
       if (selectedGroup.current_step_id) {
-        await updateStudentStep(supabase as any, addStudentToGroupId, selectedGroup.current_step_id);
+        await updateStudentStep(supabase as any, addStudentToGroupId, selectedGroup.current_step_id, { inherited: true });
       }
 
       toast({ title: "Aluno adicionado à turma!", description: selectedGroup.current_step_id ? "Progresso da turma aplicado." : undefined });

@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Check, Lock, Trophy, Flame, Zap, BookOpen, Headphones,
   FileText, PenLine, ChevronRight, CheckCircle2, XCircle,
-  RotateCcw, ExternalLink, GraduationCap,
+  RotateCcw, ExternalLink, GraduationCap, AlertTriangle, CheckCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ interface StepProgress {
   title: string | null;
   status: "locked" | "available" | "done";
   doneAt: string | null;
+  isInherited: boolean;
 }
 
 interface Material {
@@ -252,6 +253,8 @@ const StepReviewSheet = ({
   const [accessedIds, setAccessedIds] = useState<Set<string>>(new Set());
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewResults, setReviewResults] = useState<Record<string, { correct: boolean; answer: string }>>({});
+  const [markingDone, setMarkingDone] = useState(false);
+  const [localIsInherited, setLocalIsInherited] = useState(false);
 
   useEffect(() => {
     if (!open || !step || !studentId || !step.id) return;
@@ -260,7 +263,7 @@ const StepReviewSheet = ({
 
   // Reset review mode when sheet closes or step changes
   useEffect(() => {
-    if (!open) { setReviewMode(false); setReviewResults({}); }
+    if (!open) { setReviewMode(false); setReviewResults({}); setLocalIsInherited(false); }
   }, [open, step?.id]);
 
   const loadSheetData = async (s: StepProgress, sid: string) => {
@@ -270,6 +273,7 @@ const StepReviewSheet = ({
     setAttempts({});
     setReviewMode(false);
     setReviewResults({});
+    setLocalIsInherited(s.isInherited);
 
     const [matsRes, exsRes] = await Promise.all([
       supabase.from("materials").select("id, title, type, delivery, file_url").eq("step_id", s.id).eq("active", true),
@@ -308,6 +312,36 @@ const StepReviewSheet = ({
 
   const handleReviewResult = (exerciseId: string, result: { correct: boolean; answer: string }) => {
     setReviewResults(prev => ({ ...prev, [exerciseId]: result }));
+  };
+
+  // "Marcar como concluída" logic
+  const hasSlide     = materials.some(m => m.type === "slide");
+  const hasExercises = exercises.length > 0;
+  const slideMats    = materials.filter(m => m.type === "slide");
+  const slideViewed  = slideMats.length > 0 && slideMats.every(m => accessedIds.has(m.id));
+  const exercisesDone = exercises.length > 0 && exercises.every(e => !!attempts[e.id]);
+  // Rule: if BOTH slide AND exercises exist → must view slide AND do exercises; otherwise always enabled
+  const stepIsReady   = hasSlide && hasExercises;
+  const canMarkDone   = !stepIsReady || (slideViewed && exercisesDone);
+
+  const handleMarkDone = async () => {
+    if (!step || !studentId || markingDone) return;
+    setMarkingDone(true);
+    try {
+      await db.from("student_progress").upsert(
+        {
+          student_id: studentId,
+          step_id: step.id,
+          status: "done",
+          done_at: new Date().toISOString(),
+          is_inherited: false,
+        },
+        { onConflict: "student_id,step_id" }
+      );
+      setLocalIsInherited(false);
+    } finally {
+      setMarkingDone(false);
+    }
   };
 
   const allAttempted = exercises.length > 0 && exercises.every(e => !!attempts[e.id]);
@@ -350,6 +384,17 @@ const StepReviewSheet = ({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Inherited warning banner */}
+          {!loading && localIsInherited && (
+            <div className="flex items-start gap-3 rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-3">
+              <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-yellow-800 dark:text-yellow-300 leading-relaxed">
+                Essa aula parece não ter sido concluída por você, porém sua turma já passou dessa aula.
+                Visualize o material e faça os exercícios para concluir essa aula.
+              </p>
+            </div>
+          )}
+
           {loading ? (
             <div className="space-y-3">
               {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
@@ -466,7 +511,7 @@ const StepReviewSheet = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t">
+        <div className="p-4 border-t space-y-2">
           {step?.status === "available" ? (
             <Button
               className="w-full font-bold gap-2"
@@ -475,7 +520,23 @@ const StepReviewSheet = ({
             >
               <GraduationCap className="h-4 w-4" /> Ir para a aula
             </Button>
-          ) : (
+          ) : null}
+
+          {/* "Marcar como concluída" — shown for done steps (including inherited) */}
+          {step?.status === "done" && !loading && (
+            localIsInherited ? (
+              <Button
+                className="w-full font-bold gap-2"
+                disabled={!canMarkDone || markingDone}
+                onClick={handleMarkDone}
+              >
+                <CheckCheck className="h-4 w-4" />
+                {markingDone ? "Salvando…" : "Marcar aula como concluída"}
+              </Button>
+            ) : null
+          )}
+
+          {step?.status !== "available" && (
             <Button variant="outline" className="w-full" onClick={onClose}>
               Fechar
             </Button>
@@ -528,15 +589,15 @@ const ProgressTab = () => {
 
     const { data: progressRecords } = await supabase
       .from("student_progress")
-      .select("step_id, status, done_at, steps(number, title)")
+      .select("step_id, status, done_at, is_inherited, steps(number, title)")
       .eq("student_id", s.id);
 
-    // Map: stepNumber → { stepId, status, doneAt, title }
-    const doneMap = new Map<number, { id: string; doneAt: string | null; title: string | null }>();
+    // Map: stepNumber → { stepId, status, doneAt, title, isInherited }
+    const doneMap = new Map<number, { id: string; doneAt: string | null; title: string | null; isInherited: boolean }>();
     if (progressRecords) {
       for (const p of progressRecords as any[]) {
         if (p.status === "done" && p.steps?.number) {
-          doneMap.set(p.steps.number, { id: p.step_id, doneAt: p.done_at || null, title: p.steps.title || null });
+          doneMap.set(p.steps.number, { id: p.step_id, doneAt: p.done_at || null, title: p.steps.title || null, isInherited: p.is_inherited ?? false });
         }
       }
     }
@@ -549,11 +610,11 @@ const ProgressTab = () => {
     for (let i = 1; i <= totalSteps; i++) {
       const done = doneMap.get(i);
       if (done) {
-        stepsArray.push({ id: done.id, number: i, title: done.title, status: "done", doneAt: done.doneAt });
+        stepsArray.push({ id: done.id, number: i, title: done.title, status: "done", doneAt: done.doneAt, isInherited: done.isInherited });
       } else if (i === currentStepNumber && currentStepId) {
-        stepsArray.push({ id: currentStepId, number: i, title: currentStepTitle, status: "available", doneAt: null });
+        stepsArray.push({ id: currentStepId, number: i, title: currentStepTitle, status: "available", doneAt: null, isInherited: false });
       } else {
-        stepsArray.push({ id: "", number: i, title: null, status: "locked", doneAt: null });
+        stepsArray.push({ id: "", number: i, title: null, status: "locked", doneAt: null, isInherited: false });
       }
     }
 
@@ -636,7 +697,11 @@ const ProgressTab = () => {
                 )}
               >
                 {step.status === "done" ? (
-                  <><Check className="h-4 w-4" style={{ color: "var(--theme-accent)" }} /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
+                  step.isInherited ? (
+                    <><AlertTriangle className="h-4 w-4 text-yellow-400" /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
+                  ) : (
+                    <><Check className="h-4 w-4" style={{ color: "var(--theme-accent)" }} /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
+                  )
                 ) : step.status === "locked" ? (
                   <><Lock className="h-3 w-3" /><span className="text-xs mt-0.5">{step.number}</span></>
                 ) : (
@@ -659,12 +724,18 @@ const ProgressTab = () => {
             ))}
           </div>
 
-          <div className="flex items-center justify-center gap-5 pt-2 pb-1">
+          <div className="flex items-center justify-center gap-4 pt-2 pb-1 flex-wrap">
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
                 <Check className="h-2.5 w-2.5" style={{ color: "var(--theme-accent)" }} />
               </div>
               <span className="text-xs text-muted-foreground font-light">Concluído</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+                <AlertTriangle className="h-2.5 w-2.5 text-yellow-400" />
+              </div>
+              <span className="text-xs text-muted-foreground font-light">Pendente</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded border-2 border-primary bg-card" />

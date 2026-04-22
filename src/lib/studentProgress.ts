@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export async function updateStudentStep(
   supabase: SupabaseClient,
   studentId: string,
-  stepId: string
+  stepId: string,
+  options?: { inherited?: boolean }
 ): Promise<void> {
   const { data: targetStep } = await supabase
     .from("steps")
@@ -53,6 +54,7 @@ export async function updateStudentStep(
         step_id: sid,
         status: "done",
         done_at: new Date().toISOString(),
+        is_inherited: options?.inherited ?? false,
       })),
       { onConflict: "student_id,step_id" }
     );

@@ -17,7 +17,7 @@ import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap,
   RotateCcw, Mic, GraduationCap, ExternalLink, AlertTriangle,
-  Lock, Check,
+  Lock, Check, CheckCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -356,11 +356,13 @@ const ExercisesEngine = ({
   studentId,
   initialAttempts,
   onXpEarned,
+  onAllDone,
 }: {
   exercises: Exercise[];
   studentId: string;
   initialAttempts: AttemptMap;
   onXpEarned?: (xp: number, coins: number) => void;
+  onAllDone?: () => void;
 }) => {
   const { gamification, refresh: refreshGamification } = useGamification();
 
@@ -465,6 +467,10 @@ const ExercisesEngine = ({
     setStatus(allCorrect ? "correct" : "wrong");
     await awardXp(ex.id, answerStr, allCorrect ? 10 : 2, allCorrect ? 5 : 0, allCorrect);
   };
+
+  useEffect(() => {
+    if (done) onAllDone?.();
+  }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNext = () => {
     if (currentIndex + 1 >= exercises.length) setDone(true);
@@ -626,6 +632,9 @@ const AulaPage = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfTitle, setPdfTitle] = useState("");
+  const [isInherited, setIsInherited] = useState(false);
+  const [exercisesAllDone, setExercisesAllDone] = useState(false);
+  const [markingAulaDone, setMarkingAulaDone] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -697,7 +706,7 @@ const AulaPage = () => {
     if (!s.current_step_id) { setLoading(false); return; }
 
     // Parallel data fetching
-    const [stepRes, exercisesRes, accessesRes, personalRes, vocabRes, grammarRes] = await Promise.all([
+    const [stepRes, exercisesRes, accessesRes, personalRes, vocabRes, grammarRes, progressRes] = await Promise.all([
       supabase.from("materials").select("id, title, type, delivery, file_url").eq("step_id", s.current_step_id).eq("active", true),
       (supabase as any).from("lesson_exercises").select("id, type, question, options, answer, explanation, order_index").eq("step_id", s.current_step_id).eq("active", true).order("order_index"),
       supabase.from("material_accesses").select("material_id").eq("student_id", s.id),
@@ -706,6 +715,7 @@ const AulaPage = () => {
         ? (supabase as any).from("vocabulary").select("id, word, translation, example_sentence, part_of_speech, difficulty, created_at").eq("level_id", s.level_id).eq("unit_id", s.steps.unit_id).eq("active", true).order("word")
         : Promise.resolve({ data: [] }),
       (supabase as any).from("step_grammar").select("id, title, explanation, examples, tip, order_index").eq("step_id", s.current_step_id).eq("active", true).order("order_index"),
+      (supabase as any).from("student_progress").select("is_inherited").eq("student_id", s.id).eq("step_id", s.current_step_id).maybeSingle(),
     ]);
 
     // Fetch attempts for current step exercises (for resume + XP dedup)
@@ -716,9 +726,14 @@ const AulaPage = () => {
           .eq("student_id", s.id)
           .in("exercise_id", exerciseIds)
       : { data: [] };
-    setAttemptMap(Object.fromEntries(
+    const aMap = Object.fromEntries(
       ((attemptsRes.data || []) as any[]).map((a: any) => [a.exercise_id, a])
-    ));
+    );
+    setAttemptMap(aMap);
+    setIsInherited(progressRes?.data?.is_inherited ?? false);
+    // Check if all exercises were already done
+    const exList = (exercisesRes.data as Exercise[]) || [];
+    setExercisesAllDone(exList.length > 0 && exList.every(e => !!aMap[e.id]));
 
     const accessedIds = new Set((accessesRes.data || []).map((a: any) => a.material_id));
 
@@ -840,6 +855,35 @@ const AulaPage = () => {
   const beforeMats = materials.filter(m => m.delivery === "before");
   const afterMats  = materials.filter(m => m.delivery === "after" || m.delivery === "during");
 
+  // "Marcar aula como concluída" logic
+  const slideMats     = materials.filter(m => m.type === "slide");
+  const hasSlide      = slideMats.length > 0;
+  const hasExercises  = exercises.length > 0;
+  const slideViewed   = hasSlide && slideMats.every(m => m.accessed);
+  // stepIsReady: has BOTH slide AND exercises → strict requirement
+  const stepIsReady   = hasSlide && hasExercises;
+  const canMarkAulaDone = !stepIsReady || (slideViewed && exercisesAllDone);
+
+  const handleMarkAulaDone = async () => {
+    if (!student || markingAulaDone) return;
+    setMarkingAulaDone(true);
+    try {
+      await (supabase as any).from("student_progress").upsert(
+        {
+          student_id: student.id,
+          step_id: student.current_step_id,
+          status: "done",
+          done_at: new Date().toISOString(),
+          is_inherited: false,
+        },
+        { onConflict: "student_id,step_id" }
+      );
+      setIsInherited(false);
+    } finally {
+      setMarkingAulaDone(false);
+    }
+  };
+
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -928,6 +972,17 @@ const AulaPage = () => {
               </p>
             </div>
 
+            {/* ── Inherited warning banner ── */}
+            {isInherited && (
+              <div className="flex items-start gap-3 rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-3">
+                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800 dark:text-yellow-300 leading-relaxed">
+                  Essa aula parece não ter sido concluída por você, porém sua turma já passou dessa aula.
+                  Visualize o material e faça os exercícios para concluir essa aula.
+                </p>
+              </div>
+            )}
+
             {/* ── Meet button ── */}
             {student.meetLink && (
               <Button
@@ -965,7 +1020,7 @@ const AulaPage = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <ExercisesEngine exercises={exercises} studentId={student.id} initialAttempts={attemptMap} />
+                <ExercisesEngine exercises={exercises} studentId={student.id} initialAttempts={attemptMap} onAllDone={() => setExercisesAllDone(true)} />
               )}
             </CollapsibleSection>
 
@@ -1110,6 +1165,26 @@ const AulaPage = () => {
                   <Button variant="ghost" size="sm" className="mt-2 text-xs" onClick={() => setAudioUrl(null)}>Fechar player</Button>
                 </CardContent>
               </Card>
+            )}
+
+            {/* ── Marcar aula como concluída ── */}
+            <Button
+              className="w-full font-bold gap-2"
+              variant={canMarkAulaDone ? "default" : "outline"}
+              disabled={!canMarkAulaDone || markingAulaDone}
+              onClick={handleMarkAulaDone}
+            >
+              <CheckCheck className="h-4 w-4" />
+              {markingAulaDone ? "Salvando…" : "Marcar aula como concluída"}
+            </Button>
+            {stepIsReady && !canMarkAulaDone && (
+              <p className="text-center text-xs text-muted-foreground font-light -mt-3">
+                {!slideViewed && !exercisesAllDone
+                  ? "Visualize o slide e faça os exercícios para concluir."
+                  : !slideViewed
+                  ? "Visualize o slide para concluir."
+                  : "Faça os exercícios para concluir."}
+              </p>
             )}
           </>
         ) : (
