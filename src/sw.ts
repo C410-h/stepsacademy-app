@@ -9,8 +9,8 @@ self.addEventListener("push", (event) => {
   (event as ExtendableEvent).waitUntil(
     self.registration.showNotification(data.title ?? "Steps Academy", {
       body: data.body ?? "",
-      icon: "/brand/pwa-icon.webp",
-      badge: "/brand/pwa-icon.webp",
+      icon: "/notification-icon.png",
+      badge: "/notification-icon.png",
       data: { url: data.url ?? "/" },
     })
   );
