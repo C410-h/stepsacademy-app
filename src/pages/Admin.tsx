@@ -715,11 +715,14 @@ const Admin = () => {
     if (!selectedGroup || !grpNewStepId || groupStudents.length === 0) return;
     setUpdatingGrpStep(true);
     try {
-      await Promise.all(
-        groupStudents.map((gs: any) =>
+      await Promise.all([
+        ...groupStudents.map((gs: any) =>
           updateStudentStep(supabase as any, gs.student_id, grpNewStepId)
-        )
-      );
+        ),
+        // Keep group's current_step_id in sync so new students inherit it
+        (supabase as any).from("groups").update({ current_step_id: grpNewStepId }).eq("id", selectedGroup.id),
+      ]);
+      setSelectedGroup((prev: any) => prev ? { ...prev, current_step_id: grpNewStepId } : prev);
       toast({ title: "Turma atualizada!", description: `Step atualizado para ${groupStudents.length} aluno(s).` });
       setConfirmGrpStepOpen(false);
       setGrpNewStepId(""); setGrpStepUnitId(""); setGrpStepLevelId("");
@@ -1172,9 +1175,28 @@ const Admin = () => {
   const handleAddStudentToGroup = async () => {
     if (!selectedGroup || !addStudentToGroupId) return;
     setAddingToGroup(true);
-    const { error } = await (supabase as any).from("group_students").insert({ group_id: selectedGroup.id, student_id: addStudentToGroupId });
-    if (error) { toast({ title: "Erro ao adicionar aluno", description: error.message, variant: "destructive" }); }
-    else { toast({ title: "Aluno adicionado à turma!" }); setAddStudentToGroupId(""); loadGroupStudents(selectedGroup.id); loadGroups(); }
+    try {
+      const { error } = await (supabase as any).from("group_students").insert({ group_id: selectedGroup.id, student_id: addStudentToGroupId });
+      if (error) throw error;
+
+      // Sync student to group's language, level, and current step
+      const updates: Record<string, string> = {};
+      if (selectedGroup.language_id) updates.language_id = selectedGroup.language_id;
+      if (selectedGroup.level_id)    updates.level_id    = selectedGroup.level_id;
+      if (Object.keys(updates).length) {
+        await (supabase as any).from("students").update(updates).eq("id", addStudentToGroupId);
+      }
+      if (selectedGroup.current_step_id) {
+        await updateStudentStep(supabase as any, addStudentToGroupId, selectedGroup.current_step_id);
+      }
+
+      toast({ title: "Aluno adicionado à turma!", description: selectedGroup.current_step_id ? "Progresso da turma aplicado." : undefined });
+      setAddStudentToGroupId("");
+      loadGroupStudents(selectedGroup.id);
+      loadGroups();
+    } catch (error: any) {
+      toast({ title: "Erro ao adicionar aluno", description: error.message, variant: "destructive" });
+    }
     setAddingToGroup(false);
   };
 
