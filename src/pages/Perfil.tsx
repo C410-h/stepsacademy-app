@@ -328,7 +328,10 @@ const Perfil = () => {
     if (pushLoading) return;
     setPushLoading(true);
     if (enabled) {
-      const success = await subscribeToPush(student?.id ?? "");
+      // Students use student_id; admin/teacher use profile_id
+      const success = student?.id
+        ? await subscribeToPush(student.id)
+        : await subscribeToPush(null, authProfile?.id);
       if (success) {
         setPushEnabled(true);
         toast({ title: "Notificações ativadas!", description: "Você receberá alertas deste dispositivo." });

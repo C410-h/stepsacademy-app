@@ -41,9 +41,13 @@ export async function isPushSubscribed(): Promise<boolean> {
 
 /**
  * Requests permission, registers SW, subscribes and saves to Supabase.
+ * Pass studentId for students, profileId for admin/teacher.
  * Returns true on success, false on denial or error.
  */
-export async function subscribeToPush(studentId: string): Promise<boolean> {
+export async function subscribeToPush(
+  studentId: string | null,
+  profileId?: string
+): Promise<boolean> {
   if (!isPushSupported()) return false;
 
   // Ask for permission
@@ -74,7 +78,8 @@ export async function subscribeToPush(studentId: string): Promise<boolean> {
 
     await (supabase as any).from("push_subscriptions").upsert(
       {
-        student_id: studentId,
+        ...(studentId ? { student_id: studentId } : {}),
+        ...(profileId ? { profile_id: profileId } : {}),
         endpoint: subscription.endpoint,
         p256dh,
         auth,

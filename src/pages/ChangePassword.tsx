@@ -48,6 +48,15 @@ const ChangePassword = () => {
       if (profileRes?.error) {
         console.warn("ChangePassword: could not clear force_password_change flag", profileRes.error);
       }
+
+      // Send push notification to admin (best-effort)
+      supabase.functions.invoke("notify-admin-push", {
+        body: {
+          title: "Senha criada 🔑",
+          body: `${currentUser.user_metadata?.name ?? currentUser.email} criou a senha de acesso.`,
+          url: "/admin",
+        },
+      }).catch(() => {/* non-blocking */});
     }
     setLoading(false);
     if (error) {

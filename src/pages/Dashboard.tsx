@@ -214,6 +214,16 @@ const Dashboard = () => {
       user_name: profile?.name ?? null,
       user_email: user?.email ?? null,
     });
+
+    // Send push notification to admin (best-effort)
+    supabase.functions.invoke("notify-admin-push", {
+      body: {
+        title: "Primeiro acesso 🎉",
+        body: `${profile?.name ?? "Novo aluno"} acabou de fazer o primeiro login.`,
+        url: "/admin",
+      },
+    }).catch(() => {/* non-blocking */});
+
     setShowOnboarding(false);
   };
 
