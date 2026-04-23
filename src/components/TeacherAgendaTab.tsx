@@ -225,15 +225,16 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   // Fetch GCal events once on mount — covers next 30 days, filtered per week in render
   useEffect(() => {
     (async () => {
+      // Força refresh do token antes de invocar, para garantir JWT válido
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
+      if (!session) return;
+
       const { data, error } = await supabase.functions.invoke("google-calendar", {
-        headers: { Authorization: `Bearer ${token}` },
         body: { action: "list_teacher_events", payload: {} },
+        // Não passamos Authorization manualmente — o SDK injeta o token
+        // atualizado automaticamente, evitando 401 por JWT expirado em cache
       });
       if (error || data?.error) {
-        // Edge fn returns { error: '...' } with status 200 on GCal auth failures
         const msg: string = data?.error ?? error?.message ?? "Erro ao carregar Google Calendar";
         const isAuthError = msg.toLowerCase().includes("token") ||
           msg.toLowerCase().includes("conectado") ||
