@@ -31,8 +31,7 @@ const AcessoSuspensoPage = () => {
     window.location.reload();
   };
 
-  // TODO: substituir pelo número real do WhatsApp da Steps Academy
-  const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent("Olá, meu acesso está suspenso e gostaria de regularizar minha situação.")}`;
+  const whatsappUrl = `https://wa.me/5521969260979?text=${encodeURIComponent("Olá, meu acesso está suspenso e gostaria de regularizar minha situação.")}`;
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-16">

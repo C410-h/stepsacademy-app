@@ -123,7 +123,7 @@ const NoTokenPage = () => (
       </div>
       <Button className="w-full font-bold" asChild>
         <a
-          href={`https://wa.me/5511999999999?text=${encodeURIComponent("Olá! Gostaria de me cadastrar na Steps Academy. Podem me enviar o link de acesso?")}`}
+          href={`https://wa.me/5521969260979?text=${encodeURIComponent("Olá! Gostaria de me cadastrar na Steps Academy. Podem me enviar o link de acesso?")}`}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -816,7 +816,7 @@ const Cadastro = () => {
 
             <p className="text-xs text-center text-muted-foreground">
               Dúvidas?{" "}
-              <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer"
+              <a href="https://wa.me/5521969260979" target="_blank" rel="noopener noreferrer"
                 className="text-primary hover:underline">
                 Falar com suporte
               </a>
