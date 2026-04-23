@@ -274,7 +274,7 @@ const Teacher = () => {
           )}
 
           {/* ══ Conteúdo ══════════════════════════════════════════════════════ */}
-          {activeTab === "content" && <TeacherContentTab teacherId={teacherId} />}
+          {activeTab === "content" && <TeacherContentTab teacherId={teacherId} profileId={profile!.id} />}
 
           {/* ══ Disponibilidade ═══════════════════════════════════════════════ */}
           {activeTab === "availability" && <TeacherAvailabilityTab />}

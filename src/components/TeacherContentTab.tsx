@@ -88,6 +88,7 @@ interface FileEntry {
 
 interface Props {
   teacherId: string;
+  profileId: string;
 }
 
 interface LevelOption { id: string; name: string; code: string; language_id: string; }
@@ -695,7 +696,7 @@ function PublishDialog({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-const TeacherContentTab = ({ teacherId }: Props) => {
+const TeacherContentTab = ({ teacherId, profileId }: Props) => {
   const { toast } = useToast();
   const [levels, setLevels] = useState<LevelOption[]>([]);
   const [languageId, setLanguageId] = useState<string | null>(null);
@@ -1315,7 +1316,7 @@ const TeacherContentTab = ({ teacherId }: Props) => {
         for (let i = 0; i < grammar.length; i++) {
           const g = grammar[i];
           if (!g.title.trim()) continue;
-          await (supabase as any).from("step_grammar").insert({
+          const { error: grammarErr } = await (supabase as any).from("step_grammar").insert({
             step_id: selectedStep.id,
             title: g.title,
             explanation: g.explanation,
@@ -1323,8 +1324,9 @@ const TeacherContentTab = ({ teacherId }: Props) => {
             tip: g.tip || null,
             order_index: i + 1,
             active: true,
-            created_by: teacherId,
+            created_by: profileId,  // profiles.id FK — teacherId is teachers.id, not profiles.id
           });
+          if (grammarErr) console.error("step_grammar insert error:", grammarErr);
         }
       }
 
