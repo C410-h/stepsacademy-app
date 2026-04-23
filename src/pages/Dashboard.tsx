@@ -179,14 +179,15 @@ const Dashboard = () => {
     setMissedSessions(((missedRows || []) as any[]).map((r: any) => ({ ...r, scheduled_ends_at: r.ends_at })) as RescheduleSessionData[]);
 
     // Materiais do step atual + materiais pessoais + co-alunos do mesmo idioma
-    const [stepRes, personalRes, coStudentsRes] = await Promise.all([
+    const [submissionRes, personalRes, coStudentsRes] = await Promise.all([
       s.current_step_id
-        ? supabase
-            .from("materials")
-            .select("id, title, type, delivery, file_url")
+        ? (supabase as any)
+            .from("content_submissions")
+            .select("id, submission_files(id, material_type, filename, file_url, status)")
             .eq("step_id", s.current_step_id)
-            .eq("active", true)
-        : Promise.resolve({ data: [] }),
+            .eq("status", "approved")
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
       supabase
         .from("student_materials")
         .select("material_id, materials(id, title, type, delivery, file_url)")
@@ -197,7 +198,14 @@ const Dashboard = () => {
         : Promise.resolve({ data: [] }),
     ]);
 
-    const stepMats = (stepRes.data || []) as MaterialItem[];
+    const submissionFiles: any[] = ((submissionRes.data as any)?.submission_files || []).filter((f: any) => f.status === "approved" && f.file_url);
+    const stepMats: MaterialItem[] = submissionFiles.map((f: any) => ({
+      id: f.id,
+      title: f.filename,
+      type: f.material_type,
+      delivery: "before",
+      file_url: f.file_url,
+    }));
     const personalMats: MaterialItem[] = ((personalRes.data || []) as any[])
       .map((sm: any) => sm.materials)
       .filter(Boolean);
