@@ -583,10 +583,21 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   const { start: bs } = getEffectiveTimes(b);
                   return new Date(as).getTime() - new Date(bs).getTime();
                 });
-              // Hide GCal events that already have a DB session (shown as SessionCard with full detail)
+              // Hide GCal events already represented by a DB SessionCard:
+              //   1. exact google_event_id match
+              //   2. same start minute on this day (covers sessions without google_event_id)
               const linkedEventIds = new Set(sessions.map(s => s.google_event_id).filter(Boolean));
+              const daySessionMinutes = new Set(colSess.map(s => {
+                const { start } = getEffectiveTimes(s);
+                return new Date(start).toISOString().substring(0, 16); // "YYYY-MM-DDTHH:MM"
+              }));
               const colCal = calEvents
-                .filter(e => isSameDay(new Date(e.start), day) && !linkedEventIds.has(e.id))
+                .filter(e => {
+                  if (!isSameDay(new Date(e.start), day)) return false;
+                  if (linkedEventIds.has(e.id)) return false;
+                  if (daySessionMinutes.has(new Date(e.start).toISOString().substring(0, 16))) return false;
+                  return true;
+                })
                 .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
               return (
