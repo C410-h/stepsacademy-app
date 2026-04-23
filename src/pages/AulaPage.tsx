@@ -17,7 +17,7 @@ import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap,
   RotateCcw, Mic, GraduationCap, ExternalLink, AlertTriangle,
-  Lock, Check, CheckCheck,
+  Lock, Check, CheckCheck, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,12 @@ interface StudentInfo {
   levelName: string;
   languageName: string;
   meetLink: string | null;
+  // Viewing step — may differ from current when ?step_id= param is set
+  viewingStepId: string | null;
+  viewingStepNumber: number;
+  viewingStepTitle: string | null;
+  viewingUnitId: string | null;
+  isPastStep: boolean;
 }
 
 interface VocabWord {
@@ -614,6 +620,8 @@ const AulaPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const paramStepId = searchParams.get("step_id");
+
   const [view, setView] = useState<"current" | "all">(
     searchParams.get("tab") === "all" ? "all" : "current"
   );
@@ -639,7 +647,7 @@ const AulaPage = () => {
   useEffect(() => {
     if (!profile) return;
     loadData();
-  }, [profile]);
+  }, [profile, paramStepId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = async () => {
     if (!profile) return;
@@ -680,6 +688,26 @@ const AulaPage = () => {
       }
     }
 
+    // Resolve which step to display content for (param override vs current)
+    const isPastStep = !!paramStepId && paramStepId !== s.current_step_id;
+    let viewingStepId = paramStepId || s.current_step_id;
+    let viewingStepNumber = s.steps?.number || 0;
+    let viewingStepTitle: string | null = s.steps?.title || null;
+    let viewingUnitId: string | null = s.steps?.unit_id || null;
+
+    if (isPastStep && paramStepId) {
+      const { data: pStep } = await supabase
+        .from("steps")
+        .select("number, title, unit_id")
+        .eq("id", paramStepId)
+        .single();
+      if (pStep) {
+        viewingStepNumber = (pStep as any).number;
+        viewingStepTitle = (pStep as any).title ?? null;
+        viewingUnitId = (pStep as any).unit_id ?? null;
+      }
+    }
+
     setStudent({
       id: s.id,
       current_step_id: s.current_step_id,
@@ -692,6 +720,11 @@ const AulaPage = () => {
       levelName: s.levels?.name || "",
       languageName: s.languages?.name || "",
       meetLink,
+      viewingStepId,
+      viewingStepNumber,
+      viewingStepTitle,
+      viewingUnitId,
+      isPastStep,
     });
 
     // Check missed_pending sessions
@@ -703,19 +736,19 @@ const AulaPage = () => {
       .limit(1);
     setMissedCount(missedRows?.length || 0);
 
-    if (!s.current_step_id) { setLoading(false); return; }
+    if (!viewingStepId) { setLoading(false); return; }
 
-    // Parallel data fetching
+    // Parallel data fetching — use viewingStepId (may differ from current_step_id)
     const [stepRes, exercisesRes, accessesRes, personalRes, vocabRes, grammarRes, progressRes] = await Promise.all([
-      supabase.from("materials").select("id, title, type, delivery, file_url").eq("step_id", s.current_step_id).eq("active", true),
-      (supabase as any).from("lesson_exercises").select("id, type, question, options, answer, explanation, order_index").eq("step_id", s.current_step_id).eq("active", true).order("order_index"),
+      supabase.from("materials").select("id, title, type, delivery, file_url").eq("step_id", viewingStepId).eq("active", true),
+      (supabase as any).from("lesson_exercises").select("id, type, question, options, answer, explanation, order_index").eq("step_id", viewingStepId).eq("active", true).order("order_index"),
       supabase.from("material_accesses").select("material_id").eq("student_id", s.id),
       supabase.from("student_materials").select("material_id, materials(id, title, type, delivery, file_url)").eq("student_id", s.id).eq("is_personal", true),
-      s.level_id && s.steps?.unit_id
-        ? (supabase as any).from("vocabulary").select("id, word, translation, example_sentence, part_of_speech, difficulty, created_at").eq("level_id", s.level_id).eq("unit_id", s.steps.unit_id).eq("active", true).order("word")
+      s.level_id && viewingUnitId
+        ? (supabase as any).from("vocabulary").select("id, word, translation, example_sentence, part_of_speech, difficulty, created_at").eq("level_id", s.level_id).eq("unit_id", viewingUnitId).eq("active", true).order("word")
         : Promise.resolve({ data: [] }),
-      (supabase as any).from("step_grammar").select("id, title, explanation, examples, tip, order_index").eq("step_id", s.current_step_id).eq("active", true).order("order_index"),
-      (supabase as any).from("student_progress").select("is_inherited").eq("student_id", s.id).eq("step_id", s.current_step_id).maybeSingle(),
+      (supabase as any).from("step_grammar").select("id, title, explanation, examples, tip, order_index").eq("step_id", viewingStepId).eq("active", true).order("order_index"),
+      (supabase as any).from("student_progress").select("is_inherited").eq("student_id", s.id).eq("step_id", viewingStepId).maybeSingle(),
     ]);
 
     // Fetch attempts for current step exercises (for resume + XP dedup)
@@ -899,7 +932,7 @@ const AulaPage = () => {
   }
 
   // ── No step ───────────────────────────────────────────────────────────────
-  if (!student?.current_step_id) {
+  if (!student?.viewingStepId) {
     return (
       <StudentLayout>
         <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
@@ -961,19 +994,41 @@ const AulaPage = () => {
 
         {view === "current" ? (
           <>
+            {/* ── Past step banner ── */}
+            {student.isPastStep && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <History className="h-4 w-4 text-primary shrink-0" />
+                  <p className="text-xs text-primary font-medium">
+                    Você está revisando a aula anterior (Passo {student.viewingStepNumber})
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 text-xs font-bold text-primary hover:text-primary/80 px-2"
+                  onClick={() => navigate("/aula")}
+                >
+                  Ir para aula atual
+                </Button>
+              </div>
+            )}
+
             {/* ── Header ── */}
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">Aula atual</p>
+              <p className="text-xs text-muted-foreground font-light uppercase tracking-wide">
+                {student.isPastStep ? "Revisando aula anterior" : "Aula atual"}
+              </p>
               <h1 className="text-xl font-bold leading-tight">
-                {student.stepTitle || `Passo ${student.stepNumber}`}
+                {student.viewingStepTitle || `Passo ${student.viewingStepNumber}`}
               </h1>
               <p className="text-xs text-muted-foreground font-light">
-                {student.languageName} · {student.levelCode} · Step {student.stepNumber} de {student.totalSteps}
+                {student.languageName} · {student.levelCode} · Step {student.viewingStepNumber} de {student.totalSteps}
               </p>
             </div>
 
             {/* ── Inherited warning banner ── */}
-            {isInherited && (
+            {isInherited && !student.isPastStep && (
               <div className="flex items-start gap-3 rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-3">
                 <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-yellow-800 dark:text-yellow-300 leading-relaxed">
@@ -984,7 +1039,7 @@ const AulaPage = () => {
             )}
 
             {/* ── Meet button ── */}
-            {student.meetLink && (
+            {student.meetLink && !student.isPastStep && (
               <Button
                 className="w-full font-bold h-12"
                 style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
@@ -1140,22 +1195,24 @@ const AulaPage = () => {
             </CollapsibleSection>
 
             {/* ── Speaking ── */}
-            <Card>
-              <CardContent className="pt-5 pb-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Mic className="h-4 w-4 text-primary" />
+            {!student.isPastStep && (
+              <Card>
+                <CardContent className="pt-5 pb-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Mic className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Pratique sua pronúncia</p>
+                      <p className="text-xs text-muted-foreground font-light">
+                        Envie uma gravação para o seu professor avaliar.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-sm">Pratique sua pronúncia</p>
-                    <p className="text-xs text-muted-foreground font-light">
-                      Envie uma gravação para o seu professor avaliar.
-                    </p>
-                  </div>
-                </div>
-                <VoiceRecorder studentId={student.id} stepId={student.current_step_id} />
-              </CardContent>
-            </Card>
+                  <VoiceRecorder studentId={student.id} stepId={student.current_step_id} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── Audio player ── */}
             {audioUrl && (
@@ -1167,24 +1224,28 @@ const AulaPage = () => {
               </Card>
             )}
 
-            {/* ── Marcar aula como concluída ── */}
-            <Button
-              className="w-full font-bold gap-2"
-              variant={canMarkAulaDone ? "default" : "outline"}
-              disabled={!canMarkAulaDone || markingAulaDone}
-              onClick={handleMarkAulaDone}
-            >
-              <CheckCheck className="h-4 w-4" />
-              {markingAulaDone ? "Salvando…" : "Marcar aula como concluída"}
-            </Button>
-            {stepIsReady && !canMarkAulaDone && (
-              <p className="text-center text-xs text-muted-foreground font-light -mt-3">
-                {!slideViewed && !exercisesAllDone
-                  ? "Visualize o slide e faça os exercícios para concluir."
-                  : !slideViewed
-                  ? "Visualize o slide para concluir."
-                  : "Faça os exercícios para concluir."}
-              </p>
+            {/* ── Marcar aula como concluída (somente aula atual) ── */}
+            {!student.isPastStep && (
+              <>
+                <Button
+                  className="w-full font-bold gap-2"
+                  variant={canMarkAulaDone ? "default" : "outline"}
+                  disabled={!canMarkAulaDone || markingAulaDone}
+                  onClick={handleMarkAulaDone}
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  {markingAulaDone ? "Salvando…" : "Marcar aula como concluída"}
+                </Button>
+                {stepIsReady && !canMarkAulaDone && (
+                  <p className="text-center text-xs text-muted-foreground font-light -mt-3">
+                    {!slideViewed && !exercisesAllDone
+                      ? "Visualize o slide e faça os exercícios para concluir."
+                      : !slideViewed
+                      ? "Visualize o slide para concluir."
+                      : "Faça os exercícios para concluir."}
+                  </p>
+                )}
+              </>
             )}
           </>
         ) : (

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle } from "lucide-react";
+import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle, History, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 import UpcomingClasses from "@/components/UpcomingClasses";
@@ -20,7 +20,14 @@ interface StudentData {
   level: { name: string; code: string; total_steps: number } | null;
   language: { name: string } | null;
   currentStepNumber: number;
+  currentStepTitle: string | null;
   meetLink: string | null;
+}
+
+interface LastStep {
+  id: string;
+  number: number;
+  title: string | null;
 }
 
 interface RankInfo {
@@ -58,6 +65,7 @@ const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<StudentData | null>(null);
+  const [lastStep, setLastStep] = useState<LastStep | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -81,7 +89,7 @@ const Dashboard = () => {
         id, current_step_id, onboarding_completed, language_id,
         levels!students_level_id_fkey(name, code, total_steps),
         languages!students_language_id_fkey(name),
-        steps!students_current_step_id_fkey(number)
+        steps!students_current_step_id_fkey(number, title)
       `)
       .eq("user_id", profile.id)
       .single();
@@ -132,8 +140,31 @@ const Dashboard = () => {
       level: s.levels || null,
       language: s.languages || null,
       currentStepNumber: s.steps?.number || 0,
+      currentStepTitle: s.steps?.title || null,
       meetLink,
     });
+
+    // Última aula concluída (para o botão "Última Aula")
+    if (s.id) {
+      const { data: doneRows } = await supabase
+        .from("student_progress")
+        .select("step_id")
+        .eq("student_id", s.id)
+        .eq("status", "done");
+      const doneIds = (doneRows || []).map((r: any) => r.step_id).filter(Boolean);
+      if (doneIds.length > 0) {
+        const { data: lastStepData } = await supabase
+          .from("steps")
+          .select("id, number, title")
+          .in("id", doneIds)
+          .order("number", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setLastStep(lastStepData ? { id: lastStepData.id, number: (lastStepData as any).number, title: (lastStepData as any).title ?? null } : null);
+      } else {
+        setLastStep(null);
+      }
+    }
 
     if (s.onboarding_completed === false) setShowOnboarding(true);
 
@@ -395,6 +426,40 @@ const Dashboard = () => {
               <Progress value={progressPercent} className="h-2.5 mt-3" />
             </CardContent>
           </Card>
+
+          {/* Última Aula / Próxima Aula shortcuts */}
+          {(lastStep || studentData.current_step_id) && (
+            <div className="grid grid-cols-2 gap-2">
+              {lastStep && (
+                <Button
+                  variant="outline"
+                  className="h-auto py-3 flex-col items-start text-left gap-0.5 overflow-hidden"
+                  onClick={() => navigate(`/aula?step_id=${lastStep.id}`)}
+                >
+                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                    <History className="h-3 w-3" /> Última aula
+                  </span>
+                  <span className="text-sm font-bold truncate w-full">
+                    {lastStep.title || `Passo ${lastStep.number}`}
+                  </span>
+                </Button>
+              )}
+              {studentData.current_step_id && (
+                <Button
+                  variant="outline"
+                  className={`h-auto py-3 flex-col items-start text-left gap-0.5 overflow-hidden${!lastStep ? " col-span-2" : ""}`}
+                  onClick={() => navigate("/aula")}
+                >
+                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                    <ArrowRight className="h-3 w-3" /> Próxima aula
+                  </span>
+                  <span className="text-sm font-bold truncate w-full">
+                    {studentData.currentStepTitle || `Passo ${studentData.currentStepNumber}`}
+                  </span>
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Join class */}
           {studentData.meetLink && (

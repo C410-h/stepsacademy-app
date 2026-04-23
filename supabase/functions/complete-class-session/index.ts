@@ -84,7 +84,16 @@ serve(async (req) => {
           continue
         }
 
-        // 4b. Marca o step atual como done em student_progress
+        // 4b. Registra step_id nas sessões concluídas deste aluno
+        const studentSessionIds = allSessions.filter(s => s.student_id === studentId).map(s => s.id)
+        if (studentSessionIds.length > 0) {
+          await supabase
+            .from('class_sessions')
+            .update({ step_id: student.current_step_id })
+            .in('id', studentSessionIds)
+        }
+
+        // 4c. Marca o step atual como done em student_progress
         await supabase.from('student_progress').upsert(
           {
             student_id: studentId,
@@ -96,7 +105,7 @@ serve(async (req) => {
           { onConflict: 'student_id,step_id' }
         )
 
-        // 4c. Descobre o próximo step (mesmo unit, number + 1; ou próximo unit)
+        // 4d. Descobre o próximo step (mesmo unit, number + 1; ou próximo unit)
         const { data: currentStep } = await supabase
           .from('steps')
           .select('id, number, unit_id')
@@ -151,7 +160,7 @@ serve(async (req) => {
           continue
         }
 
-        // 4d. Cria o próximo step como available
+        // 4e. Cria o próximo step como available
         await supabase.from('student_progress').upsert(
           {
             student_id: studentId,
@@ -162,11 +171,28 @@ serve(async (req) => {
           { onConflict: 'student_id,step_id' }
         )
 
-        // 4e. Atualiza current_step_id do aluno
+        // 4f. Atualiza current_step_id do aluno
         await supabase
           .from('students')
           .update({ current_step_id: nextStep.id })
           .eq('id', studentId)
+
+        // 4g. Pré-atribui step_id na próxima sessão agendada deste aluno
+        const { data: nextSession } = await supabase
+          .from('class_sessions')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('status', 'scheduled')
+          .order('scheduled_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (nextSession) {
+          await supabase
+            .from('class_sessions')
+            .update({ step_id: nextStep.id })
+            .eq('id', nextSession.id)
+        }
 
         progressResults[studentId] = `avançou para step ${nextStep.id}`
       } catch (e: any) {
