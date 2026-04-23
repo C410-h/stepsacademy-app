@@ -594,10 +594,13 @@ const ProgressTab = () => {
 
     // Map: stepNumber → { stepId, status, doneAt, title, isInherited }
     const doneMap = new Map<number, { id: string; doneAt: string | null; title: string | null; isInherited: boolean }>();
+    const availableMap = new Map<number, { id: string; title: string | null }>();
     if (progressRecords) {
       for (const p of progressRecords as any[]) {
         if (p.status === "done" && p.steps?.number) {
           doneMap.set(p.steps.number, { id: p.step_id, doneAt: p.done_at || null, title: p.steps.title || null, isInherited: p.is_inherited ?? false });
+        } else if (p.status === "available" && p.steps?.number) {
+          availableMap.set(p.steps.number, { id: p.step_id, title: p.steps.title || null });
         }
       }
     }
@@ -609,10 +612,13 @@ const ProgressTab = () => {
     const stepsArray: StepProgress[] = [];
     for (let i = 1; i <= totalSteps; i++) {
       const done = doneMap.get(i);
+      const avail = availableMap.get(i);
       if (done) {
         stepsArray.push({ id: done.id, number: i, title: done.title, status: "done", doneAt: done.doneAt, isInherited: done.isInherited });
       } else if (i === currentStepNumber && currentStepId) {
         stepsArray.push({ id: currentStepId, number: i, title: currentStepTitle, status: "available", doneAt: null, isInherited: false });
+      } else if (avail) {
+        stepsArray.push({ id: avail.id, number: i, title: avail.title, status: "available", doneAt: null, isInherited: false });
       } else {
         stepsArray.push({ id: "", number: i, title: null, status: "locked", doneAt: null, isInherited: false });
       }
