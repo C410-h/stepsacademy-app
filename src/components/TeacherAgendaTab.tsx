@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -119,6 +119,9 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [holidays, setHolidays]   = useState<Map<string, string>>(new Map());
 
   // Drawer
+  const [calError, setCalError]                   = useState<string | null>(null);
+
+  // Drawer
   const [drawerOpen, setDrawerOpen]               = useState(false);
   const [selected, setSelected]                   = useState<SessionWithStudent | null>(null);
   const [drawerNotes, setDrawerNotes]             = useState("");
@@ -223,11 +226,24 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) return;
-      const { data } = await supabase.functions.invoke("google-calendar", {
+      const { data, error } = await supabase.functions.invoke("google-calendar", {
         headers: { Authorization: `Bearer ${token}` },
         body: { action: "list_teacher_events", payload: {} },
       });
-      setCalEvents(data?.events || []);
+      if (error || data?.error) {
+        // Edge fn returns { error: '...' } with status 200 on GCal auth failures
+        const msg: string = data?.error ?? error?.message ?? "Erro ao carregar Google Calendar";
+        const isAuthError = msg.toLowerCase().includes("token") ||
+          msg.toLowerCase().includes("conectado") ||
+          msg.toLowerCase().includes("autoriza");
+        setCalError(isAuthError
+          ? "Google Calendar desconectado"
+          : "Não foi possível carregar eventos do Google Calendar");
+        setCalEvents([]);
+      } else {
+        setCalError(null);
+        setCalEvents(data?.events || []);
+      }
     })();
   }, []);
 
@@ -506,6 +522,31 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
           </Button>
         </div>
       </div>
+
+      {/* ── Google Calendar error banner ─────────────────────────────────── */}
+      {calError && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <WifiOff className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {calError}
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-400/80 font-light">
+                As aulas do Google Calendar não aparecem na agenda. Reconecte para restaurar.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40 text-xs"
+            onClick={() => window.location.href = "/perfil"}
+          >
+            Reconectar
+          </Button>
+        </div>
+      )}
 
       {/* ── Kanban ───────────────────────────────────────────────────────── */}
       {loading ? (
