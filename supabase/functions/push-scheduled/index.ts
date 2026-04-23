@@ -49,12 +49,15 @@ serve(async () => {
     console.log(`[push-scheduled] Processando tipo: ${setting.type}`);
     let studentIds: string[] = [];
 
+    // Map student_id → template variables for personalised messages
+    const studentVars = new Map<string, Record<string, string>>();
+
     if (setting.type === "daily_mission_reminder") {
       // Todos os alunos com pelo menos uma subscription
       const { data } = await supabase
         .from("push_subscriptions")
         .select("student_id");
-      studentIds = [...new Set((data || []).map((r: any) => r.student_id))];
+      studentIds = [...new Set((data || []).map((r: any) => r.student_id).filter(Boolean))];
 
     } else if (setting.type === "streak_at_risk") {
       // Alunos com streak > 0 que não tiveram atividade hoje (BRT)
@@ -68,6 +71,11 @@ serve(async () => {
         .gt("streak_current", 0)
         .neq("last_activity_date", todayStr);
 
+      // Guarda o streak de cada aluno para personalizar a mensagem
+      for (const row of data || []) {
+        studentVars.set(row.student_id, { streak: String(row.streak_current) });
+      }
+
       // Só envia para quem tem subscription
       const atRiskIds = (data || []).map((r: any) => r.student_id);
       if (atRiskIds.length > 0) {
@@ -75,7 +83,7 @@ serve(async () => {
           .from("push_subscriptions")
           .select("student_id")
           .in("student_id", atRiskIds);
-        studentIds = [...new Set((subs || []).map((r: any) => r.student_id))];
+        studentIds = [...new Set((subs || []).map((r: any) => r.student_id).filter(Boolean))];
       }
     }
 
@@ -96,8 +104,13 @@ serve(async () => {
     const expired: string[] = [];
 
     for (const sub of subscriptions || []) {
-      const title = setting.title_template;
-      const body = setting.body_template;
+      // Substitui variáveis do template: {{streak}}, {{name}}, etc.
+      const vars = studentVars.get(sub.student_id) ?? {};
+      const interpolate = (tpl: string) =>
+        tpl.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => vars[key] ?? "");
+
+      const title = interpolate(setting.title_template);
+      const body = interpolate(setting.body_template);
 
       try {
         await webPush.sendNotification(
