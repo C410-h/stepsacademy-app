@@ -85,6 +85,74 @@ serve(async () => {
           .in("student_id", atRiskIds);
         studentIds = [...new Set((subs || []).map((r: any) => r.student_id).filter(Boolean))];
       }
+
+    } else if (setting.type === "step_completed") {
+      // Alunos que completaram um passo hoje (BRT)
+      const todayBRT = new Date();
+      todayBRT.setUTCHours(todayBRT.getUTCHours() + BRT_OFFSET);
+      const todayStr = todayBRT.toISOString().slice(0, 10);
+
+      const { data } = await supabase
+        .from("student_progress")
+        .select("student_id, steps!inner(number)")
+        .eq("status", "done")
+        .gte("updated_at", todayStr)
+        .lt("updated_at", new Date(new Date(todayStr).getTime() + 86400000).toISOString());
+
+      for (const row of data || []) {
+        studentVars.set(row.student_id, { step_number: String((row as any).steps?.number ?? "") });
+      }
+      const eligibleIds = (data || []).map((r: any) => r.student_id);
+      if (eligibleIds.length > 0) {
+        const { data: subs } = await supabase
+          .from("push_subscriptions").select("student_id").in("student_id", eligibleIds);
+        studentIds = [...new Set((subs || []).map((r: any) => r.student_id).filter(Boolean))];
+      }
+
+    } else if (setting.type === "level_completed") {
+      // Alunos que completaram um nível hoje
+      const todayBRT = new Date();
+      todayBRT.setUTCHours(todayBRT.getUTCHours() + BRT_OFFSET);
+      const todayStr = todayBRT.toISOString().slice(0, 10);
+
+      const { data } = await supabase
+        .from("xp_events")
+        .select("student_id, metadata")
+        .eq("event_type", "level_completed")
+        .gte("created_at", todayStr)
+        .lt("created_at", new Date(new Date(todayStr).getTime() + 86400000).toISOString());
+
+      for (const row of data || []) {
+        studentVars.set(row.student_id, { level_name: (row as any).metadata?.level_name ?? "nível" });
+      }
+      const eligibleIds = (data || []).map((r: any) => r.student_id);
+      if (eligibleIds.length > 0) {
+        const { data: subs } = await supabase
+          .from("push_subscriptions").select("student_id").in("student_id", eligibleIds);
+        studentIds = [...new Set((subs || []).map((r: any) => r.student_id).filter(Boolean))];
+      }
+
+    } else if (setting.type === "material_available") {
+      // Alunos com materiais novos disponíveis hoje
+      const todayBRT = new Date();
+      todayBRT.setUTCHours(todayBRT.getUTCHours() + BRT_OFFSET);
+      const todayStr = todayBRT.toISOString().slice(0, 10);
+
+      const { data } = await supabase
+        .from("student_materials")
+        .select("student_id, materials!inner(title)")
+        .gte("created_at", todayStr)
+        .lt("created_at", new Date(new Date(todayStr).getTime() + 86400000).toISOString());
+
+      for (const row of data || []) {
+        studentVars.set(row.student_id, { lesson_title: (row as any).materials?.title ?? "aula" });
+      }
+      const eligibleIds = (data || []).map((r: any) => r.student_id);
+      if (eligibleIds.length > 0) {
+        const { data: subs } = await supabase
+          .from("push_subscriptions").select("student_id").in("student_id", eligibleIds);
+        studentIds = [...new Set((subs || []).map((r: any) => r.student_id).filter(Boolean))];
+      }
     }
 
     if (!studentIds.length) {
@@ -106,8 +174,9 @@ serve(async () => {
     for (const sub of subscriptions || []) {
       // Substitui variáveis do template: {{streak}}, {{name}}, etc.
       const vars = studentVars.get(sub.student_id) ?? {};
+      // Supports both {var} and {{var}} template formats
       const interpolate = (tpl: string) =>
-        tpl.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => vars[key] ?? "");
+        tpl.replace(/\{\{?(\w+)\}?\}/g, (_: string, key: string) => vars[key] ?? "");
 
       const title = interpolate(setting.title_template);
       const body = interpolate(setting.body_template);
