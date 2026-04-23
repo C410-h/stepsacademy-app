@@ -48,6 +48,7 @@ interface VocabItem {
   translation: string;
   example_sentence: string;
   part_of_speech: "noun" | "verb" | "adjective" | "adverb" | "expression" | "other";
+  custom_part_of_speech?: string;
   difficulty: 1 | 2 | 3;
   distractors: [string, string, string];
 }
@@ -145,6 +146,15 @@ function formatOptionsForDb(ex: ExerciseItem): any {
     });
   }
   return ex.options.split(",").map(o => o.trim()).filter(Boolean);
+}
+
+function optionsFromDb(type: string, options: any): string {
+  if (!options) return "";
+  if (type === "association" && Array.isArray(options)) {
+    return options.map((o: any) => `${o.left}=${o.right}`).join(",");
+  }
+  if (Array.isArray(options)) return options.join(",");
+  return String(options);
 }
 
 // ── ExerciseEditor ────────────────────────────────────────────────────────────
@@ -277,20 +287,30 @@ function VocabEditor({
             className="text-xs"
           />
           <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={item.part_of_speech}
-              onValueChange={v => update(item.localId, { part_of_speech: v as VocabItem["part_of_speech"] })}
-            >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="noun">Substantivo</SelectItem>
-                <SelectItem value="verb">Verbo</SelectItem>
-                <SelectItem value="adjective">Adjetivo</SelectItem>
-                <SelectItem value="adverb">Advérbio</SelectItem>
-                <SelectItem value="expression">Expressão</SelectItem>
-                <SelectItem value="other">Outro</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-1.5">
+              <Select
+                value={item.part_of_speech}
+                onValueChange={v => update(item.localId, { part_of_speech: v as VocabItem["part_of_speech"], custom_part_of_speech: "" })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="noun">Substantivo</SelectItem>
+                  <SelectItem value="verb">Verbo</SelectItem>
+                  <SelectItem value="adjective">Adjetivo</SelectItem>
+                  <SelectItem value="adverb">Advérbio</SelectItem>
+                  <SelectItem value="expression">Expressão</SelectItem>
+                  <SelectItem value="other">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+              {item.part_of_speech === "other" && (
+                <Input
+                  placeholder="Ex: Phrasal Verb"
+                  value={item.custom_part_of_speech || ""}
+                  onChange={e => update(item.localId, { custom_part_of_speech: e.target.value })}
+                  className="text-xs h-8"
+                />
+              )}
+            </div>
             <Select
               value={String(item.difficulty)}
               onValueChange={v => update(item.localId, { difficulty: Number(v) as 1 | 2 | 3 })}
@@ -1197,6 +1217,49 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
 
   // ── Publish all ─────────────────────────────────────────────────────────────
 
+  const handleEditPublished = async (entryLocalId: string) => {
+    if (!selectedStep) return;
+
+    const [{ data: dbExercises }, { data: dbGrammar }] = await Promise.all([
+      (supabase as any).from("lesson_exercises")
+        .select("id, type, question, options, answer, explanation, order_index")
+        .eq("step_id", selectedStep.id).eq("active", true).order("order_index"),
+      (supabase as any).from("step_grammar")
+        .select("id, title, explanation, examples, tip, order_index")
+        .eq("step_id", selectedStep.id).eq("active", true).order("order_index"),
+    ]);
+
+    const exercises: ExerciseItem[] = (dbExercises || []).map((ex: any) => ({
+      localId: newLocalId(),
+      type: ex.type,
+      question: ex.question,
+      options: optionsFromDb(ex.type, ex.options),
+      answer: ex.answer,
+      explanation: ex.explanation || "",
+    }));
+
+    const grammar: GrammarItem[] = (dbGrammar || []).map((g: any) => ({
+      localId: newLocalId(),
+      title: g.title,
+      explanation: g.explanation,
+      examples: g.examples || [],
+      tip: g.tip || "",
+    }));
+
+    const generates: GenerateType[] = [];
+    if (exercises.length > 0) generates.push("exercises");
+    if (grammar.length > 0) generates.push("grammar");
+
+    updateFile(entryLocalId, {
+      aiStatus: "done",
+      exercises,
+      aiGrammar: grammar,
+      aiVocabulary: [],
+      aiGenerate: generates.length > 0 ? generates : ["exercises"],
+      aiReviewTab: exercises.length > 0 ? "exercises" : "grammar",
+    });
+  };
+
   const publishAll = async () => {
     if (!selectedStep) return;
     setPublishing(true);
@@ -1295,7 +1358,9 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
             word: v.word,
             translation: v.translation,
             example_sentence: v.example_sentence || null,
-            part_of_speech: v.part_of_speech,
+            part_of_speech: v.part_of_speech === "other" && v.custom_part_of_speech?.trim()
+              ? v.custom_part_of_speech.trim()
+              : v.part_of_speech,
             difficulty: v.difficulty,
             active: true,
           }).select("id").single();
@@ -1311,8 +1376,11 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
           }
         }
 
-        // 6. Insert grammar rules
+        // 6. Insert grammar rules (delete existing first to allow re-editing)
         const grammar = aiEntry.aiGrammar || [];
+        if (grammar.length > 0) {
+          await (supabase as any).from("step_grammar").delete().eq("step_id", selectedStep.id);
+        }
         for (let i = 0; i < grammar.length; i++) {
           const g = grammar[i];
           if (!g.title.trim()) continue;
@@ -1726,9 +1794,17 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
 
                           {/* Confirmed (already published) */}
                           {entry.aiStatus === "confirmed" && (
-                            <div className="flex items-center gap-1.5 px-1">
-                              <CheckCircle2 className="h-3 w-3 text-lime-600 shrink-0" />
-                              <span className="text-[10px] text-muted-foreground">Conteúdo publicado pela IA</span>
+                            <div className="flex items-center justify-between gap-1.5 px-1">
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-lime-600 shrink-0" />
+                                <span className="text-[10px] text-muted-foreground">Conteúdo publicado pela IA</span>
+                              </div>
+                              <button
+                                className="text-[10px] text-primary underline hover:opacity-70"
+                                onClick={() => handleEditPublished(entry.localId)}
+                              >
+                                Editar
+                              </button>
                             </div>
                           )}
                         </div>
