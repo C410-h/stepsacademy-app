@@ -746,11 +746,11 @@ const AulaPage = () => {
     // Parallel data fetching — use viewingStepId (may differ from current_step_id)
     const [submissionRes, exercisesRes, accessesRes, personalRes, vocabRes, grammarRes, progressRes] = await Promise.all([
       // Materials come from content_submissions + submission_files (teacher upload system)
+      // Use array (not .maybeSingle) so multiple approved submissions don't crash the query
       (supabase as any).from("content_submissions")
         .select("id, submission_files(id, material_type, filename, file_url, status)")
         .eq("step_id", viewingStepId)
-        .eq("status", "approved")
-        .maybeSingle(),
+        .eq("status", "approved"),
       (supabase as any).from("lesson_exercises").select("id, type, question, options, answer, explanation, order_index").eq("step_id", viewingStepId).eq("active", true).order("order_index"),
       supabase.from("material_accesses").select("material_id").eq("student_id", s.id),
       supabase.from("student_materials").select("material_id, materials(id, title, type, delivery, file_url)").eq("student_id", s.id).eq("is_personal", true),
@@ -781,7 +781,9 @@ const AulaPage = () => {
     const accessedIds = new Set((accessesRes.data || []).map((a: any) => a.material_id));
 
     // Map submission_files → Material shape (delivery defaults to "before" for all types)
-    const submissionFiles: any[] = (submissionRes.data?.submission_files || []).filter((f: any) => f.status === "approved" && f.file_url);
+    const submissionFiles: any[] = ((submissionRes.data || []) as any[])
+      .flatMap((cs: any) => cs.submission_files || [])
+      .filter((f: any) => f.status === "approved" && f.file_url);
     const stepMats: Material[] = submissionFiles.map((f: any) => ({
       id: f.id,
       title: f.filename,
