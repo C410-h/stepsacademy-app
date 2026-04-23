@@ -855,7 +855,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             const sessionDateStr     = start.substring(0, 10);
             const sessionHoliday     = holidays.get(sessionDateStr);
             const canConfirmMissed   = !sessionHoliday && selected.status === "missed_pending";
-            const canMarkCompleted   = !sessionHoliday && selected.status === "scheduled" && hasPassed(selected.scheduled_at);
+            const canMarkCompleted   = !sessionHoliday && selected.status === "scheduled";
             const hasStep            = !!(selected.step_id || pendingStepId);
             // Group step options by unit for the picker
             const unitGroups = stepOptions.reduce<{ unit_id: string; unit_number: number; unit_title: string | null; steps: StepOption[] }[]>((acc, s) => {
