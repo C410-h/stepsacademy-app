@@ -320,12 +320,24 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const handleMarkCompleted = async () => {
     if (!selected) return;
     setMarkingCompleted(true);
-    const { error } = await (supabase as any)
-      .from("class_sessions").update({ status: "completed" }).eq("id", selected.id);
-    if (!error) {
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("complete-class-session", {
+        body: { session_id: selected.id },
+        headers: { Authorization: `Bearer ${authSession?.access_token}` },
+      });
+      if (error) throw error;
+
+      // Atualiza UI: marca todas as sessões afetadas como concluídas
+      const completedCount: number = data?.sessions_completed ?? 1;
       patchSession(selected.id, { status: "completed" });
-      toast({ title: "Aula marcada como realizada!" });
-    } else {
+      toast({
+        title: "Aula marcada como realizada!",
+        description: completedCount > 1
+          ? `${completedCount} alunos da turma tiveram o progresso avançado.`
+          : "Progresso do aluno avançado para o próximo step.",
+      });
+    } catch {
       toast({ title: "Erro ao marcar aula", variant: "destructive" });
     }
     setMarkingCompleted(false);
