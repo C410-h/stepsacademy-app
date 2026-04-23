@@ -135,6 +135,10 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [rescheduleOpen, setRescheduleOpen]       = useState(false);
   const [rescheduleSession, setRescheduleSession] = useState<RescheduleSessionData | null>(null);
 
+  // GCal-only event drawer
+  const [gcalDrawerOpen, setGcalDrawerOpen]       = useState(false);
+  const [selectedGcal, setSelectedGcal]           = useState<GCalEvent | null>(null);
+
   const todayColRef    = useRef<HTMLDivElement>(null);
   const scrollContRef  = useRef<HTMLDivElement>(null);
 
@@ -376,16 +380,20 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     setRescheduleOpen(true);
   };
 
-  // ── Render: Google Calendar card (read-only) ─────────────────────────────
+  // ── Render: Google Calendar card ─────────────────────────────────────────
 
   const GCalCard = ({ e, holidayName }: { e: GCalEvent; holidayName?: string }) => {
-    const language = e.title.split(" | ")[0]?.trim();
-    const name     = e.title.split(" | ")[1]?.trim();
+    const language = e.title.split(" | ")[0]?.trim() || e.title.split(" \u2014 ")[0]?.trim() || e.title;
+    const name     = e.title.split(" | ")[1]?.trim() || e.title.split(" \u2014 ")[1]?.trim() || null;
     const soon     = !holidayName && isStartingSoon(e.start);
-    return (
+
+    const inner = (
       <Card className={cn(
         "border-dashed",
-        holidayName ? "opacity-60" : soon && "border-primary/40"
+        holidayName ? "opacity-60" : cn(
+          "hover:shadow-sm transition-all cursor-pointer",
+          soon && "border-primary/40"
+        )
       )}>
         <CardContent className="p-2.5 space-y-1">
           <p className="text-xs font-bold tabular-nums">
@@ -399,15 +407,6 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             </span>
           ) : (
             <>
-              {e.meet_link && (
-                <button
-                  className="text-[10px] text-primary font-semibold flex items-center gap-1 hover:underline"
-                  onClick={() => window.open(e.meet_link!, "_blank")}
-                >
-                  <ExternalLink className="h-2.5 w-2.5" />
-                  Entrar
-                </button>
-              )}
               {soon && (
                 <span className="inline-block text-[10px] font-bold text-primary animate-pulse">
                   Em breve
@@ -417,6 +416,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
           )}
         </CardContent>
       </Card>
+    );
+
+    if (holidayName) return inner;
+    return (
+      <button className="w-full text-left" onClick={() => { setSelectedGcal(e); setGcalDrawerOpen(true); }}>
+        {inner}
+      </button>
     );
   };
 
@@ -577,8 +583,10 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   const { start: bs } = getEffectiveTimes(b);
                   return new Date(as).getTime() - new Date(bs).getTime();
                 });
+              // Hide GCal events that already have a DB session (shown as SessionCard with full detail)
+              const linkedEventIds = new Set(sessions.map(s => s.google_event_id).filter(Boolean));
               const colCal = calEvents
-                .filter(e => isSameDay(new Date(e.start), day))
+                .filter(e => isSameDay(new Date(e.start), day) && !linkedEventIds.has(e.id))
                 .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
               return (
@@ -650,6 +658,80 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
         session={rescheduleSession}
         onSuccess={loadSessions}
       />
+
+      {/* ── GCal-only event drawer ───────────────────────────────────────── */}
+      <Sheet open={gcalDrawerOpen} onOpenChange={setGcalDrawerOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto flex flex-col">
+          {selectedGcal && (() => {
+            const language = selectedGcal.title.split(" | ")[0]?.trim() || selectedGcal.title.split(" \u2014 ")[0]?.trim() || selectedGcal.title;
+            const name     = selectedGcal.title.split(" | ")[1]?.trim() || selectedGcal.title.split(" \u2014 ")[1]?.trim() || null;
+            return (
+              <>
+                <SheetHeader className="pb-4">
+                  <SheetTitle>Detalhes da aula</SheetTitle>
+                </SheetHeader>
+                <div className="flex-1 space-y-5">
+                  {/* Name / language */}
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center bg-primary/10 shrink-0">
+                      <span className="text-sm font-bold text-primary">
+                        {name ? abbr(name) : language.slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      {name && <p className="font-bold">{name}</p>}
+                      {language && <p className="text-xs text-muted-foreground font-light">{language}</p>}
+                    </div>
+                  </div>
+
+                  {/* Date & time */}
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span>{format(new Date(selectedGcal.start), "EEEE, d 'de' MMMM", { locale: ptBR })}</span>
+                    </div>
+                    <p className="text-muted-foreground font-light pl-5">
+                      {formatTime(selectedGcal.start)}{selectedGcal.end ? ` – ${formatTime(selectedGcal.end)}` : ""}
+                    </p>
+                  </div>
+
+                  {/* Entrar */}
+                  {selectedGcal.meet_link && (
+                    <Button
+                      className="w-full gap-2"
+                      onClick={() => window.open(selectedGcal.meet_link!, "_blank")}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Entrar na aula
+                    </Button>
+                  )}
+
+                  {/* Reagendar */}
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      setRescheduleSession({
+                        id: "",
+                        google_event_id: selectedGcal.id,
+                        scheduled_at: selectedGcal.start,
+                        scheduled_ends_at: selectedGcal.end || selectedGcal.start,
+                        teacher_id: profileId,
+                        original_scheduled_at: selectedGcal.start,
+                      });
+                      setGcalDrawerOpen(false);
+                      setRescheduleOpen(true);
+                    }}
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                    Reagendar aula
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
 
       {/* ── Session drawer ───────────────────────────────────────────────── */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
