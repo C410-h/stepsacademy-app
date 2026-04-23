@@ -15,7 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -43,6 +43,7 @@ interface SessionWithStudent {
   meet_link: string | null;
   google_event_id: string | null;
   step_id: string | null;
+  title: string | null;
   notes: string | null;
   missed_confirmed_at: string | null;
   missed_confirmed_by: string | null;
@@ -154,6 +155,11 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [gcalDrawerOpen, setGcalDrawerOpen]       = useState(false);
   const [selectedGcal, setSelectedGcal]           = useState<GCalEvent | null>(null);
 
+  // Session title rename
+  const [editingTitle, setEditingTitle]           = useState(false);
+  const [titleDraft, setTitleDraft]               = useState("");
+  const [savingTitle, setSavingTitle]             = useState(false);
+
   // Step picker (for sessions without a linked step)
   const [stepOptions, setStepOptions]             = useState<StepOption[]>([]);
   const [loadingSteps, setLoadingSteps]           = useState(false);
@@ -173,13 +179,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -356,6 +362,8 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const openDrawer = (s: SessionWithStudent) => {
     setSelected(s);
     setDrawerNotes(s.notes || "");
+    setEditingTitle(false);
+    setTitleDraft(s.title || "");
     setDrawerOpen(true);
   };
 
@@ -537,15 +545,17 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
               {formatTime(start)}
               {end ? ` – ${formatTime(end)}` : ""}
             </p>
-            {/* Student */}
+            {/* Student / title */}
             <div className="flex items-center gap-1.5 min-w-0">
               <Avatar className="h-5 w-5 shrink-0">
                 <AvatarImage src={s.student_avatar || undefined} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-[8px]">
-                  {abbr(s.student_name)}
+                  {abbr(s.title || s.student_name)}
                 </AvatarFallback>
               </Avatar>
-              <p className="text-xs font-medium truncate">{s.student_name.split(" ")[0]}</p>
+              <p className="text-xs font-medium truncate">
+                {s.title || s.student_name.split(" ")[0]}
+              </p>
             </div>
             {/* Status / Holiday badge */}
             {holidayName ? (
@@ -860,18 +870,93 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                 </SheetHeader>
 
                 <div className="flex-1 space-y-5">
-                  {/* Student */}
-                  <div className="flex items-center gap-3">
+                  {/* Student / rename */}
+                  <div className="flex items-start gap-3">
                     <Avatar className="h-12 w-12 shrink-0">
                       <AvatarImage src={selected.student_avatar || undefined} />
                       <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                        {abbr(selected.student_name)}
+                        {abbr(selected.title || selected.student_name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <p className="font-bold">{selected.student_name}</p>
-                      {selected.language_name && (
-                        <p className="text-xs text-muted-foreground font-light">{selected.language_name}</p>
+                    <div className="flex-1 min-w-0">
+                      {editingTitle ? (
+                        <div className="space-y-1.5">
+                          <input
+                            autoFocus
+                            className="w-full text-sm font-bold bg-muted rounded-md px-2 py-1 outline-none border border-border focus:border-primary"
+                            value={titleDraft}
+                            onChange={e => setTitleDraft(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                              if (e.key === "Escape") { setEditingTitle(false); setTitleDraft(selected.title || ""); }
+                            }}
+                            placeholder={selected.student_name}
+                          />
+                          {/* Suggest GCal event title */}
+                          {(() => {
+                            const sessionStart = new Date(getEffectiveTimes(selected).start).toISOString().substring(0, 16);
+                            const match = calEvents.find(e => new Date(e.start).toISOString().substring(0, 16) === sessionStart);
+                            const suggestion = match
+                              ? (match.title.split(" | ")[1]?.trim() || match.title.split(" \u2014 ")[1]?.trim() || match.title)
+                              : null;
+                            return suggestion ? (
+                              <button
+                                className="text-[11px] text-primary font-medium hover:underline"
+                                onClick={() => setTitleDraft(suggestion)}
+                              >
+                                Usar "{suggestion}" (do Google Calendar)
+                              </button>
+                            ) : null;
+                          })()}
+                          <div className="flex gap-1.5">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-3"
+                              disabled={savingTitle || !titleDraft.trim()}
+                              onClick={async () => {
+                                setSavingTitle(true);
+                                const newTitle = titleDraft.trim() || null;
+                                await (supabase as any)
+                                  .from("class_sessions")
+                                  .update({ title: newTitle })
+                                  .eq("id", selected.id);
+                                patchSession(selected.id, { title: newTitle });
+                                setEditingTitle(false);
+                                setSavingTitle(false);
+                                toast({ title: "Sessão renomeada!" });
+                              }}
+                            >
+                              {savingTitle ? "…" : "Salvar"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => { setEditingTitle(false); setTitleDraft(selected.title || ""); }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 group">
+                          <div>
+                            <p className="font-bold">{selected.title || selected.student_name}</p>
+                            {selected.title && (
+                              <p className="text-[11px] text-muted-foreground font-light">{selected.student_name}</p>
+                            )}
+                            {selected.language_name && (
+                              <p className="text-xs text-muted-foreground font-light">{selected.language_name}</p>
+                            )}
+                          </div>
+                          <button
+                            className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                            onClick={() => { setTitleDraft(selected.title || ""); setEditingTitle(true); }}
+                            title="Renomear sessão"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
