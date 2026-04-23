@@ -8,10 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectGroup, SelectItem,
+  SelectLabel, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -38,6 +42,7 @@ interface SessionWithStudent {
   status: string;
   meet_link: string | null;
   google_event_id: string | null;
+  step_id: string | null;
   notes: string | null;
   missed_confirmed_at: string | null;
   missed_confirmed_by: string | null;
@@ -45,6 +50,16 @@ interface SessionWithStudent {
   student_name: string;
   student_avatar: string | null;
   language_name: string;
+}
+
+interface StepOption {
+  id: string;
+  number: number;
+  title: string | null;
+  unit_id: string;
+  unit_number: number;
+  unit_title: string | null;
+  is_current: boolean;
 }
 
 interface Props {
@@ -139,6 +154,11 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [gcalDrawerOpen, setGcalDrawerOpen]       = useState(false);
   const [selectedGcal, setSelectedGcal]           = useState<GCalEvent | null>(null);
 
+  // Step picker (for sessions without a linked step)
+  const [stepOptions, setStepOptions]             = useState<StepOption[]>([]);
+  const [loadingSteps, setLoadingSteps]           = useState(false);
+  const [pendingStepId, setPendingStepId]         = useState("");
+
   const todayColRef    = useRef<HTMLDivElement>(null);
   const scrollContRef  = useRef<HTMLDivElement>(null);
 
@@ -153,13 +173,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -225,6 +245,56 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   }, [weekStart, profileId]);
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  // Load step options when session drawer opens for a session without a linked step
+  useEffect(() => {
+    setPendingStepId("");
+    if (!selected || selected.step_id) { setStepOptions([]); return; }
+
+    setLoadingSteps(true);
+    (async () => {
+      try {
+        const { data: student } = await supabase
+          .from("students")
+          .select("level_id, current_step_id")
+          .eq("id", selected.student_id)
+          .single();
+
+        if (!student?.level_id) { setStepOptions([]); return; }
+
+        const { data: units } = await (supabase as any)
+          .from("units")
+          .select("id, number, title")
+          .eq("level_id", student.level_id)
+          .order("number", { ascending: true });
+
+        const unitIds = (units || []).map((u: any) => u.id);
+        if (!unitIds.length) { setStepOptions([]); return; }
+
+        const { data: stepsRaw } = await (supabase as any)
+          .from("steps")
+          .select("id, number, title, unit_id")
+          .in("unit_id", unitIds)
+          .order("number", { ascending: true });
+
+        const options: StepOption[] = (stepsRaw || []).map((s: any) => {
+          const unit = (units || []).find((u: any) => u.id === s.unit_id);
+          return {
+            id: s.id,
+            number: s.number,
+            title: s.title ?? null,
+            unit_id: s.unit_id,
+            unit_number: unit?.number ?? 0,
+            unit_title: unit?.title ?? null,
+            is_current: s.id === student.current_step_id,
+          };
+        });
+        setStepOptions(options);
+      } finally {
+        setLoadingSteps(false);
+      }
+    })();
+  }, [selected?.id, selected?.step_id]);
 
   // Fetch GCal events once on mount — covers next 30 days, filtered per week in render
   useEffect(() => {
@@ -343,6 +413,24 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     if (!selected) return;
     setMarkingCompleted(true);
     try {
+      // If teacher just selected a step (not yet saved), persist it first
+      const stepToUse = selected.step_id || pendingStepId || null;
+      if (pendingStepId && !selected.step_id) {
+        await Promise.all([
+          // Link step to this session
+          (supabase as any)
+            .from("class_sessions")
+            .update({ step_id: pendingStepId })
+            .eq("id", selected.id),
+          // Align student's current_step so complete-class-session advances from the right step
+          supabase
+            .from("students")
+            .update({ current_step_id: pendingStepId })
+            .eq("id", selected.student_id),
+        ]);
+        patchSession(selected.id, { step_id: pendingStepId });
+      }
+
       const { data: { session: authSession } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("complete-class-session", {
         body: { session_id: selected.id },
@@ -350,14 +438,18 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       });
       if (error) throw error;
 
-      // Atualiza UI: marca todas as sessões afetadas como concluídas
       const completedCount: number = data?.sessions_completed ?? 1;
+      const stepLabel = stepToUse
+        ? stepOptions.find(s => s.id === stepToUse)
+        : null;
       patchSession(selected.id, { status: "completed" });
       toast({
         title: "Aula marcada como realizada!",
         description: completedCount > 1
           ? `${completedCount} alunos da turma tiveram o progresso avançado.`
-          : "Progresso do aluno avançado para o próximo step.",
+          : stepLabel
+            ? `Passo ${stepLabel.number} concluído. Próximo passo desbloqueado.`
+            : "Progresso do aluno avançado para o próximo step.",
       });
     } catch {
       toast({ title: "Erro ao marcar aula", variant: "destructive" });
@@ -754,6 +846,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             const sessionHoliday     = holidays.get(sessionDateStr);
             const canConfirmMissed   = !sessionHoliday && selected.status === "missed_pending";
             const canMarkCompleted   = !sessionHoliday && selected.status === "scheduled" && hasPassed(selected.scheduled_at);
+            const hasStep            = !!(selected.step_id || pendingStepId);
+            // Group step options by unit for the picker
+            const unitGroups = stepOptions.reduce<{ unit_id: string; unit_number: number; unit_title: string | null; steps: StepOption[] }[]>((acc, s) => {
+              const g = acc.find(a => a.unit_id === s.unit_id);
+              if (g) { g.steps.push(s); } else { acc.push({ unit_id: s.unit_id, unit_number: s.unit_number, unit_title: s.unit_title, steps: [s] }); }
+              return acc;
+            }, []);
             return (
               <>
                 <SheetHeader className="pb-4">
@@ -854,6 +953,68 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     </Button>
                   )}
 
+                  {/* Step da aula */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      Passo da aula
+                    </p>
+                    {selected.step_id ? (
+                      // Step already linked — show info
+                      (() => {
+                        const s = stepOptions.find(o => o.id === selected.step_id);
+                        const label = s
+                          ? `U${s.unit_number} · Passo ${s.number}${s.title ? ` — ${s.title}` : ""}`
+                          : `ID …${selected.step_id.slice(-6)}`;
+                        return (
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-sm font-light">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                            <span>{label}</span>
+                          </div>
+                        );
+                      })()
+                    ) : canMarkCompleted ? (
+                      // Step picker — required to mark as completed
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400 font-light">
+                          Selecione o passo coberto para liberar a conclusão da aula.
+                        </p>
+                        {loadingSteps ? (
+                          <div className="animate-pulse h-9 bg-muted rounded-lg" />
+                        ) : stepOptions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground font-light">
+                            Nenhum passo encontrado para este aluno.
+                          </p>
+                        ) : (
+                          <Select value={pendingStepId} onValueChange={setPendingStepId}>
+                            <SelectTrigger className="text-sm">
+                              <SelectValue placeholder="Escolher passo..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {unitGroups.map(g => (
+                                <SelectGroup key={g.unit_id}>
+                                  <SelectLabel className="text-xs">
+                                    Unidade {g.unit_number}{g.unit_title ? ` — ${g.unit_title}` : ""}
+                                  </SelectLabel>
+                                  {g.steps.map(s => (
+                                    <SelectItem key={s.id} value={s.id} className="text-sm">
+                                      Passo {s.number}{s.title ? ` — ${s.title}` : ""}
+                                      {s.is_current ? " ★" : ""}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground font-light">
+                        O passo será vinculado ao marcar como realizada.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Actions */}
                   <div className="space-y-2">
                     {canConfirmMissed && (
@@ -867,7 +1028,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                         {confirmingMissed ? "Confirmando..." : "Confirmar falta"}
                       </Button>
                     )}
-                    {canMarkCompleted && (
+                    {canMarkCompleted && (hasStep || !stepOptions.length) && (
                       <Button
                         variant="outline"
                         className="w-full gap-2 border-green-400/60 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/20"
@@ -877,6 +1038,11 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                         <CheckCircle2 className="h-4 w-4" />
                         {markingCompleted ? "Salvando..." : "Marcar como realizada"}
                       </Button>
+                    )}
+                    {canMarkCompleted && !hasStep && stepOptions.length > 0 && (
+                      <p className="text-center text-[11px] text-muted-foreground font-light">
+                        Selecione o passo acima para liberar esta ação.
+                      </p>
                     )}
                   </div>
 
