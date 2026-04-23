@@ -78,7 +78,8 @@ serve(async (req) => {
       try {
         await webPush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload
+          payload,
+          { TTL: 86400, topic: 'admin-activity' }
         )
         sent++
       } catch (err: any) {

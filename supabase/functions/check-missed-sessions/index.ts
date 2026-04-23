@@ -61,7 +61,8 @@ serve(async (req) => {
             try {
               await webpush.sendNotification(
                 { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                payload
+                payload,
+                { TTL: 3600, topic: 'missed-sessions' }
               )
               await supabase.from('notification_log').insert({
                 student_id: studentId,

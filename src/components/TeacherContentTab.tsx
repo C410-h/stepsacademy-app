@@ -1053,8 +1053,14 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
         aiReviewTab: firstTab,
         aiGenerate: generate as GenerateType[],
       });
+      await logPublish("generate_ai", generate.join(","), "success", {
+        exercises: aiExs.length,
+        grammar: aiGram.length,
+        vocabulary: aiVocab.length,
+      });
       toast({ title: `IA gerou o conteúdo! Revise as ${generate.length} seção${generate.length > 1 ? "ões" : "ão"} antes de publicar.` });
     } catch (e: any) {
+      await logPublish("generate_ai", (entry.aiGenerate || []).join(","), "error", undefined, e.message);
       updateFile(entry.localId, { aiStatus: "error" });
       toast({ title: "Erro na geração de conteúdo", description: e.message, variant: "destructive" });
     }
@@ -1260,6 +1266,28 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
     });
   };
 
+  const logPublish = async (
+    action: string,
+    contentType: string,
+    status: "success" | "error" | "partial",
+    counts?: Record<string, number>,
+    errorMessage?: string
+  ) => {
+    try {
+      await (supabase as any).from("content_publish_log").insert({
+        profile_id: profileId,
+        step_id: selectedStep?.id ?? null,
+        action,
+        content_type: contentType,
+        status,
+        counts: counts ?? null,
+        error_message: errorMessage ?? null,
+      });
+    } catch {
+      // never let logging break the publish flow
+    }
+  };
+
   const publishAll = async () => {
     if (!selectedStep) return;
     setPublishing(true);
@@ -1404,11 +1432,19 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
         .update({ status: "approved", submitted_at: new Date().toISOString() })
         .eq("id", submissionId);
 
+      const aiEntryFinal = files.find(f => f.materialType === "exercise" && f.aiStatus === "done");
+      await logPublish("publish", "all", "success", {
+        exercises: aiEntryFinal?.exercises?.length ?? 0,
+        grammar: aiEntryFinal?.aiGrammar?.length ?? 0,
+        vocabulary: aiEntryFinal?.aiVocabulary?.length ?? 0,
+      });
+
       toast({ title: "Conteúdo publicado com sucesso! Os alunos já podem acessar." });
       setPublishDialogOpen(false);
       setSheetOpen(false);
       await loadSteps();
     } catch (e: any) {
+      await logPublish("publish", "all", "error", undefined, e.message);
       toast({ title: "Erro ao publicar", description: e.message, variant: "destructive" });
     } finally {
       setPublishing(false);
