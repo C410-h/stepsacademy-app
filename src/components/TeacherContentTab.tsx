@@ -1835,12 +1835,15 @@ const TeacherContentTab = ({ teacherId, profileId }: Props) => {
                                 <CheckCircle2 className="h-3 w-3 text-lime-600 shrink-0" />
                                 <span className="text-[10px] text-muted-foreground">Conteúdo publicado pela IA</span>
                               </div>
-                              <button
-                                className="text-[10px] text-primary underline hover:opacity-70"
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-3 text-xs gap-1.5 text-primary border-primary/40 hover:bg-primary/5"
                                 onClick={() => handleEditPublished(entry.localId)}
                               >
+                                <PenLine className="h-3 w-3" />
                                 Editar
-                              </button>
+                              </Button>
                             </div>
                           )}
                         </div>
