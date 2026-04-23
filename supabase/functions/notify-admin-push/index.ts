@@ -58,7 +58,7 @@ serve(async (req) => {
     }
 
     webPush.setVapidDetails(
-      Deno.env.get('VAPID_SUBJECT')!,
+      'mailto:noreply@stepsacademy.com.br',
       Deno.env.get('VAPID_PUBLIC_KEY')!,
       Deno.env.get('VAPID_PRIVATE_KEY')!
     )

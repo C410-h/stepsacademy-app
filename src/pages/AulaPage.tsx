@@ -19,6 +19,9 @@ import {
   RotateCcw, Mic, GraduationCap, ExternalLink, AlertTriangle,
   Lock, Check, CheckCheck, History,
 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -628,6 +631,8 @@ const AulaPage = () => {
   const [allUnits, setAllUnits] = useState<UnitWithSteps[]>([]);
   const [allLoading, setAllLoading] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
+  const [allLevels, setAllLevels] = useState<{ id: string; name: string; code: string }[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<StudentInfo | null>(null);
@@ -799,21 +804,41 @@ const AulaPage = () => {
     setLoading(false);
   };
 
-  // Lazy-load units map when user switches to 'all' view
+  // Init selectedLevelId from student's current level
   useEffect(() => {
-    if (view === "all" && !allLoaded && student) {
-      loadAllUnits();
+    if (student?.levelId && !selectedLevelId) {
+      setSelectedLevelId(student.levelId);
     }
-  }, [view, student, allLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [student?.levelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadAllUnits = async () => {
+  // Lazy-load units map when user switches to 'all' view or changes level
+  useEffect(() => {
+    if (view === "all" && student && selectedLevelId) {
+      loadAllUnits(selectedLevelId);
+      if (allLevels.length === 0) loadLevels();
+    }
+  }, [view, student, selectedLevelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadLevels = async () => {
     if (!student?.levelId) return;
+    const { data: currentLevel } = await (supabase as any)
+      .from("levels").select("language_id").eq("id", student.levelId).single();
+    if (!currentLevel) return;
+    const { data } = await (supabase as any)
+      .from("levels").select("id, name, code").eq("language_id", currentLevel.language_id).order("order_index");
+    setAllLevels(data || []);
+  };
+
+  const loadAllUnits = async (levelId?: string) => {
+    const targetLevelId = levelId ?? selectedLevelId ?? student?.levelId;
+    if (!targetLevelId || !student) return;
     setAllLoading(true);
+    setAllUnits([]);
     try {
       const { data: unitsData } = await (supabase as any)
         .from("units")
         .select("id, number, title")
-        .eq("level_id", student.levelId)
+        .eq("level_id", targetLevelId)
         .order("number");
 
       if (!unitsData || unitsData.length === 0) {
@@ -1279,18 +1304,38 @@ const AulaPage = () => {
               </Card>
             ) : (
               <>
+                {/* Level selector */}
+                {allLevels.length > 1 && (
+                  <Select
+                    value={selectedLevelId ?? ""}
+                    onValueChange={setSelectedLevelId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecionar nível" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allLevels.map((lv) => (
+                        <SelectItem key={lv.id} value={lv.id}>
+                          {lv.code} — {lv.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
                 {(() => {
                   const allSteps = allUnits.flatMap(u => u.steps);
                   const doneCount = allSteps.filter(s => s.status === "done").length;
                   const total = allSteps.length;
                   const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+                  const selectedLevel = allLevels.find(lv => lv.id === selectedLevelId);
                   return (
                     <Card>
                       <CardContent className="pt-4 pb-4">
                         <div className="flex items-center justify-between mb-1">
                           <div>
                             <p className="text-sm text-muted-foreground font-light">
-                              {student.languageName} · {student.levelName} · {student.levelCode}
+                              {student.languageName} · {selectedLevel?.name ?? student.levelName} · {selectedLevel?.code ?? student.levelCode}
                             </p>
                             <p className="text-2xl font-bold text-primary mt-0.5">
                               {percent}% concluído
