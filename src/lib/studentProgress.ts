@@ -6,19 +6,19 @@ export async function updateStudentStep(
   stepId: string,
   options?: { inherited?: boolean }
 ): Promise<void> {
-  const { data: targetStep } = await supabase
+  const { data: targetStep, error: stepErr } = await supabase
     .from("steps")
     .select("id, number, unit_id")
     .eq("id", stepId)
     .single();
-  if (!targetStep) throw new Error("Step não encontrado");
+  if (stepErr || !targetStep) throw new Error("Step não encontrado: " + (stepErr?.message ?? ""));
 
-  const { data: targetUnit } = await supabase
+  const { data: targetUnit, error: unitErr } = await supabase
     .from("units")
     .select("id, number, level_id")
     .eq("id", targetStep.unit_id)
     .single();
-  if (!targetUnit) throw new Error("Unidade não encontrada");
+  if (unitErr || !targetUnit) throw new Error("Unidade não encontrada: " + (unitErr?.message ?? ""));
 
   const { data: levelUnits } = await supabase
     .from("units")
@@ -48,7 +48,7 @@ export async function updateStudentStep(
   (sameUnitSteps || []).forEach((s) => priorStepIds.push(s.id));
 
   if (priorStepIds.length > 0) {
-    await supabase.from("student_progress").upsert(
+    const { error: priorErr } = await supabase.from("student_progress").upsert(
       priorStepIds.map((sid) => ({
         student_id: studentId,
         step_id: sid,
@@ -58,9 +58,10 @@ export async function updateStudentStep(
       })),
       { onConflict: "student_id,step_id" }
     );
+    if (priorErr) throw new Error("Erro ao marcar steps anteriores: " + priorErr.message);
   }
 
-  await supabase.from("student_progress").upsert(
+  const { error: availErr } = await supabase.from("student_progress").upsert(
     {
       student_id: studentId,
       step_id: stepId,
@@ -69,9 +70,11 @@ export async function updateStudentStep(
     },
     { onConflict: "student_id,step_id" }
   );
+  if (availErr) throw new Error("Erro ao desbloquear step: " + availErr.message);
 
-  await supabase
+  const { error: updateErr } = await supabase
     .from("students")
-    .update({ current_step_id: stepId })
+    .update({ current_step_id: stepId, level_id: targetUnit.level_id })
     .eq("id", studentId);
+  if (updateErr) throw new Error("Erro ao atualizar aluno: " + updateErr.message);
 }
