@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle, History, ArrowRight } from "lucide-react";
+import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 import UpcomingClasses from "@/components/UpcomingClasses";
@@ -427,39 +427,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Última Aula / Próxima Aula shortcuts */}
-          {(lastStep || studentData.current_step_id) && (
-            <div className="grid grid-cols-2 gap-2">
-              {lastStep && (
-                <Button
-                  variant="outline"
-                  className="h-auto py-3 flex-col items-start text-left gap-0.5 overflow-hidden"
-                  onClick={() => navigate(`/aula?step_id=${lastStep.id}`)}
-                >
-                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                    <History className="h-3 w-3" /> Última aula
-                  </span>
-                  <span className="text-sm font-bold truncate w-full">
-                    {lastStep.title || `Passo ${lastStep.number}`}
-                  </span>
-                </Button>
-              )}
-              {studentData.current_step_id && (
-                <Button
-                  variant="outline"
-                  className={`h-auto py-3 flex-col items-start text-left gap-0.5 overflow-hidden${!lastStep ? " col-span-2" : ""}`}
-                  onClick={() => navigate("/aula")}
-                >
-                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                    <ArrowRight className="h-3 w-3" /> Próxima aula
-                  </span>
-                  <span className="text-sm font-bold truncate w-full">
-                    {studentData.currentStepTitle || `Passo ${studentData.currentStepNumber}`}
-                  </span>
-                </Button>
-              )}
-            </div>
-          )}
 
           {/* Join class */}
           {studentData.meetLink && (
@@ -477,10 +444,10 @@ const Dashboard = () => {
           <UpcomingClasses />
         </div>
 
-        {/* ── Column 2: Aula atual ── */}
-        <div className="mt-4 lg:mt-0">
+        {/* ── Column 2: Próxima aula + Última aula ── */}
+        <div className="mt-4 lg:mt-0 flex flex-col gap-3">
           <Card
-            className="cursor-pointer hover:border-primary/30 transition-colors h-full"
+            className="cursor-pointer hover:border-primary/30 transition-colors"
             onClick={() => navigate("/aula")}
           >
             <CardContent className="p-4 space-y-3">
@@ -490,7 +457,7 @@ const Dashboard = () => {
                     <GraduationCap className="h-4 w-4 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">Aula atual</p>
+                    <p className="text-sm font-bold">Próxima aula</p>
                     <p className="text-xs text-muted-foreground font-light">
                       Passo {studentData.currentStepNumber}
                     </p>
@@ -534,6 +501,31 @@ const Dashboard = () => {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Última aula concluída */}
+          {lastStep && (
+            <Card
+              className="cursor-pointer hover:border-primary/30 transition-colors"
+              onClick={() => navigate(`/aula?step_id=${lastStep.id}`)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <History className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">Última aula</p>
+                      <p className="text-xs text-muted-foreground font-light">
+                        Passo {lastStep.number}{lastStep.title ? ` · ${lastStep.title}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
       </div>
