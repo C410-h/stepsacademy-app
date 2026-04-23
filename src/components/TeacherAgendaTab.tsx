@@ -973,12 +973,19 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                           </div>
                         );
                       })()
-                    ) : canMarkCompleted ? (
-                      // Step picker — required to mark as completed
+                    ) : (canMarkCompleted || selected.status === "completed") ? (
+                      // Step picker — for upcoming sessions (required) or retroactive labeling (optional)
                       <div className="space-y-2">
-                        <p className="text-[11px] text-amber-700 dark:text-amber-400 font-light">
-                          Selecione o passo coberto para liberar a conclusão da aula.
-                        </p>
+                        {canMarkCompleted && (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400 font-light">
+                            Selecione o passo coberto para liberar a conclusão da aula.
+                          </p>
+                        )}
+                        {selected.status === "completed" && !canMarkCompleted && (
+                          <p className="text-[11px] text-muted-foreground font-light">
+                            Vincule o passo coberto nesta aula para fins de registro.
+                          </p>
+                        )}
                         {loadingSteps ? (
                           <div className="animate-pulse h-9 bg-muted rounded-lg" />
                         ) : stepOptions.length === 0 ? (
@@ -1006,6 +1013,25 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                               ))}
                             </SelectContent>
                           </Select>
+                        )}
+                        {/* Retroactive save for completed sessions */}
+                        {selected.status === "completed" && pendingStepId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={async () => {
+                              await (supabase as any)
+                                .from("class_sessions")
+                                .update({ step_id: pendingStepId })
+                                .eq("id", selected.id);
+                              patchSession(selected.id, { step_id: pendingStepId });
+                              toast({ title: "Passo vinculado!" });
+                            }}
+                          >
+                            <BookOpen className="h-3.5 w-3.5 mr-1.5" />
+                            Salvar passo
+                          </Button>
                         )}
                       </div>
                     ) : (
