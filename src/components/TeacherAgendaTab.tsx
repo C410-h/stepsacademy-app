@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
@@ -110,6 +111,7 @@ const abbr = (name: string) =>
 
 const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const today = new Date();
 
   const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
@@ -541,7 +543,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             size="sm"
             variant="outline"
             className="shrink-0 border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40 text-xs"
-            onClick={() => window.location.href = "/perfil"}
+            onClick={() => navigate("/teacher?tab=profile")}
           >
             Reconectar
           </Button>
