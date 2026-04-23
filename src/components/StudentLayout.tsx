@@ -10,6 +10,7 @@ import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import CompleteProfileModal, { MissingField } from "@/components/CompleteProfileModal";
+import PushNotificationModal from "@/components/PushNotificationModal";
 import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
@@ -183,6 +184,9 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
           onComplete={() => setMissingFields([])}
         />
       )}
+
+      {/* ── Push Notification Modal ─────────────────────────────── */}
+      <PushNotificationModal studentId={gamification.studentId ?? null} />
     </div>
   );
 };
