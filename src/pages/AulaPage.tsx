@@ -1313,7 +1313,7 @@ const AulaPage = () => {
                 })()}
                 <div className="grid grid-cols-5 gap-2">
                   {allUnits.flatMap(u => u.steps).map(step => (
-                    <StepCard key={step.id} step={step} onClick={() => setView("current")} />
+                    <StepCard key={step.id} step={step} onClick={() => { navigate(`/aula?step_id=${step.id}`); setView("current"); }} />
                   ))}
                 </div>
                 {allUnits.length > 0 && (

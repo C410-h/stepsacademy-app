@@ -516,7 +516,7 @@ const StepReviewSheet = ({
             <Button
               className="w-full font-bold gap-2"
               style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
-              onClick={() => { onClose(); navigate("/aula"); }}
+              onClick={() => { onClose(); navigate(step?.id ? `/aula?step_id=${step.id}` : "/aula"); }}
             >
               <GraduationCap className="h-4 w-4" /> Ir para a aula
             </Button>
