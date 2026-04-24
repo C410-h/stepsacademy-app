@@ -18,6 +18,226 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import RescheduleSheet, { type RescheduleSessionData } from "@/components/RescheduleSheet";
 
+// ── Swipe-to-action ────────────────────────────────────────────────────────────
+
+type SnapDir = "right" | "left" | null;
+
+function useSwipeAction(onRight?: () => void, onLeft?: () => void, threshold = 80) {
+  const [dragX, setDragX] = useState(0);
+  const [snapped, setSnapped] = useState<SnapDir>(null);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const lockAxis = useRef<"h" | "v" | null>(null);
+  const snappedRef = useRef<SnapDir>(null);
+  const SNAP_AT = threshold * 0.5;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    lockAxis.current = null;
+    snappedRef.current = null;
+    setSnapped(null);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (snappedRef.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+    if (!lockAxis.current && (Math.abs(dx) > 6 || Math.abs(dy) > 6))
+      lockAxis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+    if (lockAxis.current !== "h") return;
+    // Only allow direction if there's a handler for it
+    if (dx > 0 && !onRight) return;
+    if (dx < 0 && !onLeft) return;
+    e.preventDefault();
+    const clamped = dx > 0
+      ? Math.min(dx, threshold * 1.5)
+      : Math.max(dx, -threshold * 1.5);
+    setDragX(clamped);
+    if (Math.abs(clamped) >= SNAP_AT) {
+      const dir: SnapDir = clamped > 0 ? "right" : "left";
+      snappedRef.current = dir;
+      setSnapped(dir);
+      setDragX(dir === "right" ? 400 : -400);
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (snappedRef.current === "right") onRight?.();
+    else if (snappedRef.current === "left") onLeft?.();
+    setDragX(0);
+    setSnapped(null);
+    snappedRef.current = null;
+    lockAxis.current = null;
+  };
+
+  return { dragX, snapped, onTouchStart, onTouchMove, onTouchEnd };
+}
+
+interface SwipeableActionProps {
+  onPrimary?: () => void;
+  primaryIcon: React.ReactNode;
+  primaryLabel: string;
+  primaryColor: string;
+  onSecondary?: () => void;
+  secondaryIcon?: React.ReactNode;
+  secondaryLabel?: string;
+  secondaryColor?: string;
+  disabled?: boolean;
+  children: React.ReactNode;
+}
+
+function SwipeableAction({
+  onPrimary, primaryIcon, primaryLabel, primaryColor,
+  onSecondary, secondaryIcon, secondaryLabel, secondaryColor,
+  disabled, children,
+}: SwipeableActionProps) {
+  const THRESHOLD = 80;
+  const { dragX, snapped: touchSnapped, onTouchStart, onTouchMove, onTouchEnd } = useSwipeAction(
+    onPrimary ? () => onPrimary() : undefined,
+    onSecondary ? () => onSecondary() : undefined,
+    THRESHOLD,
+  );
+  const [mousedrag, setMousedrag] = useState(0);
+  const [mouseSnapped, setMouseSnapped] = useState<SnapDir>(null);
+  const [mouseDown, setMouseDown] = useState(false);
+  const startMouseX = useRef(0);
+  const mousedragRef = useRef(0);
+  const mouseSnappedRef = useRef<SnapDir>(null);
+  const onPrimaryRef = useRef(onPrimary);
+  const onSecondaryRef = useRef(onSecondary);
+  onPrimaryRef.current = onPrimary;
+  onSecondaryRef.current = onSecondary;
+
+  const snapDir: SnapDir = touchSnapped ?? mouseSnapped;
+
+  const translateX = disabled ? 0
+    : snapDir === "right" ? 400
+    : snapDir === "left"  ? -400
+    : dragX !== 0 ? dragX
+    : mousedrag !== 0 ? mousedrag
+    : 0;
+
+  const absTX = Math.abs(translateX);
+  const progress = Math.min((snapDir ? THRESHOLD : absTX) / THRESHOLD, 1);
+  const isActiveDrag = dragX !== 0 || mousedrag !== 0;
+  const dragDir: SnapDir = translateX > 0 ? "right" : translateX < 0 ? "left" : null;
+
+  const didMoveRef = useRef(false);
+
+  useEffect(() => {
+    if (!mouseDown) return;
+    const onMove = (e: MouseEvent) => {
+      if (mouseSnappedRef.current) return;
+      const dx = e.clientX - startMouseX.current;
+      if (dx > 0 && !onPrimaryRef.current) return;
+      if (dx < 0 && !onSecondaryRef.current) return;
+      const clamped = dx > 0
+        ? Math.min(dx, THRESHOLD * 1.5)
+        : Math.max(dx, -THRESHOLD * 1.5);
+      if (Math.abs(clamped) > 5) didMoveRef.current = true;
+      mousedragRef.current = clamped;
+      setMousedrag(clamped);
+      if (Math.abs(clamped) >= THRESHOLD * 0.5) {
+        const dir: SnapDir = clamped > 0 ? "right" : "left";
+        mouseSnappedRef.current = dir;
+        setMouseSnapped(dir);
+        setMousedrag(dir === "right" ? 400 : -400);
+      }
+    };
+    const onUp = () => {
+      const snapped = mouseSnappedRef.current;
+      // Block post-drag click on ANY movement so the card sheet doesn't open
+      if (didMoveRef.current) {
+        const blockClick = (e: MouseEvent) => {
+          e.stopPropagation();
+          document.removeEventListener("click", blockClick, true);
+        };
+        document.addEventListener("click", blockClick, true);
+      }
+      if (snapped === "right") onPrimaryRef.current?.();
+      else if (snapped === "left") onSecondaryRef.current?.();
+      mouseSnappedRef.current = null;
+      mousedragRef.current = 0;
+      didMoveRef.current = false;
+      setMousedrag(0);
+      setMouseSnapped(null);
+      setMouseDown(false);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, [mouseDown]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    startMouseX.current = e.clientX;
+    mousedragRef.current = 0;
+    setMousedrag(0);
+    setMouseDown(true);
+  };
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-lg border-l-4 border-l-primary"
+    >
+      {/* Right-swipe background (left side) */}
+      {onPrimary && (
+        <div
+          className="absolute inset-0 flex items-center gap-2 pl-5"
+          style={{ background: primaryColor, opacity: dragDir === "right" || snapDir === "right" ? 1 : 0 }}
+        >
+          <div style={{ color: "var(--theme-accent)", transform: `scale(${0.8 + progress * 0.2})`, transition: "transform 0.1s" }}>
+            {primaryIcon}
+          </div>
+          <span
+            className="text-sm font-bold text-white"
+            style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
+          >
+            {primaryLabel}
+          </span>
+        </div>
+      )}
+
+      {/* Left-swipe background (right side) */}
+      {onSecondary && (
+        <div
+          className="absolute inset-0 flex items-center justify-end gap-2 pr-5"
+          style={{ background: secondaryColor, opacity: dragDir === "left" || snapDir === "left" ? 1 : 0 }}
+        >
+          <span
+            className="text-sm font-bold text-white"
+            style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
+          >
+            {secondaryLabel}
+          </span>
+          <div style={{ color: "white", transform: `scale(${0.8 + progress * 0.2})`, transition: "transform 0.1s" }}>
+            {secondaryIcon}
+          </div>
+        </div>
+      )}
+
+      {/* Sliding card */}
+      <div
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: snapDir ? "transform 0.25s ease-out" : isActiveDrag ? "none" : "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          cursor: mouseDown ? "grabbing" : "grab",
+          userSelect: "none",
+        }}
+        onMouseDown={handleMouseDown}
+        {...(!disabled && { onTouchStart, onTouchMove: onTouchMove as any, onTouchEnd })}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
 interface ClassEvent {
@@ -72,8 +292,13 @@ const UpcomingClasses = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
-  const [loading, setLoading]       = useState(true);
-  const [events, setEvents]         = useState<ClassEvent[]>([]);
+  const [loading, setLoading]       = useState(false);
+  const [events, setEvents]         = useState<ClassEvent[]>(
+    import.meta.env.DEV ? [
+      { id: "dev-1", title: "Aula individual", start: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), end: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 55 * 60 * 1000).toISOString(), meet_link: null, description: null, class_type: "individual", is_rescheduled: false, is_holiday: false, holiday_name: null },
+      { id: "dev-2", title: "Aula individual | Turma A", start: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 + 55 * 60 * 1000).toISOString(), meet_link: "https://meet.google.com", description: null, class_type: "group", is_rescheduled: false, is_holiday: false, holiday_name: null },
+    ] : []
+  );
   const [teacherName, setTeacherName] = useState<string>("");
   const [sessionByTime, setSessionByTime] = useState<Map<string, ClassSession>>(new Map());
 
@@ -306,14 +531,33 @@ const UpcomingClasses = () => {
             <Badge variant="outline" className="text-[10px] px-1.5 py-0">{groupLabel(ev.title)}</Badge>
           ) : null;
 
+          const isIndividual = ev.class_type !== "group";
+          const hasSession = !!matchedSession || import.meta.env.DEV;
+          const canReschedule = hasSession && !hasPassed(ev.start) && isIndividual;
+          const canAbsence = hasSession && !hasPassed(ev.start) && !studentCancelled;
+
           return (
-            <Card
+            <SwipeableAction
               key={ev.id}
+              disabled={ev.is_holiday}
+              onPrimary={canReschedule ? () => {
+                const { isRecurring } = getRecurringInfo(ev.id);
+                openReschedule(ev.id, isRecurring ? "recurring" : "single", matchedSession!, ev.start);
+              } : undefined}
+              primaryIcon={<CalendarClock className="h-5 w-5" />}
+              primaryLabel="Remarcar"
+              primaryColor="var(--theme-primary)"
+              onSecondary={canAbsence ? () => { setSheetEvent(ev); setConfirming(true); setSheetOpen(true); } : undefined}
+              secondaryIcon={<BanIcon className="h-5 w-5" />}
+              secondaryLabel="Informar ausência"
+              secondaryColor="#f59e0b"
+            >
+            <Card
               className={cn(
-                "transition-shadow",
+                "transition-shadow rounded-none border-l-0",
                 ev.is_holiday    ? "opacity-60 bg-muted/40" :
                 studentCancelled ? "border-amber-300/60 bg-amber-50/30 dark:bg-amber-950/10" :
-                soon             ? "border-primary/40 bg-primary/5" : undefined
+                soon             ? "bg-primary/5" : undefined
               )}
             >
               <CardContent className="py-0">
@@ -369,7 +613,7 @@ const UpcomingClasses = () => {
                     <Button
                       size="sm"
                       className={cn("gap-1.5 font-bold w-full", !soon && "variant-outline")}
-                      style={soon ? { background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" } : undefined}
+                      style={soon ? { background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" } : undefined}
                       variant={soon ? "default" : "outline"}
                       onClick={(e) => { e.stopPropagation(); window.open(ev.meet_link!, "_blank"); }}
                     >
@@ -380,6 +624,7 @@ const UpcomingClasses = () => {
                 )}
               </CardContent>
             </Card>
+            </SwipeableAction>
           );
         })}
 
@@ -464,7 +709,7 @@ const UpcomingClasses = () => {
                     {ev.meet_link && (
                       <Button
                         className="w-full gap-2"
-                        style={soon ? { background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" } : undefined}
+                        style={soon ? { background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" } : undefined}
                         onClick={() => window.open(ev.meet_link!, "_blank")}
                       >
                         <ExternalLink className="h-4 w-4" />

@@ -86,16 +86,19 @@ const BottomNav = () => {
               style={{
                 width: 56,
                 height: 56,
-                background: "var(--theme-accent)",
+                background: "var(--theme-primary)",
                 boxShadow: stepActive
-                  ? "0 0 0 3px var(--theme-accent), 0 4px 12px rgba(0,0,0,0.15)"
+                  ? "0 0 0 3px var(--theme-primary), 0 4px 12px rgba(0,0,0,0.15)"
                   : "0 4px 12px rgba(0,0,0,0.15)",
               }}
             >
               <Zap
-                fill="white"
-                stroke="white"
-                style={{ width: 24, height: 24 }}
+                style={{
+                  width: 24,
+                  height: 24,
+                  fill: "var(--theme-accent)",
+                  stroke: "var(--theme-accent)",
+                }}
               />
             </div>
           </NavLink>

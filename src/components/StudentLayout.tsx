@@ -123,16 +123,16 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
           {gamification.studentId && (
             <>
               {/* Coins pill */}
-              <div className="flex items-center gap-1 rounded-full px-2 py-1 bg-yellow-50 border border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800">
-                <Coins className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400 shrink-0" />
-                <span className="text-xs font-bold text-yellow-700 dark:text-yellow-400">
+              <div className="flex items-center gap-1 rounded-full px-2 py-1 bg-yellow-500">
+                <Coins className="h-3.5 w-3.5 text-white shrink-0" />
+                <span className="text-xs font-bold text-white">
                   {gamification.coins.toLocaleString("pt-BR")}
                 </span>
               </div>
               {/* XP pill */}
-              <div className="flex items-center gap-1 rounded-full px-2 py-1" style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary) 12%, transparent)" }}>
+              <div className="flex items-center gap-1 rounded-full px-2 py-1" style={{ backgroundColor: "var(--theme-primary)" }}>
                 <Zap className="h-3.5 w-3.5 shrink-0" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
-                <span className="text-xs font-bold" style={{ color: "var(--theme-primary)" }}>
+                <span className="text-xs font-bold" style={{ color: "var(--theme-text-on-primary)" }}>
                   {gamification.xp_total.toLocaleString("pt-BR")} XP
                 </span>
               </div>

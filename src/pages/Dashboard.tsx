@@ -72,7 +72,9 @@ const Dashboard = () => {
   const [missedSessions, setMissedSessions] = useState<RescheduleSessionData[]>([]);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleSession, setRescheduleSession] = useState<RescheduleSessionData | null>(null);
-  const [rankInfo, setRankInfo] = useState<RankInfo | null>(null);
+  const [rankInfo, setRankInfo] = useState<RankInfo | null>(
+    import.meta.env.DEV ? { position: 3, total: 18, xp: 1250, languageName: "Inglês" } : null
+  );
 
   useEffect(() => {
     if (!profile) return;
@@ -324,7 +326,7 @@ const Dashboard = () => {
             </div>
             <ExternalLink className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
           </a>
-          <Button onClick={completeOnboarding} className="w-full bg-lime text-steps-black hover:bg-lime/90 font-bold">
+          <Button onClick={completeOnboarding} className="w-full font-bold" style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}>
             Começar minha jornada
           </Button>
         </DialogContent>
@@ -376,23 +378,23 @@ const Dashboard = () => {
           {/* Ranking card */}
           {rankInfo && (
             <Card
-              className="cursor-pointer transition-colors hover:border-primary/30"
-              style={{ borderColor: "color-mix(in srgb, var(--theme-accent) 35%, transparent)" }}
+              className="cursor-pointer transition-opacity hover:opacity-90 border-0"
+              style={{ background: "var(--theme-primary)" }}
               onClick={() => navigate("/recompensas?tab=ranking")}
             >
               <CardContent className="py-3 px-4 flex items-center gap-3">
                 <div
                   className="h-10 w-10 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: "color-mix(in srgb, var(--theme-accent) 15%, transparent)" }}
+                  style={{ background: "color-mix(in srgb, var(--theme-text-on-primary) 15%, transparent)" }}
                 >
                   <Trophy className="h-5 w-5" style={{ color: "var(--theme-accent)" }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold">
+                  <p className="text-sm font-bold" style={{ color: "var(--theme-text-on-primary)" }}>
                     Você está em{" "}
                     <span style={{ color: "var(--theme-accent)" }}>{rankInfo.position}º lugar</span>
                   </p>
-                  <p className="text-xs text-muted-foreground font-light">
+                  <p className="text-xs font-light" style={{ color: "color-mix(in srgb, var(--theme-text-on-primary) 70%, transparent)" }}>
                     entre {rankInfo.total} alunos de {rankInfo.languageName}
                   </p>
                 </div>
@@ -400,7 +402,7 @@ const Dashboard = () => {
                   <p className="text-sm font-bold" style={{ color: "var(--theme-accent)" }}>
                     {rankInfo.xp.toLocaleString("pt-BR")} XP
                   </p>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                  <ChevronRight className="h-4 w-4 ml-auto" style={{ color: "color-mix(in srgb, var(--theme-text-on-primary) 50%, transparent)" }} />
                 </div>
               </CardContent>
             </Card>
@@ -440,7 +442,7 @@ const Dashboard = () => {
           {studentData.meetLink && (
             <Button
               className="w-full font-bold h-14 text-base"
-              style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+              style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
               onClick={() => window.open(studentData.meetLink!, "_blank")}
             >
               <ExternalLink className="h-5 w-5 mr-2" />
@@ -501,7 +503,7 @@ const Dashboard = () => {
               <Button
                 size="sm"
                 className="w-full text-xs font-bold gap-1.5"
-                style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+                style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
                 onClick={e => { e.stopPropagation(); navigate("/aula"); }}
               >
                 <GraduationCap className="h-3.5 w-3.5" />
