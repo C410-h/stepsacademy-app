@@ -20,6 +20,7 @@ import { AdminCommandPalette } from "@/components/AdminCommandPalette";
 import AdminApprovalsTab from "@/components/AdminApprovalsTab";
 import AdminContentByStepTab from "@/components/AdminContentByStepTab";
 import AdminPaymentsTab from "@/components/AdminPaymentsTab";
+import AdminStoreTab from "@/components/AdminStoreTab";
 import AdminSuggestionsDrawer from "@/components/AdminSuggestionsDrawer";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1485,6 +1486,7 @@ const Admin = () => {
             <TabsTrigger value="settings" className="shrink-0 text-xs px-3 py-1.5">Config</TabsTrigger>
             <TabsTrigger value="payments" className="shrink-0 text-xs px-3 py-1.5">Pagamentos</TabsTrigger>
             <TabsTrigger value="cadastros" className="shrink-0 text-xs px-3 py-1.5">Cadastros</TabsTrigger>
+            <TabsTrigger value="store" className="shrink-0 text-xs px-3 py-1.5">Loja</TabsTrigger>
           </TabsList>
 
           {/* Desktop: sidebar + content */}
@@ -3555,6 +3557,11 @@ const Admin = () => {
           {/* ── Tab: Pagamentos ──────────────────────────────────────────────── */}
           <TabsContent value="payments" className="space-y-5">
             <AdminPaymentsTab />
+          </TabsContent>
+
+          {/* ── Tab: Loja ────────────────────────────────────────────────────── */}
+          <TabsContent value="store" className="space-y-4">
+            <AdminStoreTab />
           </TabsContent>
 
           {/* ── Tab: Cadastros ──────────────────────────────────────────────── */}
