@@ -174,40 +174,36 @@ function SwipeableAction({
       className="relative overflow-hidden rounded-lg border-l-4 border-l-primary"
     >
       {/* Right-swipe background (left side) */}
-      {onPrimary && (
-        <div
-          className="absolute inset-0 flex items-center gap-2 pl-5"
-          style={{ background: primaryColor, opacity: dragDir === "right" || snapDir === "right" ? 1 : 0 }}
-        >
-          <div style={{ color: "var(--theme-accent)", transform: `scale(${0.8 + progress * 0.2})`, transition: "transform 0.1s" }}>
-            {primaryIcon}
-          </div>
-          <span
-            className="text-sm font-bold text-white"
-            style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
-          >
-            {primaryLabel}
-          </span>
+      <div
+        className="absolute inset-0 flex items-center gap-2 pl-5"
+        style={{ background: primaryColor, opacity: dragDir === "right" || snapDir === "right" ? 1 : 0 }}
+      >
+        <div style={{ color: "var(--theme-accent)", transform: `scale(${0.8 + progress * 0.2})`, transition: "transform 0.1s" }}>
+          {primaryIcon}
         </div>
-      )}
+        <span
+          className="text-sm font-bold text-white"
+          style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
+        >
+          {primaryLabel}
+        </span>
+      </div>
 
       {/* Left-swipe background (right side) */}
-      {onSecondary && (
-        <div
-          className="absolute inset-0 flex items-center justify-end gap-2 pr-5"
-          style={{ background: secondaryColor, opacity: dragDir === "left" || snapDir === "left" ? 1 : 0 }}
+      <div
+        className="absolute inset-0 flex items-center justify-end gap-2 pr-5"
+        style={{ background: secondaryColor, opacity: dragDir === "left" || snapDir === "left" ? 1 : 0 }}
+      >
+        <span
+          className="text-sm font-bold text-white"
+          style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
         >
-          <span
-            className="text-sm font-bold text-white"
-            style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
-          >
-            {secondaryLabel}
-          </span>
-          <div style={{ color: "white", transform: `scale(${0.8 + progress * 0.2})`, transition: "transform 0.1s" }}>
-            {secondaryIcon}
-          </div>
+          {secondaryLabel}
+        </span>
+        <div style={{ color: "white", transform: `scale(${0.8 + progress * 0.2})`, transition: "transform 0.1s" }}>
+          {secondaryIcon}
         </div>
-      )}
+      </div>
 
       {/* Sliding card */}
       <div
