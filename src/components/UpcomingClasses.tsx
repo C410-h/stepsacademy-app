@@ -46,9 +46,6 @@ function useSwipeAction(onRight?: () => void, onLeft?: () => void, threshold = 8
     if (!lockAxis.current && (Math.abs(dx) > 6 || Math.abs(dy) > 6))
       lockAxis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
     if (lockAxis.current !== "h") return;
-    // Only allow direction if there's a handler for it
-    if (dx > 0 && !onRight) return;
-    if (dx < 0 && !onLeft) return;
     e.preventDefault();
     const clamped = dx > 0
       ? Math.min(dx, threshold * 1.5)
@@ -130,8 +127,6 @@ function SwipeableAction({
     const onMove = (e: MouseEvent) => {
       if (mouseSnappedRef.current) return;
       const dx = e.clientX - startMouseX.current;
-      if (dx > 0 && !onPrimaryRef.current) return;
-      if (dx < 0 && !onSecondaryRef.current) return;
       const clamped = dx > 0
         ? Math.min(dx, THRESHOLD * 1.5)
         : Math.max(dx, -THRESHOLD * 1.5);
