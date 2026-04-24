@@ -31,7 +31,7 @@ import {
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
   UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
-  Library, X, MessageSquarePlus,
+  Library, X, MessageSquarePlus, ShoppingBag,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -1503,6 +1503,7 @@ const Admin = () => {
                   { value: "notifications", label: "Notificações", icon: Bell },
                   { value: "payments", label: "Pagamentos", icon: CreditCard },
                   { value: "cadastros", label: "Cadastros", icon: UserCheck },
+                  { value: "store", label: "Loja", icon: ShoppingBag },
                   { value: "settings", label: "Config", icon: Settings },
                 ].map(item => (
                   <button
