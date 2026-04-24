@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
 
     // ── AÇÃO 1: Listar próximas aulas do aluno ────────────────────────────────
     if (action === 'list_student_events') {
-      const { student_email, student_db_id, student_profile_id, teacher_id } = payload
+      const { student_email, student_db_id, student_profile_id, teacher_id, time_min, time_max } = payload
 
       const calendarOwner = teacher_id ?? user.id
       const accessToken = await resolveAccessToken(supabase, calendarOwner)
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
       const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       const calRes = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-        `timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(future)}` +
+        `timeMin=${encodeURIComponent(time_min ?? now)}&timeMax=${encodeURIComponent(time_max ?? future)}` +
         `&singleEvents=true&orderBy=startTime&maxResults=50`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )

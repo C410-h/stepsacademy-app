@@ -342,8 +342,9 @@ const UpcomingClasses = () => {
       if (isMounted.current) setEvents(calEvents);
 
       // Auto-create class_sessions for GCal events that don't have a DB row yet
-      if (studentDbId && calEvents.length > 0) {
-        const toInsert = calEvents
+      if (studentDbId) {
+        // Future events → status "scheduled"
+        const futureToInsert = calEvents
           .filter(ev => !ev.is_holiday && !hasPassed(ev.start) && ev.id)
           .map(ev => ({
             google_event_id: ev.id,
@@ -353,10 +354,45 @@ const UpcomingClasses = () => {
             ends_at: ev.end,
             status: "scheduled",
           }));
-        if (toInsert.length > 0) {
+        if (futureToInsert.length > 0) {
           await (supabase as any)
             .from("class_sessions")
-            .upsert(toInsert, { onConflict: "google_event_id", ignoreDuplicates: true });
+            .upsert(futureToInsert, { onConflict: "google_event_id", ignoreDuplicates: true });
+        }
+
+        // Past events this month → status "completed"
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const pastCalRes = await supabase.functions.invoke("google-calendar", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: {
+            action: "list_student_events",
+            payload: {
+              student_email: user.email,
+              student_profile_id: profile.id,
+              student_db_id: studentDbId,
+              teacher_id: teacherInfo.teacher_user_id,
+              time_min: startOfMonth.toISOString(),
+              time_max: new Date().toISOString(),
+            },
+          },
+        });
+        const pastEvents: ClassEvent[] = pastCalRes.data?.events || [];
+        const pastToInsert = pastEvents
+          .filter(ev => !ev.is_holiday && ev.id)
+          .map(ev => ({
+            google_event_id: ev.id,
+            student_id: studentDbId,
+            teacher_id: teacherInfo.teacher_user_id,
+            scheduled_at: ev.start,
+            ends_at: ev.end,
+            status: "completed",
+          }));
+        if (pastToInsert.length > 0) {
+          await (supabase as any)
+            .from("class_sessions")
+            .upsert(pastToInsert, { onConflict: "google_event_id", ignoreDuplicates: true });
         }
       }
 
