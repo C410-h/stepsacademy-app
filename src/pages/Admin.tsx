@@ -31,7 +31,7 @@ import {
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
   UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
-  Library, X, MessageSquarePlus, ShoppingBag,
+  Library, X, MessageSquarePlus, ShoppingBag, Menu,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -343,6 +343,7 @@ const Admin = () => {
 
   // ── Active tab (controlled, needed for desktop sidebar)
   const [activeTab, setActiveTab] = useState("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // ── Suggestions drawer
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -1441,7 +1442,16 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <a href="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32" /></a>
+        <div className="flex items-center gap-2">
+          <button
+            className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <a href="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32" /></a>
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}
@@ -1468,26 +1478,23 @@ const Admin = () => {
 
       <main className="px-4 py-4 md:px-8 lg:px-10 max-w-7xl mx-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          {/* Mobile: horizontal scrollable tab bar */}
-          <TabsList className="lg:hidden w-full mb-4 flex overflow-x-auto gap-1 h-auto p-1 justify-start">
-            <TabsTrigger value="overview" className="shrink-0 text-xs px-3 py-1.5">Visão Geral</TabsTrigger>
-            <TabsTrigger value="students" className="shrink-0 text-xs px-3 py-1.5">Alunos</TabsTrigger>
-            <TabsTrigger value="teachers" className="shrink-0 text-xs px-3 py-1.5">Professores</TabsTrigger>
-            <TabsTrigger value="groups" className="shrink-0 text-xs px-3 py-1.5">Turmas</TabsTrigger>
-            <TabsTrigger value="content" className="shrink-0 text-xs px-3 py-1.5">Conteúdo</TabsTrigger>
-            <TabsTrigger value="notifications" className="shrink-0 text-xs px-3 py-1.5">
-              Notificações
-              {adminNotifs.filter(n => !n.read).length > 0 && (
-                <span className="ml-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
-                  {adminNotifs.filter(n => !n.read).length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="shrink-0 text-xs px-3 py-1.5">Config</TabsTrigger>
-            <TabsTrigger value="payments" className="shrink-0 text-xs px-3 py-1.5">Pagamentos</TabsTrigger>
-            <TabsTrigger value="cadastros" className="shrink-0 text-xs px-3 py-1.5">Cadastros</TabsTrigger>
-            <TabsTrigger value="store" className="shrink-0 text-xs px-3 py-1.5">Loja</TabsTrigger>
-          </TabsList>
+          {/* Mobile: current section label (no scrollable tab bar) */}
+          <div className="lg:hidden flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-foreground">
+              {[
+                { value: "overview", label: "Visão Geral" },
+                { value: "students", label: "Alunos" },
+                { value: "teachers", label: "Professores" },
+                { value: "groups", label: "Turmas" },
+                { value: "content", label: "Conteúdo" },
+                { value: "notifications", label: "Notificações" },
+                { value: "payments", label: "Pagamentos" },
+                { value: "cadastros", label: "Cadastros" },
+                { value: "store", label: "Loja" },
+                { value: "settings", label: "Config" },
+              ].find(t => t.value === activeTab)?.label ?? ""}
+            </p>
+          </div>
 
           {/* Desktop: sidebar + content */}
           <div className="lg:flex lg:gap-8">
@@ -3792,6 +3799,50 @@ const Admin = () => {
         open={suggestionsOpen}
         onOpenChange={setSuggestionsOpen}
       />
+
+      {/* ── Mobile nav drawer ─────────────────────────────────────────────────── */}
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent side="left" className="w-64 p-0">
+          <SheetHeader className="px-5 py-4 border-b">
+            <SheetTitle className="text-left">
+              <img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-10 w-auto object-contain" />
+            </SheetTitle>
+          </SheetHeader>
+          <nav className="p-3 space-y-0.5">
+            {[
+              { value: "overview",       label: "Visão Geral",   icon: LayoutGrid },
+              { value: "students",       label: "Alunos",        icon: Users },
+              { value: "teachers",       label: "Professores",   icon: GraduationCap },
+              { value: "groups",         label: "Turmas",        icon: BookOpen },
+              { value: "content",        label: "Conteúdo",      icon: FileText },
+              { value: "notifications",  label: "Notificações",  icon: Bell },
+              { value: "payments",       label: "Pagamentos",    icon: CreditCard },
+              { value: "cadastros",      label: "Cadastros",     icon: UserCheck },
+              { value: "store",          label: "Loja",          icon: ShoppingBag },
+              { value: "settings",       label: "Config",        icon: Settings },
+            ].map(item => (
+              <button
+                key={item.value}
+                onClick={() => { setActiveTab(item.value); setMobileNavOpen(false); }}
+                className={cn(
+                  "flex items-center gap-3 text-sm px-3 py-2.5 rounded-md w-full text-left transition-colors",
+                  activeTab === item.value
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.label}
+                {item.value === "notifications" && adminNotifs.filter(n => !n.read).length > 0 && (
+                  <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                    {adminNotifs.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
