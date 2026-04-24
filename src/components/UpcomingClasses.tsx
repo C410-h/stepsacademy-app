@@ -322,33 +322,51 @@ const UpcomingClasses = () => {
 
       const studentDbId = studentData?.id ?? null;
 
-      const [calRes, sessionsRes] = await Promise.all([
-        supabase.functions.invoke("google-calendar", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: {
-            action: "list_student_events",
-            payload: {
-              student_email: user.email,
-              student_profile_id: profile.id,
-              student_db_id: studentDbId,
-              teacher_id: teacherInfo.teacher_user_id,
-            },
+      const calRes = await supabase.functions.invoke("google-calendar", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: {
+          action: "list_student_events",
+          payload: {
+            student_email: user.email,
+            student_profile_id: profile.id,
+            student_db_id: studentDbId,
+            teacher_id: teacherInfo.teacher_user_id,
           },
-        }),
-        studentDbId
-          ? (supabase as any)
-              .from("class_sessions")
-              .select("id, google_event_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, teacher_id, status, student_cancel_requested_at")
-              .eq("student_id", studentDbId)
-              .in("status", ["scheduled", "rescheduled"])
-          : Promise.resolve({ data: [] }),
-      ]);
+        },
+      });
 
       if (!isMounted.current) return;
 
       // Mostra até 5 aulas futuras
       const calEvents: ClassEvent[] = (calRes.data?.events || []).slice(0, 5);
       if (isMounted.current) setEvents(calEvents);
+
+      // Auto-create class_sessions for GCal events that don't have a DB row yet
+      if (studentDbId && calEvents.length > 0) {
+        const toInsert = calEvents
+          .filter(ev => !ev.is_holiday && !hasPassed(ev.start) && ev.id)
+          .map(ev => ({
+            google_event_id: ev.id,
+            student_id: studentDbId,
+            teacher_id: teacherInfo.teacher_user_id,
+            scheduled_at: ev.start,
+            ends_at: ev.end,
+            status: "scheduled",
+          }));
+        if (toInsert.length > 0) {
+          await (supabase as any)
+            .from("class_sessions")
+            .upsert(toInsert, { onConflict: "google_event_id", ignoreDuplicates: true });
+        }
+      }
+
+      const sessionsRes = studentDbId
+        ? await (supabase as any)
+            .from("class_sessions")
+            .select("id, google_event_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, teacher_id, status, student_cancel_requested_at")
+            .eq("student_id", studentDbId)
+            .in("status", ["scheduled", "rescheduled"])
+        : { data: [] };
 
       if (isMounted.current && sessionsRes.data) {
         // Index by first 16 chars of scheduled_at ("YYYY-MM-DDTHH:MM") so we can
