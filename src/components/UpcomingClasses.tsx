@@ -97,10 +97,10 @@ function SwipeableAction({
   );
   const [mousedrag, setMousedrag] = useState(0);
   const [mouseSnapped, setMouseSnapped] = useState<SnapDir>(null);
-  const [mouseDown, setMouseDown] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const startMouseX = useRef(0);
-  const mousedragRef = useRef(0);
   const mouseSnappedRef = useRef<SnapDir>(null);
+  const didMoveRef = useRef(false);
   const onPrimaryRef = useRef(onPrimary);
   const onSecondaryRef = useRef(onSecondary);
   onPrimaryRef.current = onPrimary;
@@ -120,18 +120,22 @@ function SwipeableAction({
   const isActiveDrag = dragX !== 0 || mousedrag !== 0;
   const dragDir: SnapDir = translateX > 0 ? "right" : translateX < 0 ? "left" : null;
 
-  const didMoveRef = useRef(false);
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    startMouseX.current = e.clientX;
+    mouseSnappedRef.current = null;
+    didMoveRef.current = false;
+    setIsDragging(true);
+    setMousedrag(0);
 
-  useEffect(() => {
-    if (!mouseDown) return;
-    const onMove = (e: MouseEvent) => {
+    const onMove = (ev: MouseEvent) => {
       if (mouseSnappedRef.current) return;
-      const dx = e.clientX - startMouseX.current;
+      const dx = ev.clientX - startMouseX.current;
       const clamped = dx > 0
         ? Math.min(dx, THRESHOLD * 1.5)
         : Math.max(dx, -THRESHOLD * 1.5);
       if (Math.abs(clamped) > 5) didMoveRef.current = true;
-      mousedragRef.current = clamped;
       setMousedrag(clamped);
       if (Math.abs(clamped) >= THRESHOLD * 0.5) {
         const dir: SnapDir = clamped > 0 ? "right" : "left";
@@ -140,12 +144,12 @@ function SwipeableAction({
         setMousedrag(dir === "right" ? 400 : -400);
       }
     };
+
     const onUp = () => {
       const snapped = mouseSnappedRef.current;
-      // Block post-drag click on ANY movement so the card sheet doesn't open
       if (didMoveRef.current) {
-        const blockClick = (e: MouseEvent) => {
-          e.stopPropagation();
+        const blockClick = (ev: MouseEvent) => {
+          ev.stopPropagation();
           document.removeEventListener("click", blockClick, true);
         };
         document.addEventListener("click", blockClick, true);
@@ -153,27 +157,16 @@ function SwipeableAction({
       if (snapped === "right") onPrimaryRef.current?.();
       else if (snapped === "left") onSecondaryRef.current?.();
       mouseSnappedRef.current = null;
-      mousedragRef.current = 0;
       didMoveRef.current = false;
       setMousedrag(0);
       setMouseSnapped(null);
-      setMouseDown(false);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    return () => {
+      setIsDragging(false);
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-  }, [mouseDown]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (disabled) return;
-    e.preventDefault();
-    startMouseX.current = e.clientX;
-    mousedragRef.current = 0;
-    setMousedrag(0);
-    setMouseDown(true);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   };
 
   return (
@@ -221,7 +214,7 @@ function SwipeableAction({
         style={{
           transform: `translateX(${translateX}px)`,
           transition: snapDir ? "transform 0.25s ease-out" : isActiveDrag ? "none" : "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
-          cursor: mouseDown ? "grabbing" : "grab",
+          cursor: isDragging ? "grabbing" : "grab",
           userSelect: "none",
         }}
         onMouseDown={handleMouseDown}
