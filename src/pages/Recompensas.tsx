@@ -548,16 +548,77 @@ const Recompensas = () => {
         ══════════════════════════════════════════════════════════════════ */}
         {activeTab === "loja" && (
           <div className="space-y-4">
-            {/* Items — em breve */}
-            <Card>
-              <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
-                <ShoppingBag className="h-12 w-12 text-muted-foreground/30" />
-                <p className="font-bold text-sm">Novidades chegando em breve!</p>
-                <p className="text-xs text-muted-foreground font-light">
-                  A loja de recompensas está sendo preparada. Fique ligado!
-                </p>
-              </CardContent>
-            </Card>
+            {/* Category filter */}
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {categories.map(cat => (
+                <Button
+                  key={cat}
+                  variant={categoryFilter === cat ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCategoryFilter(cat)}
+                  className={cn("shrink-0 text-xs", categoryFilter === cat && "bg-primary text-primary-foreground")}
+                >
+                  {cat === "all" ? "Todos" : `${CATEGORY_EMOJIS[cat] || ""} ${CATEGORY_LABELS[cat] || cat}`}
+                </Button>
+              ))}
+            </div>
+
+            {/* Items grid */}
+            {lojaLoading ? (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-44 rounded-xl" />)}
+              </div>
+            ) : filtered.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
+                  <ShoppingBag className="h-12 w-12 text-muted-foreground/40" />
+                  <p className="font-bold text-sm">Nenhum item disponível</p>
+                  <p className="text-xs text-muted-foreground">Novidades chegando em breve!</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {filtered.map(item => {
+                  const canAfford = gamification.coins >= item.coins_cost;
+                  return (
+                    <Card
+                      key={item.id}
+                      className={cn(
+                        "flex flex-col cursor-pointer transition-all hover:shadow-md",
+                        !canAfford && "opacity-60"
+                      )}
+                      onClick={() => setConfirmItem(item)}
+                    >
+                      <CardContent className="p-4 flex flex-col gap-2 flex-1">
+                        <div className="text-3xl text-center py-2">
+                          {item.image_url ? (
+                            <img src={item.image_url} alt={item.title} className="h-12 w-12 object-contain mx-auto" />
+                          ) : (
+                            CATEGORY_EMOJIS[item.category] || "🎁"
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] w-fit">
+                          {CATEGORY_LABELS[item.category] || item.category}
+                        </Badge>
+                        <p className="text-sm font-bold leading-tight">{item.title}</p>
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground font-light line-clamp-2">{item.description}</p>
+                        )}
+                        <div className="mt-auto pt-2 flex items-center gap-1">
+                          <span className="text-sm">🪙</span>
+                          <span className={cn("text-sm font-bold", canAfford ? "text-yellow-600" : "text-muted-foreground")}>
+                            {item.coins_cost.toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                        {item.stock !== null && (
+                          <p className="text-[10px] text-muted-foreground">{item.stock} disponíveis</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Redemption history */}
             {!lojaLoading && redemptions.length > 0 && (
