@@ -72,9 +72,7 @@ const Dashboard = () => {
   const [missedSessions, setMissedSessions] = useState<RescheduleSessionData[]>([]);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleSession, setRescheduleSession] = useState<RescheduleSessionData | null>(null);
-  const [rankInfo, setRankInfo] = useState<RankInfo | null>(
-    import.meta.env.DEV ? { position: 3, total: 18, xp: 1250, languageName: "Inglês" } : null
-  );
+  const [rankInfo, setRankInfo] = useState<RankInfo | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -308,7 +306,7 @@ const Dashboard = () => {
           onInteractOutside={e => e.preventDefault()}
           onEscapeKeyDown={e => e.preventDefault()}
         >
-          <h2 className="text-2xl font-bold text-primary text-center">Bem-vindo à steps academy! 🎉</h2>
+          <h2 className="text-2xl font-bold text-theme-brand text-center">Bem-vindo à steps academy! 🎉</h2>
           <p className="text-center text-sm text-muted-foreground">
             Aqui você encontra seus materiais, acompanha seu progresso e acessa suas aulas ao vivo.
           </p>
@@ -318,7 +316,7 @@ const Dashboard = () => {
             className="w-full flex items-center gap-4 rounded-xl border bg-muted/50 hover:bg-muted transition-colors p-4 text-left"
           >
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <HelpCircle className="h-6 w-6 text-primary" />
+              <HelpCircle className="h-6 w-6 text-theme-brand" />
             </div>
             <div>
               <p className="font-semibold text-sm">Central de ajuda</p>
@@ -326,7 +324,7 @@ const Dashboard = () => {
             </div>
             <ExternalLink className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
           </a>
-          <Button onClick={completeOnboarding} className="w-full font-bold" style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}>
+          <Button onClick={completeOnboarding} className="w-full font-bold" style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}>
             Começar minha jornada
           </Button>
         </DialogContent>
@@ -419,7 +417,7 @@ const Dashboard = () => {
                   <p className="text-sm text-muted-foreground font-light">
                     {studentData.language?.name} · {studentData.level?.name} · {studentData.level?.code}
                   </p>
-                  <p className="text-2xl font-bold text-primary mt-0.5">
+                  <p className="text-2xl font-bold text-theme-brand mt-0.5">
                     {Math.round(progressPercent)}% concluído
                   </p>
                   <p className="text-xs text-muted-foreground font-light mt-0.5">
@@ -433,7 +431,7 @@ const Dashboard = () => {
                   className="w-14 shrink-0 self-end"
                 />
               </div>
-              <Progress value={progressPercent} className="h-2.5 mt-3" />
+              <Progress value={progressPercent} className="h-4 mt-3" />
             </CardContent>
           </Card>
 
@@ -442,7 +440,7 @@ const Dashboard = () => {
           {studentData.meetLink && (
             <Button
               className="w-full font-bold h-14 text-base"
-              style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
+              style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}
               onClick={() => window.open(studentData.meetLink!, "_blank")}
             >
               <ExternalLink className="h-5 w-5 mr-2" />
@@ -464,7 +462,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <GraduationCap className="h-4 w-4 text-primary" />
+                    <GraduationCap className="h-4 w-4 text-theme-brand" />
                   </div>
                   <div>
                     <p className="text-sm font-bold">Próxima aula</p>
@@ -481,7 +479,7 @@ const Dashboard = () => {
                   <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Antes da aula</p>
                   {beforeClass.map(m => (
                     <div key={m.id} className="flex items-center gap-2 text-xs py-1">
-                      <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
+                      <div className="text-theme-brand shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
                       <span className="truncate text-foreground">{m.title}</span>
                     </div>
                   ))}
@@ -493,7 +491,7 @@ const Dashboard = () => {
                   <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Durante a aula</p>
                   {materials.filter(m => m.delivery === "during").map(m => (
                     <div key={m.id} className="flex items-center gap-2 text-xs py-1">
-                      <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
+                      <div className="text-theme-brand shrink-0">{typeIcons[m.type] || <FileText className="h-3.5 w-3.5" />}</div>
                       <span className="truncate text-foreground">{m.title}</span>
                     </div>
                   ))}
@@ -503,7 +501,7 @@ const Dashboard = () => {
               <Button
                 size="sm"
                 className="w-full text-xs font-bold gap-1.5"
-                style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
+                style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}
                 onClick={e => { e.stopPropagation(); navigate("/aula"); }}
               >
                 <GraduationCap className="h-3.5 w-3.5" />

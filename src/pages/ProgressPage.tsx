@@ -6,10 +6,12 @@ import { supabase } from "@/integrations/supabase/client";
 import StudentLayout from "@/components/StudentLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -375,7 +377,7 @@ const StepReviewSheet = ({
                 </Badge>
               )}
               {step.status === "available" && (
-                <Badge className="bg-primary/10 text-primary border-primary/30 text-xs font-normal">
+                <Badge className="bg-primary/10 text-theme-brand border-primary/30 text-xs font-normal">
                   Aula atual
                 </Badge>
               )}
@@ -415,7 +417,7 @@ const StepReviewSheet = ({
                       <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60">{group.label}</p>
                       {group.mats.map(m => (
                         <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg border bg-card hover:border-primary/30 transition-colors">
-                          <div className="text-primary shrink-0">{typeIcons[m.type] || <FileText className="h-4 w-4" />}</div>
+                          <div className="text-theme-brand shrink-0">{typeIcons[m.type] || <FileText className="h-4 w-4" />}</div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold truncate">{m.title}</p>
                             <p className="text-[10px] text-muted-foreground">{typeLabels[m.type] || m.type}</p>
@@ -566,6 +568,7 @@ const ProgressTab = () => {
 
   const loadProgress = async () => {
     if (!profile) return;
+
     const { data: student } = await supabase
       .from("students")
       .select("id, level_id, current_step_id, steps!students_current_step_id_fkey(number, title)")
@@ -646,9 +649,11 @@ const ProgressTab = () => {
     setSheetOpen(true);
   };
 
-  const doneCount = steps.filter(s => s.status === "done").length;
   const total = steps.length || 40;
+  const doneCount = steps.filter(s => s.status === "done" && !s.isInherited).length;
+  const inheritedCount = steps.filter(s => s.status === "done" && s.isInherited).length;
   const percent = Math.round((doneCount / total) * 100);
+  const inheritedPercent = Math.round((inheritedCount / total) * 100);
 
   return (
     <div className="space-y-4">
@@ -665,7 +670,22 @@ const ProgressTab = () => {
           ) : (
             <>
               <p className="text-sm text-muted-foreground font-light">{levelName}</p>
-              <p className="text-2xl font-bold text-primary mt-1">{percent}% concluído</p>
+              <p className="text-2xl font-bold text-theme-brand mt-1">{percent}% concluído</p>
+              <div className="h-6 mt-3 rounded-full overflow-hidden bg-primary/15 flex border border-border">
+                <div style={{ width: `${percent}%`, background: "var(--theme-primary)", transition: "width 0.4s ease" }} />
+                {inheritedPercent > 0 && (
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div style={{ width: `${inheritedPercent}%`, background: "repeating-linear-gradient(45deg, var(--theme-accent), var(--theme-accent) 2px, var(--theme-primary) 2px, var(--theme-primary) 6px)", transition: "width 0.4s ease", cursor: "default" }} />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[180px] text-center text-xs">
+                        {inheritedCount} {inheritedCount === 1 ? "passo concluído pelo professor" : "passos concluídos pelo professor"} — exercícios pendentes
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             </>
           )}
         </CardContent>
@@ -698,27 +718,39 @@ const ProgressTab = () => {
                   "aspect-square rounded-lg flex flex-col items-center justify-center text-sm relative",
                   step.status !== "locked" && "hover:scale-105 active:scale-95",
                   step.status === "done" && "bg-primary text-primary-foreground",
-                  step.status === "available" && "border-2 border-primary text-primary bg-card",
+                  step.status === "available" && "border-2 border-primary text-theme-brand bg-card",
                   step.status === "locked" && "bg-muted text-muted-foreground"
                 )}
               >
                 {step.status === "done" ? (
                   step.isInherited ? (
-                    <><AlertTriangle className="h-4 w-4 text-yellow-400" /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex flex-col items-center">
+                            <AlertTriangle className="h-6 w-6 text-yellow-400" />
+                            <span className="font-bold mt-0.5" style={{ fontSize: 24 }}>{step.number}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[160px] text-center text-xs">
+                          Aula concluída pelo professor — exercícios pendentes
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   ) : (
-                    <><Check className="h-4 w-4" style={{ color: "var(--theme-accent)" }} /><span className="text-xs font-bold mt-0.5">{step.number}</span></>
+                    <><Check className="h-6 w-6" style={{ color: "var(--theme-accent)" }} /><span className="font-bold mt-0.5" style={{ fontSize: 24 }}>{step.number}</span></>
                   )
                 ) : step.status === "locked" ? (
-                  <><Lock className="h-3 w-3" /><span className="text-xs mt-0.5">{step.number}</span></>
+                  <><Lock className="h-[18px] w-[18px]" /><span className="mt-0.5" style={{ fontSize: 24 }}>{step.number}</span></>
                 ) : (
-                  <span className="text-base font-bold">{step.number}</span>
+                  <span className="font-bold" style={{ fontSize: 24 }}>{step.number}</span>
                 )}
 
                 {/* Content dot */}
                 {step.status !== "locked" && step.id && stepsWithContent.has(step.id) && (
                   <span
                     className="absolute top-1 right-1 rounded-full"
-                    style={{ width: 6, height: 6, background: "var(--theme-accent)" }}
+                    style={{ width: 6, height: 6, background: step.status === "available" ? "var(--theme-brand-on-bg)" : "var(--theme-accent)" }}
                   />
                 )}
 
@@ -895,18 +927,18 @@ const RankingTab = () => {
                     {entry.rank <= 3 ? <span className="text-xl">{MEDAL[entry.rank - 1]}</span> : <span className="text-sm font-bold text-muted-foreground">{entry.rank}°</span>}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-bold truncate", entry.isMe && "text-primary")}>
+                    <p className={cn("text-sm font-bold truncate", entry.isMe && "text-theme-brand")}>
                       {entry.name} {entry.isMe && <span className="text-xs font-normal">(você)</span>}
                     </p>
                     <p className="text-xs text-muted-foreground font-light">{entry.language_name}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     {entry.streak_current > 0 && (
-                      <div className="flex items-center gap-0.5 text-xs text-orange-500">
+                      <div className="flex items-center gap-0.5 text-xs text-theme-brand">
                         <Flame className="h-3 w-3" /><span className="font-bold">{entry.streak_current}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-0.5 text-xs text-primary">
+                    <div className="flex items-center gap-0.5 text-xs text-theme-brand">
                       <Zap className="h-3 w-3" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
                       <span className="font-bold">{entry.xp_total.toLocaleString("pt-BR")}</span>
                     </div>
@@ -919,13 +951,13 @@ const RankingTab = () => {
                   <div className="text-center text-xs text-muted-foreground py-1">• • •</div>
                   <div className="flex items-center gap-3 p-3 rounded-xl border border-primary bg-primary/5">
                     <div className="w-8 text-center shrink-0">
-                      <span className="text-sm font-bold text-primary">{myEntry.rank}°</span>
+                      <span className="text-sm font-bold text-theme-brand">{myEntry.rank}°</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-primary truncate">{myEntry.name} <span className="text-xs font-normal">(você)</span></p>
+                      <p className="text-sm font-bold text-theme-brand truncate">{myEntry.name} <span className="text-xs font-normal">(você)</span></p>
                       <p className="text-xs text-muted-foreground font-light">{myEntry.language_name}</p>
                     </div>
-                    <div className="flex items-center gap-0.5 text-xs text-primary shrink-0">
+                    <div className="flex items-center gap-0.5 text-xs text-theme-brand shrink-0">
                       <Zap className="h-3 w-3" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
                       <span className="font-bold">{myEntry.xp_total.toLocaleString("pt-BR")}</span>
                     </div>

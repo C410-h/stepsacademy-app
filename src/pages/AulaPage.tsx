@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   BookOpen, Headphones, FileText, PenLine, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap,
@@ -90,7 +91,7 @@ interface StepProgress {
   number: number;
   title: string | null;
   type: string;
-  status: "done" | "available" | "locked";
+  status: "done" | "available" | "locked" | "inherited";
   isCurrentStep: boolean;
 }
 
@@ -155,7 +156,7 @@ const CollapsibleSection = ({
             {title}
           </span>
           {badge && (
-            <Badge variant="secondary" className="text-[10px] font-light px-1.5 py-0">
+            <Badge variant="secondary" className="text-[10px] font-medium px-1.5 py-0 text-theme-brand bg-primary/10">
               {badge}
             </Badge>
           )}
@@ -181,7 +182,7 @@ const MaterialCard = ({
     onClick={() => onOpen(material)}
   >
     <CardContent className="flex items-center gap-3 py-3 px-4">
-      <div className="text-primary shrink-0">
+      <div className="text-theme-brand shrink-0">
         {typeIcons[material.type] || <FileText className="h-5 w-5" />}
       </div>
       <div className="flex-1 min-w-0">
@@ -194,7 +195,7 @@ const MaterialCard = ({
             <Eye className="h-3 w-3" /> Visto
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-xs text-primary font-bold">
+          <span className="flex items-center gap-1 text-xs text-theme-brand font-bold">
             <EyeOff className="h-3 w-3" /> Novo
           </span>
         )}
@@ -208,7 +209,7 @@ const MaterialCard = ({
 const XpBadge = ({ xp, coins }: { xp: number; coins: number }) => (
   <div className="flex items-center gap-3 text-sm font-light text-muted-foreground">
     {xp > 0 && (
-      <span className="flex items-center gap-1 text-primary font-bold">
+      <span className="flex items-center gap-1 text-theme-brand font-bold">
         <Zap className="h-3.5 w-3.5" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
         +{xp} XP
       </span>
@@ -229,7 +230,7 @@ const FillBlank = ({
       <p className="text-base font-light leading-relaxed">
         {parts.map((part, i) =>
           part === "[___]" ? (
-            <span key={i} className="inline-block border-b-2 border-primary px-3 font-bold text-primary min-w-[80px] text-center">
+            <span key={i} className="inline-block border-b-2 border-theme-brand px-3 font-bold text-theme-brand min-w-[80px] text-center">
               {status !== "pending" ? exercise.answer : "___"}
             </span>
           ) : (
@@ -240,7 +241,7 @@ const FillBlank = ({
       {status === "pending" && (
         <>
           <Input value={value} onChange={e => onChange(e.target.value)} onKeyDown={e => e.key === "Enter" && onSubmit()} placeholder="Digite sua resposta..." className="text-base" autoFocus />
-          <Button onClick={onSubmit} disabled={!value.trim()} className="w-full bg-primary text-primary-foreground font-bold">Confirmar</Button>
+          <Button onClick={onSubmit} disabled={!value.trim()} className="w-full font-bold" style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}>Confirmar</Button>
         </>
       )}
       {status === "correct" && (
@@ -283,8 +284,8 @@ const Association = ({
             return (
               <button key={i} onClick={() => onLeftClick(i)} disabled={status !== "pending"}
                 className={cn("w-full rounded-lg p-2.5 text-sm text-left transition-all border-2",
-                  selectedLeft === i && "border-primary bg-primary/10",
-                  isPaired && status === "pending" && "border-primary/40 bg-primary/5",
+                  selectedLeft === i && "border-theme-brand bg-theme-brand/10",
+                  isPaired && status === "pending" && "border-theme-brand/40 bg-theme-brand/5",
                   correct && "border-green-500 bg-green-500/10 text-green-700",
                   wrong && "border-red-500 bg-red-500/10 text-red-700",
                   !isPaired && selectedLeft !== i && status === "pending" && "border-border bg-card"
@@ -302,7 +303,7 @@ const Association = ({
             return (
               <button key={i} onClick={() => onRightClick(i)} disabled={status !== "pending"}
                 className={cn("w-full rounded-lg p-2.5 text-sm text-left transition-all border-2",
-                  isPaired && status === "pending" && "border-primary/40 bg-primary/5",
+                  isPaired && status === "pending" && "border-theme-brand/40 bg-theme-brand/5",
                   correct && "border-green-500 bg-green-500/10 text-green-700",
                   wrong && "border-red-500 bg-red-500/10 text-red-700",
                   !isPaired && status === "pending" && "border-border bg-card"
@@ -311,7 +312,7 @@ const Association = ({
           })}
         </div>
       </div>
-      {status === "pending" && <Button onClick={onConfirm} disabled={!allPaired} className="w-full bg-primary text-primary-foreground font-bold">Confirmar pares</Button>}
+      {status === "pending" && <Button onClick={onConfirm} disabled={!allPaired} className="w-full font-bold" style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}>Confirmar pares</Button>}
       {status === "correct" && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 text-green-600">
           <CheckCircle2 className="h-5 w-5 shrink-0" /><span className="font-bold text-sm">Todos corretos! +10 XP +5 🪙</span>
@@ -338,12 +339,12 @@ const OpenAnswer = ({
     {status === "pending" && (
       <>
         <Textarea value={value} onChange={e => onChange(e.target.value)} placeholder={isProduction ? "Escreva sua resposta..." : "Reescreva a frase..."} className="text-base resize-none font-light" rows={isProduction ? 4 : 3} autoFocus />
-        <Button onClick={onSubmit} disabled={!value.trim()} className="w-full bg-primary text-primary-foreground font-bold">Enviar</Button>
+        <Button onClick={onSubmit} disabled={!value.trim()} className="w-full font-bold" style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}>Enviar</Button>
       </>
     )}
     {status === "submitted" && (
       <div className="space-y-3">
-        <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+        <div className="p-3 rounded-lg bg-theme-brand/10 border border-theme-brand/20">
           <p className="text-xs text-muted-foreground font-light mb-1">{isProduction ? "Exemplo de resposta:" : "Sugestão de resposta:"}</p>
           <p className="text-sm font-bold">{exercise.answer}</p>
         </div>
@@ -503,7 +504,7 @@ const ExercisesEngine = ({
       <Card>
         <CardContent className="py-6 space-y-4 text-center">
           <div className="h-14 w-14 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: "color-mix(in srgb, var(--theme-accent) 20%, transparent)" }}>
-            <CheckCircle2 className="h-7 w-7 text-primary" />
+            <CheckCircle2 className="h-7 w-7 text-theme-brand" />
           </div>
           <div>
             <p className="font-bold">Exercícios concluídos! 🎉</p>
@@ -562,7 +563,7 @@ const ExercisesEngine = ({
       </Card>
 
       {canGoNext && (
-        <Button className="w-full font-bold" style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }} onClick={handleNext}>
+        <Button className="w-full font-bold" style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }} onClick={handleNext}>
           {currentIndex + 1 >= exercises.length ? "Ver resultado" : "Próximo exercício →"}
         </Button>
       )}
@@ -580,26 +581,35 @@ const StepCard = ({
   onClick: () => void;
 }) => {
   const isLocked = step.status === "locked";
+  const isInherited = step.status === "inherited";
   return (
     <div
       onClick={isLocked ? undefined : onClick}
       style={{
         cursor: isLocked ? "not-allowed" : "pointer",
         transition: "transform 0.15s",
+        ...(step.status === "done" && { background: "var(--theme-brand-on-bg)" }),
+        ...(step.isCurrentStep && { borderColor: "var(--theme-brand-on-bg)" }),
       }}
       className={cn(
         "aspect-square rounded-lg flex flex-col items-center justify-center text-sm relative select-none",
         !isLocked && "hover:scale-105 active:scale-95",
-        step.status === "done" && "bg-primary text-primary-foreground",
+        step.status === "done" && "text-[var(--theme-text-on-brand)]",
         step.status === "available" && "border-2 bg-card",
         step.status === "available" && !step.isCurrentStep && "border-muted-foreground/30 text-foreground",
-        step.isCurrentStep && "border-primary text-primary",
+        step.isCurrentStep && "border-theme-brand text-theme-brand",
         step.status === "locked" && "bg-muted text-muted-foreground",
+        isInherited && "border-2 border-amber-400/60 bg-amber-50 text-amber-700",
       )}
     >
       {step.status === "done" ? (
         <>
-          <Check className="h-4 w-4" style={{ color: "var(--theme-accent)" }} />
+          <Check className="h-4 w-4" style={{ color: "var(--theme-step-check)" }} />
+          <span className="text-xs font-bold mt-0.5">{step.number}</span>
+        </>
+      ) : isInherited ? (
+        <>
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
           <span className="text-xs font-bold mt-0.5">{step.number}</span>
         </>
       ) : step.status === "locked" ? (
@@ -836,6 +846,7 @@ const AulaPage = () => {
     if (!targetLevelId || !student) return;
     setAllLoading(true);
     setAllUnits([]);
+
     try {
       const { data: unitsData } = await (supabase as any)
         .from("units")
@@ -1037,17 +1048,17 @@ const AulaPage = () => {
           <>
             {/* ── Past step banner ── */}
             {student.isPastStep && (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-theme-brand/20 bg-theme-brand/5 px-4 py-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <History className="h-4 w-4 text-primary shrink-0" />
-                  <p className="text-xs text-primary font-medium">
+                  <History className="h-4 w-4 text-theme-brand shrink-0" />
+                  <p className="text-xs text-theme-brand font-medium">
                     Você está revisando a aula anterior (Passo {student.viewingStepNumber})
                   </p>
                 </div>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="shrink-0 text-xs font-bold text-primary hover:text-primary/80 px-2"
+                  className="shrink-0 text-xs font-bold text-theme-brand hover:text-theme-brand/80 px-2"
                   onClick={() => navigate("/aula")}
                 >
                   Ir para aula atual
@@ -1083,7 +1094,7 @@ const AulaPage = () => {
             {student.meetLink && !student.isPastStep && (
               <Button
                 className="w-full font-bold h-12"
-                style={{ background: "var(--theme-accent)", color: "var(--theme-text-on-accent)" }}
+                style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}
                 onClick={() => window.open(student.meetLink!, "_blank")}
               >
                 <ExternalLink className="h-5 w-5 mr-2" />
@@ -1240,8 +1251,8 @@ const AulaPage = () => {
               <Card>
                 <CardContent className="pt-5 pb-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <Mic className="h-4 w-4 text-primary" />
+                    <div className="h-8 w-8 rounded-full bg-theme-brand/10 flex items-center justify-center shrink-0">
+                      <Mic className="h-4 w-4 text-theme-brand" />
                     </div>
                     <div>
                       <p className="font-bold text-sm">Pratique sua pronúncia</p>
@@ -1270,9 +1281,9 @@ const AulaPage = () => {
               <>
                 <Button
                   className="w-full font-bold gap-2"
-                  variant={canMarkAulaDone ? "default" : "outline"}
                   disabled={!canMarkAulaDone || markingAulaDone}
                   onClick={handleMarkAulaDone}
+                  style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)", opacity: (!canMarkAulaDone || markingAulaDone) ? 0.4 : 1 }}
                 >
                   <CheckCheck className="h-4 w-4" />
                   {markingAulaDone ? "Salvando…" : "Marcar aula como concluída"}
@@ -1328,8 +1339,10 @@ const AulaPage = () => {
                 {(() => {
                   const allSteps = allUnits.flatMap(u => u.steps);
                   const doneCount = allSteps.filter(s => s.status === "done").length;
+                  const inheritedCount = allSteps.filter(s => s.status === "inherited").length;
                   const total = allSteps.length;
-                  const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+                  const studentPercent = total > 0 ? (doneCount / total) * 100 : 0;
+                  const teacherPercent = total > 0 ? ((doneCount + inheritedCount) / total) * 100 : 0;
                   const selectedLevel = allLevels.find(lv => lv.id === selectedLevelId);
                   return (
                     <Card>
@@ -1339,11 +1352,14 @@ const AulaPage = () => {
                             <p className="text-sm text-muted-foreground font-light">
                               {student.languageName} · {selectedLevel?.name ?? student.levelName} · {selectedLevel?.code ?? student.levelCode}
                             </p>
-                            <p className="text-2xl font-bold text-primary mt-0.5">
-                              {percent}% concluído
+                            <p className="text-2xl font-bold text-theme-brand mt-0.5">
+                              {Math.round(studentPercent)}% concluído
                             </p>
                             <p className="text-xs text-muted-foreground font-light mt-0.5">
                               {doneCount} de {total} aulas
+                              {inheritedCount > 0 && (
+                                <span className="ml-2 text-amber-600">· {inheritedCount} aula{inheritedCount > 1 ? "s" : ""} pendente{inheritedCount > 1 ? "s" : ""}</span>
+                              )}
                             </p>
                           </div>
                           <img
@@ -1353,7 +1369,33 @@ const AulaPage = () => {
                             className="w-14 shrink-0 self-end"
                           />
                         </div>
-                        <Progress value={percent} className="h-2.5 mt-3" />
+                        {/* Dual progress bar: teacher coverage (amber) behind student completion (brand) */}
+                        <div className="relative mt-3 h-4 rounded-full overflow-hidden bg-muted">
+                          {/* Teacher taught — striped amber */}
+                          {teacherPercent > studentPercent && (
+                            <div
+                              className="absolute inset-0 rounded-full transition-all"
+                              style={{
+                                width: `${teacherPercent}%`,
+                                background: "repeating-linear-gradient(45deg, #fbbf24 0px, #fbbf24 4px, #fef3c7 4px, #fef3c7 10px)",
+                                opacity: 0.75,
+                              }}
+                            />
+                          )}
+                          {/* Student completed (brand) */}
+                          <div
+                            className="absolute inset-0 rounded-full transition-all"
+                            style={{ width: `${studentPercent}%`, background: "var(--theme-brand-on-bg)" }}
+                          />
+                        </div>
+                        {inheritedCount > 0 && (
+                          <Alert className="mt-3 py-2 px-3 border-amber-400/40 bg-amber-400/10">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            <AlertDescription className="text-xs text-amber-600 font-light ml-1">
+                              Você tem {inheritedCount} aula{inheritedCount > 1 ? "s" : ""} com conteúdo ensinado pelo professor que ainda não foram concluídas.
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </CardContent>
                     </Card>
                   );
@@ -1364,15 +1406,21 @@ const AulaPage = () => {
                   ))}
                 </div>
                 {allUnits.length > 0 && (
-                  <div className="flex items-center justify-center gap-5 pt-1 pb-1">
+                  <div className="flex items-center justify-center gap-4 pt-1 pb-1 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
-                        <Check className="h-2.5 w-2.5" style={{ color: "var(--theme-accent)" }} />
+                      <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: "var(--theme-brand-on-bg)" }}>
+                        <Check className="h-2.5 w-2.5" style={{ color: "var(--theme-step-check)" }} />
                       </div>
                       <span className="text-xs text-muted-foreground font-light">Concluído</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="w-4 h-4 rounded border-2 border-primary bg-card" />
+                      <div className="w-4 h-4 rounded border-2 border-amber-400/60 bg-amber-50 flex items-center justify-center">
+                        <AlertTriangle className="h-2.5 w-2.5 text-amber-500" />
+                      </div>
+                      <span className="text-xs text-muted-foreground font-light">Pendente</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded border-2 border-theme-brand bg-card" />
                       <span className="text-xs text-muted-foreground font-light">Atual</span>
                     </div>
                     <div className="flex items-center gap-1.5">

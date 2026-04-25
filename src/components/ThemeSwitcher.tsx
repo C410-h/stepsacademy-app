@@ -4,20 +4,10 @@ import { ThemeKey } from "@/lib/themes";
 const ThemeSwitcher = () => {
   const { theme: activeTheme, setTheme, themes } = useTheme();
 
-  const entries = Object.entries(themes) as [ThemeKey, typeof themes[ThemeKey]][];
+  const entries = (Object.entries(themes) as [ThemeKey, typeof themes[ThemeKey]][]).filter(([key]) => key !== 'ola');
 
   return (
-    <div
-      style={{
-        background: "rgba(255, 255, 255, 0.08)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-        border: "1px solid rgba(255, 255, 255, 0.15)",
-        borderRadius: 20,
-        padding: 16,
-      }}
-      className="bg-card border rounded-2xl p-4"
-    >
+    <div className="bg-card border rounded-2xl p-4">
       <div className="mb-3">
         <p className="text-sm font-semibold text-foreground">Meu tema</p>
         <p className="text-xs text-muted-foreground">Personalize as cores da plataforma</p>

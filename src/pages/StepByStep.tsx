@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Flame, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
+import { Zap, Flame, CheckCircle2, RotateCcw, ChevronRight, WholeWord, Languages, PenLine, Link2, Shuffle, Timer, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 const steppieGritando = "/steppie/steppie-gritando.webp";
@@ -37,16 +37,16 @@ const db = supabase as any;
 // ─── SVG Hangman ─────────────────────────────────────────────────────────────
 const HangmanSVG = ({ errors }: { errors: number }) => (
   <svg viewBox="0 0 120 140" className="w-full max-w-[180px] mx-auto" strokeLinecap="round">
-    <line x1="10" y1="135" x2="110" y2="135" stroke="var(--theme-primary)" strokeWidth="3" />
-    <line x1="30" y1="135" x2="30" y2="10" stroke="var(--theme-primary)" strokeWidth="3" />
-    <line x1="30" y1="10" x2="75" y2="10" stroke="var(--theme-primary)" strokeWidth="3" />
-    <line x1="75" y1="10" x2="75" y2="25" stroke="var(--theme-primary)" strokeWidth="3" />
-    {errors >= 1 && <circle cx="75" cy="35" r="10" stroke="var(--theme-primary)" strokeWidth="2.5" fill="none" />}
-    {errors >= 2 && <line x1="75" y1="45" x2="75" y2="90" stroke="var(--theme-primary)" strokeWidth="2.5" />}
-    {errors >= 3 && <line x1="75" y1="58" x2="55" y2="75" stroke="var(--theme-primary)" strokeWidth="2.5" />}
-    {errors >= 4 && <line x1="75" y1="58" x2="95" y2="75" stroke="var(--theme-primary)" strokeWidth="2.5" />}
-    {errors >= 5 && <line x1="75" y1="90" x2="55" y2="115" stroke="var(--theme-primary)" strokeWidth="2.5" />}
-    {errors >= 6 && <line x1="75" y1="90" x2="95" y2="115" stroke="var(--theme-primary)" strokeWidth="2.5" />}
+    <line x1="10" y1="135" x2="110" y2="135" stroke="var(--theme-brand-on-bg)" strokeWidth="3" />
+    <line x1="30" y1="135" x2="30" y2="10" stroke="var(--theme-brand-on-bg)" strokeWidth="3" />
+    <line x1="30" y1="10" x2="75" y2="10" stroke="var(--theme-brand-on-bg)" strokeWidth="3" />
+    <line x1="75" y1="10" x2="75" y2="25" stroke="var(--theme-brand-on-bg)" strokeWidth="3" />
+    {errors >= 1 && <circle cx="75" cy="35" r="10" stroke="var(--theme-brand-on-bg)" strokeWidth="2.5" fill="none" />}
+    {errors >= 2 && <line x1="75" y1="45" x2="75" y2="90" stroke="var(--theme-brand-on-bg)" strokeWidth="2.5" />}
+    {errors >= 3 && <line x1="75" y1="58" x2="55" y2="75" stroke="var(--theme-brand-on-bg)" strokeWidth="2.5" />}
+    {errors >= 4 && <line x1="75" y1="58" x2="95" y2="75" stroke="var(--theme-brand-on-bg)" strokeWidth="2.5" />}
+    {errors >= 5 && <line x1="75" y1="90" x2="55" y2="115" stroke="var(--theme-brand-on-bg)" strokeWidth="2.5" />}
+    {errors >= 6 && <line x1="75" y1="90" x2="95" y2="115" stroke="var(--theme-brand-on-bg)" strokeWidth="2.5" />}
   </svg>
 );
 
@@ -1561,14 +1561,14 @@ const SurvivalGame = ({
 // ─── Game mode tabs ───────────────────────────────────────────────────────────
 type GameMode = "hangman" | "translation" | "fillblank" | "matching" | "scramble" | "clock" | "survival";
 
-const MODE_CONFIG: { id: GameMode; label: string; emoji: string; desc: string }[] = [
-  { id: "hangman",     emoji: "🪓",  label: "Forca",             desc: "Adivinhe a palavra letra por letra"          },
-  { id: "translation", emoji: "🌐",  label: "Tradução",          desc: "Escolha a tradução correta"                 },
-  { id: "fillblank",   emoji: "✏️",  label: "Lacuna",            desc: "Complete a frase com a palavra certa"       },
-  { id: "matching",    emoji: "🔗",  label: "Pares",             desc: "Conecte cada palavra à sua tradução"        },
-  { id: "scramble",    emoji: "🔀",  label: "Embaralhado",       desc: "Monte a palavra com as letras embaralhadas" },
-  { id: "clock",       emoji: "⏱️",  label: "Contra o Relógio", desc: "10 palavras, 10 segundos cada"             },
-  { id: "survival",    emoji: "💀",  label: "Survival",          desc: "3 vidas — aguenta até onde der"            },
+const MODE_CONFIG: { id: GameMode; label: string; icon: React.ElementType; desc: string }[] = [
+  { id: "hangman",     icon: WholeWord, label: "Forca",             desc: "Adivinhe a palavra letra por letra"          },
+  { id: "translation", icon: Languages, label: "Tradução",          desc: "Escolha a tradução correta"                 },
+  { id: "fillblank",   icon: PenLine,   label: "Lacuna",            desc: "Complete a frase com a palavra certa"       },
+  { id: "matching",    icon: Link2,     label: "Pares",             desc: "Conecte cada palavra à sua tradução"        },
+  { id: "scramble",    icon: Shuffle,   label: "Embaralhado",       desc: "Monte a palavra com as letras embaralhadas" },
+  { id: "clock",       icon: Timer,     label: "Contra o Relógio",  desc: "10 palavras, 10 segundos cada"             },
+  { id: "survival",    icon: Heart,     label: "Survival",          desc: "3 vidas — aguenta até onde der"            },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -1810,16 +1810,16 @@ const StepByStep = () => {
         {!gameSelected ? (
           <div className="space-y-3">
             <p className="text-sm font-bold px-1">Escolha um jogo</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {MODE_CONFIG.map(m => (
                 <button
                   key={m.id}
                   onClick={() => { setMode(m.id); setGameSelected(true); }}
-                  className="flex flex-col items-start gap-1 p-4 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all text-left"
+                  className="group flex flex-col items-start gap-1 p-4 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary transition-all text-left"
                 >
-                  <span className="text-2xl">{m.emoji}</span>
-                  <span className="text-sm font-bold leading-tight">{m.label}</span>
-                  <span className="text-xs text-muted-foreground font-light leading-tight">{m.desc}</span>
+                  <m.icon className="h-6 w-6 text-primary group-hover:text-accent transition-colors" />
+                  <span className="text-sm font-bold leading-tight group-hover:text-accent transition-colors">{m.label}</span>
+                  <span className="text-xs text-muted-foreground font-light leading-tight group-hover:text-accent/70 transition-colors">{m.desc}</span>
                 </button>
               ))}
             </div>
@@ -1829,8 +1829,7 @@ const StepByStep = () => {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">
-                  {MODE_CONFIG.find(m => m.id === mode)?.emoji}{" "}
-                  {MODE_CONFIG.find(m => m.id === mode)?.label}
+                  {(() => { const cfg = MODE_CONFIG.find(m => m.id === mode); return cfg ? <><cfg.icon className="inline h-4 w-4 mr-1.5 align-text-bottom" />{cfg.label}</> : null; })()}
                 </CardTitle>
                 <button
                   onClick={() => setGameSelected(false)}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import StudentLayout from "@/components/StudentLayout";
@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight, LogOut } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight, LogOut, Coins, Globe, Target, CalendarDays, GraduationCap, PenLine, Star, BookOpen, Medal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PAYMENT_ENABLED } from "@/lib/featureFlags";
@@ -23,6 +23,21 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/lib/pushNotifications";
+
+// ─── Badge icon map ───────────────────────────────────────────────────────────
+
+const BADGE_ICON_MAP: Record<string, React.ElementType> = {
+  star: Star,
+  flame: Flame,
+  mic: Mic,
+  book: BookOpen,
+  graduation: GraduationCap,
+  trophy: Trophy,
+  target: Target,
+  zap: Zap,
+  medal: Medal,
+  calendar: CalendarDays,
+};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -102,9 +117,10 @@ interface EditableFieldProps {
   value: string;
   onSave: (val: string) => Promise<void>;
   placeholder?: string;
+  dark?: boolean;
 }
 
-const EditableField = ({ label, value, onSave, placeholder }: EditableFieldProps) => {
+const EditableField = ({ label, value, onSave, placeholder, dark }: EditableFieldProps) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
@@ -128,13 +144,13 @@ const EditableField = ({ label, value, onSave, placeholder }: EditableFieldProps
   if (editing) {
     return (
       <div className="space-y-1">
-        <p className="text-xs text-muted-foreground font-light">{label}</p>
+        <p className={dark ? "text-xs text-theme-on-brand/80 font-light" : "text-xs text-muted-foreground font-light"}>{label}</p>
         <div className="flex items-center gap-2">
           <Input
             value={draft}
             onChange={e => setDraft(e.target.value)}
             placeholder={placeholder}
-            className="h-8 text-sm"
+            className={dark ? "h-8 text-sm bg-theme-on-brand/10 border-theme-on-brand/20 text-theme-on-brand placeholder:text-theme-on-brand/40" : "h-8 text-sm"}
             autoFocus
             onKeyDown={e => {
               if (e.key === "Enter") handleSave();
@@ -144,7 +160,7 @@ const EditableField = ({ label, value, onSave, placeholder }: EditableFieldProps
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 shrink-0 text-green-600 hover:text-green-700"
+            className={dark ? "h-8 w-8 shrink-0 text-theme-on-brand hover:text-theme-on-brand hover:bg-theme-on-brand/10" : "h-8 w-8 shrink-0 text-green-600 hover:text-green-700"}
             onClick={handleSave}
             disabled={saving}
           >
@@ -153,7 +169,7 @@ const EditableField = ({ label, value, onSave, placeholder }: EditableFieldProps
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 shrink-0 text-destructive"
+            className={dark ? "h-8 w-8 shrink-0 text-theme-on-brand/80 hover:text-theme-on-brand hover:bg-theme-on-brand/10" : "h-8 w-8 shrink-0 text-destructive"}
             onClick={handleCancel}
             disabled={saving}
           >
@@ -166,13 +182,15 @@ const EditableField = ({ label, value, onSave, placeholder }: EditableFieldProps
 
   return (
     <div className="space-y-0.5">
-      <p className="text-xs text-muted-foreground font-light">{label}</p>
+      <p className={dark ? "text-xs text-theme-on-brand/80 font-light" : "text-xs text-muted-foreground font-light"}>{label}</p>
       <button
         onClick={() => { setDraft(value); setEditing(true); }}
         className="flex items-center gap-1.5 group text-left w-full"
       >
-        <span className="text-sm font-medium">{value || <span className="text-muted-foreground italic">Não informado</span>}</span>
-        <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+        <span className={dark ? "text-sm font-medium text-theme-on-brand" : "text-sm font-medium"}>
+          {value || <span className={dark ? "text-theme-on-brand/40 italic" : "text-muted-foreground italic"}>Não informado</span>}
+        </span>
+        <Pencil className={dark ? "h-3.5 w-3.5 text-theme-on-brand/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" : "h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"} />
       </button>
     </div>
   );
@@ -207,9 +225,9 @@ const formatCents = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
 const subscriptionStatusBadge = (status: string) => {
-  if (status === "active") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Ativo</span>;
-  if (status === "overdue") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">Inadimplente</span>;
-  if (status === "suspended") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Suspenso</span>;
+  if (status === "active") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-theme-brand">Ativo</span>;
+  if (status === "overdue") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">Inadimplente</span>;
+  if (status === "suspended") return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">Suspenso</span>;
   return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{status}</span>;
 };
 
@@ -246,7 +264,7 @@ const SubscriptionCard = ({ subscription }: { subscription: SubscriptionInfo }) 
             </div>
           </div>
           <div className="text-right">
-            <p className="text-lg font-black text-primary">{formatCents(subscription.amount_cents)}</p>
+            <p className="text-lg font-black text-theme-brand">{formatCents(subscription.amount_cents)}</p>
             <p className="text-xs text-muted-foreground font-light">{isSemiannual ? "semestral" : "/mês"}</p>
           </div>
         </div>
@@ -353,6 +371,7 @@ const Perfil = () => {
   const loadAll = async () => {
     if (!authProfile) return;
     setLoading(true);
+
     try {
       const db = supabase as any;
 
@@ -600,18 +619,18 @@ const Perfil = () => {
       <div className="space-y-4">
 
         {/* ── Top section: 2-col on desktop ── */}
-        <div className="lg:grid lg:grid-cols-[280px_1fr] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
+        <div className="lg:grid lg:grid-cols-[280px_1fr] lg:gap-6 lg:items-stretch space-y-4 lg:space-y-0">
 
           {/* Left column: Avatar card */}
-          <Card className="rounded-xl">
-            <CardContent className="pt-6 pb-6 flex flex-col items-center gap-4">
+          <Card className="rounded-xl h-full border-0" style={{ background: "var(--theme-brand-on-bg)" }}>
+            <CardContent className="pt-6 pb-6 flex flex-col items-center gap-4 h-full">
               {/* Avatar */}
               <div className="relative">
                 <Avatar className="h-20 w-20">
                   <AvatarImage src={profile?.avatar_url || undefined} />
                   <AvatarFallback
                     className="text-xl font-bold"
-                    style={{ background: "var(--theme-primary)", color: "var(--theme-text-on-primary)" }}
+                    style={{ background: "var(--theme-text-on-brand)", color: "var(--theme-brand-on-bg)" }}
                   >
                     {initials}
                   </AvatarFallback>
@@ -627,7 +646,7 @@ const Perfil = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1.5"
+                className="h-8 text-xs gap-1.5 border-[var(--theme-text-on-brand)]/30 text-[var(--theme-text-on-brand)] hover:bg-[var(--theme-text-on-brand)]/10 hover:text-[var(--theme-text-on-brand)] bg-transparent"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
               >
@@ -649,14 +668,42 @@ const Perfil = () => {
                   value={profile?.name || ""}
                   onSave={saveName}
                   placeholder="Seu nome completo"
+                  dark
                 />
                 <EditableField
                   label="Telefone"
                   value={profile?.phone || ""}
                   onSave={savePhone}
                   placeholder="(11) 99999-9999"
+                  dark
                 />
               </div>
+
+              {/* Extra info at bottom to fill card height */}
+              {student && (
+                <div className="w-full mt-auto pt-3 border-t border-[var(--theme-text-on-brand)]/20 space-y-2 px-2">
+                  {student.language && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-light" style={{ color: "var(--theme-text-on-brand)", opacity: 0.75 }}>Idioma</span>
+                      <span className="text-xs font-medium" style={{ color: "var(--theme-text-on-brand)" }}>{student.language}</span>
+                    </div>
+                  )}
+                  {student.level_name && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-light" style={{ color: "var(--theme-text-on-brand)", opacity: 0.75 }}>Nível</span>
+                      <span className="text-xs font-medium" style={{ color: "var(--theme-text-on-brand)" }}>
+                        {student.level_name}{student.level_code ? ` (${student.level_code})` : ""}
+                      </span>
+                    </div>
+                  )}
+                  {student.enrollment_date && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-light" style={{ color: "var(--theme-text-on-brand)", opacity: 0.75 }}>Matrícula</span>
+                      <span className="text-xs font-medium" style={{ color: "var(--theme-text-on-brand)" }}>{formatDate(student.enrollment_date)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -666,28 +713,28 @@ const Perfil = () => {
             {gamification && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard
-                  icon={<Zap className="h-4 w-4" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />}
+                  icon={<Zap className="h-4 w-4 text-theme-brand" style={{ fill: "var(--theme-brand-on-bg)" }} />}
                   label="XP Total"
                   value={gamification.xp_total.toLocaleString("pt-BR")}
                   iconBg="bg-primary/10"
                 />
                 <StatCard
-                  icon={<span className="text-base leading-none">🪙</span>}
+                  icon={<Coins className="h-4 w-4 text-theme-brand" />}
                   label="Coins"
                   value={gamification.coins.toLocaleString("pt-BR")}
-                  iconBg="bg-yellow-100 dark:bg-yellow-900/30"
+                  iconBg="bg-primary/10"
                 />
                 <StatCard
-                  icon={<Flame className="h-4 w-4 text-orange-500" />}
+                  icon={<Flame className="h-4 w-4 text-theme-brand" />}
                   label="Streak atual"
                   value={`${gamification.streak_current} dias`}
-                  iconBg="bg-orange-100 dark:bg-orange-900/30"
+                  iconBg="bg-primary/10"
                 />
                 <StatCard
-                  icon={<Trophy className="h-4 w-4 text-amber-500" />}
+                  icon={<Trophy className="h-4 w-4 text-theme-brand" />}
                   label="Melhor streak"
                   value={`${gamification.streak_best} dias`}
-                  iconBg="bg-amber-100 dark:bg-amber-900/30"
+                  iconBg="bg-primary/10"
                 />
               </div>
             )}
@@ -700,9 +747,9 @@ const Perfil = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 pb-5">
-                <InfoRow emoji="📚" label="Idioma" value={student?.language || "—"} />
+                <InfoRow icon={Globe} label="Idioma" value={student?.language || "—"} />
                 <InfoRow
-                  emoji="🎯"
+                  icon={Target}
                   label="Nível"
                   value={
                     student?.level_name
@@ -711,17 +758,17 @@ const Perfil = () => {
                   }
                 />
                 <InfoRow
-                  emoji="📅"
+                  icon={CalendarDays}
                   label="Matrícula"
                   value={formatDate(student?.enrollment_date || null)}
                 />
                 <InfoRow
-                  emoji="✅"
+                  icon={GraduationCap}
                   label="Total de aulas"
                   value={`${completedClasses} ${completedClasses === 1 ? "aula" : "aulas"}`}
                 />
                 <InfoRow
-                  emoji="📝"
+                  icon={PenLine}
                   label="Exercícios feitos"
                   value={`${exercisesDone} ${exercisesDone === 1 ? "exercício" : "exercícios"}`}
                 />
@@ -756,7 +803,7 @@ const Perfil = () => {
                     href={`/certificado/${cert.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                    className="shrink-0 flex items-center gap-1 text-xs font-bold text-theme-brand hover:underline"
                   >
                     Ver <ExternalLink className="h-3 w-3" />
                   </a>
@@ -781,16 +828,26 @@ const Perfil = () => {
                     key={badge.id}
                     onClick={() => setSelectedBadge(badge)}
                     className={cn(
-                      "flex flex-col items-center gap-1 p-2 rounded-xl border transition-all",
+                      "group flex flex-col items-center gap-1 p-2 rounded-xl border transition-all",
                       badge.earned
-                        ? "border-primary/20 bg-primary/5 hover:border-primary/40"
-                        : "border-border bg-muted/20 opacity-50 hover:opacity-70"
+                        ? "border-[var(--theme-button-bg)] bg-[var(--theme-button-bg)] cursor-pointer"
+                        : "border-border bg-muted/20 opacity-50 cursor-default"
                     )}
                   >
-                    <span className={cn("text-2xl", !badge.earned && "grayscale")}>
-                      {badge.earned ? badge.icon : <Lock className="h-5 w-5 text-muted-foreground" />}
+                    <span className="flex items-center justify-center h-7 w-7">
+                      {(() => {
+                        if (!badge.earned) return <Lock className="h-5 w-5 text-muted-foreground" />;
+                        const Icon = BADGE_ICON_MAP[badge.icon];
+                        if (Icon) return <Icon className="h-6 w-6 text-[var(--theme-button-text)]" />;
+                        return <span className="text-2xl">{badge.icon}</span>;
+                      })()}
                     </span>
-                    <span className="text-[10px] text-center leading-tight text-muted-foreground font-light line-clamp-2">
+                    <span className={cn(
+                      "text-[10px] text-center leading-tight font-light line-clamp-2 transition-colors",
+                      badge.earned
+                        ? "text-[var(--theme-button-text)]"
+                        : "text-muted-foreground"
+                    )}>
                       {badge.name}
                     </span>
                   </button>
@@ -805,16 +862,21 @@ const Perfil = () => {
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedBadge(null)}>
             <div className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
               <div className="text-center">
-                <span className={cn("text-5xl block mb-2", !selectedBadge.earned && "grayscale opacity-50")}>
-                  {selectedBadge.earned ? selectedBadge.icon : "🔒"}
-                </span>
+                <div className="flex justify-center mb-2">
+                  {(() => {
+                    if (!selectedBadge.earned) return <Lock className="h-12 w-12 text-muted-foreground opacity-50" />;
+                    const Icon = BADGE_ICON_MAP[selectedBadge.icon];
+                    if (Icon) return <Icon className="h-12 w-12 text-theme-brand" />;
+                    return <span className="text-5xl">{selectedBadge.icon}</span>;
+                  })()}
+                </div>
                 <p className="font-bold text-lg">{selectedBadge.name}</p>
                 {selectedBadge.description && (
                   <p className="text-sm text-muted-foreground mt-1">{selectedBadge.description}</p>
                 )}
               </div>
               {selectedBadge.earned ? (
-                <p className="text-center text-xs text-green-600 font-bold">
+                <p className="text-center text-xs text-theme-brand font-bold">
                   ✓ Conquistado em {new Date(selectedBadge.earned_at!).toLocaleDateString("pt-BR")}
                 </p>
               ) : (
@@ -824,7 +886,7 @@ const Perfil = () => {
               )}
               <button
                 onClick={() => setSelectedBadge(null)}
-                className="w-full text-center text-sm text-primary font-bold py-2"
+                className="w-full text-center text-sm text-theme-brand font-bold py-2"
               >
                 Fechar
               </button>
@@ -851,8 +913,8 @@ const Perfil = () => {
                       <span className={cn(
                         "text-xs font-bold px-2 py-0.5 rounded-full",
                         rec.status === "reviewed"
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                          ? "bg-primary/10 text-theme-brand"
+                          : "bg-muted text-muted-foreground"
                       )}>
                         {rec.status === "reviewed" ? "Avaliado" : "Pendente"}
                       </span>
@@ -862,7 +924,7 @@ const Perfil = () => {
                       <div className="space-y-1">
                         <div className="flex gap-0.5">
                           {[1, 2, 3, 4, 5].map(s => (
-                            <span key={s} className={cn("text-base", rec.teacher_score! >= s ? "text-yellow-400" : "text-muted-foreground/30")}>★</span>
+                            <span key={s} className={cn("text-base", rec.teacher_score! >= s ? "text-theme-brand" : "text-muted-foreground/30")}>★</span>
                           ))}
                         </div>
                         {rec.teacher_feedback && (
@@ -951,9 +1013,9 @@ const Perfil = () => {
 
 // ── Small helper component ─────────────────────────────────────────────────
 
-const InfoRow = ({ emoji, label, value }: { emoji: string; label: string; value: string }) => (
+const InfoRow = ({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) => (
   <div className="flex items-start gap-3">
-    <span className="text-base leading-5 shrink-0">{emoji}</span>
+    <Icon className="h-4 w-4 shrink-0 text-theme-brand mt-0.5" />
     <div className="min-w-0">
       <p className="text-xs text-muted-foreground font-light">{label}</p>
       <p className="text-sm font-medium">{value}</p>

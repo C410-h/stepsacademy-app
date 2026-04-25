@@ -73,6 +73,8 @@ export default {
         'theme-text':    'var(--theme-text)',
         'theme-on-primary': 'var(--theme-text-on-primary)',
         'theme-on-accent':  'var(--theme-text-on-accent)',
+        'theme-brand':   'hsl(var(--theme-brand))',
+        'theme-on-brand': 'hsl(var(--theme-on-brand))',
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

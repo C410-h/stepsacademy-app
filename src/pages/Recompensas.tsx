@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGamification } from "@/contexts/GamificationContext";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "@/hooks/use-toast";
-import { ShoppingBag, Clock, CheckCircle2, Lock, Trophy, Zap } from "lucide-react";
+import { ShoppingBag, Clock, CheckCircle2, Lock, Trophy, Zap, Flame, Coins, Tag, CalendarDays, Gift, BookOpen, PenLine, Target, Mic, Star, CalendarCheck, GraduationCap, Medal, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subDays, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -81,10 +81,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   brinde:    "Brinde",
 };
 
-const CATEGORY_EMOJIS: Record<string, string> = {
-  desconto:  "🏷️",
-  aula_extra: "📅",
-  brinde:    "🎁",
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  desconto:   Tag,
+  aula_extra: CalendarDays,
+  brinde:     Gift,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -93,12 +93,18 @@ const STATUS_LABELS: Record<string, string> = {
   delivered: "Entregue",
 };
 
-const EVENT_ICONS: Record<string, string> = {
-  lesson_complete:  "📚",
-  exercise_correct: "✏️",
-  daily_mission:    "🎯",
-  streak_bonus:     "🔥",
-  speaking:         "🎤",
+const EVENT_ICONS: Record<string, React.ElementType> = {
+  lesson_complete:  BookOpen,
+  exercise_correct: PenLine,
+  daily_mission:    Target,
+  streak_bonus:     Flame,
+  speaking:         Mic,
+};
+
+const BADGE_ICON_MAP: Record<string, React.ElementType> = {
+  star: Star, footprints: Star, mic: Mic, flame: Flame, zap: Zap,
+  trophy: Trophy, book: BookOpen, calendar: CalendarCheck,
+  graduation: GraduationCap, medal: Medal, target: Target,
 };
 
 const CONDITION_LABELS: Record<string, (v: number) => string> = {
@@ -386,7 +392,7 @@ const Recompensas = () => {
   // ── Redeem ────────────────────────────────────────────────────────────────
   const handleRedeem = async () => {
     if (!confirmItem || !studentId) return;
-    if (gamification.coins < confirmItem.coins_cost) {
+    if (gami.coins < confirmItem.coins_cost) {
       toast({ title: "Coins insuficientes", description: "Ganhe mais coins completando exercícios!", variant: "destructive" });
       setConfirmItem(null);
       return;
@@ -394,7 +400,7 @@ const Recompensas = () => {
     setRedeeming(true);
     try {
       await db.from("student_gamification").update({
-        coins: gamification.coins - confirmItem.coins_cost,
+        coins: gami.coins - confirmItem.coins_cost,
         updated_at: new Date().toISOString(),
       }).eq("student_id", studentId);
 
@@ -423,7 +429,8 @@ const Recompensas = () => {
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const { streak_current, streak_best } = gamification;
+  const gami = gamification;
+  const { streak_current, streak_best } = gami;
   const streakProgress = streak_current === 0 ? 0 : ((streak_current % 7) / 7) * 100;
   const daysToBonus    = streak_current === 0 ? 7 : streak_current % 7 === 0 ? 0 : 7 - (streak_current % 7);
   const myRankPos      = ranking.find(e => e.isMe)?.rank ?? myRankEntry?.rank ?? null;
@@ -445,29 +452,29 @@ const Recompensas = () => {
         {/* ── Page Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Recompensas</h1>
-          <div className="flex items-center gap-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-full px-3 py-1.5">
-            <span className="text-base leading-none">🪙</span>
-            <span className="text-sm font-bold text-yellow-700 dark:text-yellow-300">
-              {gamification.coins.toLocaleString("pt-BR")}
+          <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-full px-3 py-1.5">
+            <Coins className="h-4 w-4 text-theme-brand" />
+            <span className="text-sm font-bold text-theme-brand">
+              {gami.coins.toLocaleString("pt-BR")}
             </span>
-            <span className="text-xs text-yellow-600 dark:text-yellow-400 font-light">coins</span>
+            <span className="text-xs text-theme-brand/70 font-light">coins</span>
           </div>
         </div>
 
         {/* ── Streak (above tabs, always visible) ──────────────────────────── */}
         <section className="space-y-2">
           <h2 className="text-base font-bold">Sequência</h2>
-          <Card>
+          <Card style={{ background: "var(--theme-primary)" }}>
             <CardContent className="pt-5 space-y-4">
               {isLoading ? (
-                <Skeleton className="h-36 w-full rounded-lg" />
+                <Skeleton className="h-36 w-full rounded-lg opacity-30" />
               ) : streak_current === 0 ? (
                 <div className="py-5 text-center space-y-2">
-                  <span className="text-4xl">🔥</span>
-                  <p className="text-sm font-medium">Pratique hoje para começar sua sequência!</p>
+                  <Flame className="h-10 w-10 mx-auto" style={{ color: "var(--theme-accent)" }} />
+                  <p className="text-sm font-medium text-primary-foreground">Pratique hoje para começar sua sequência!</p>
                   {streak_best > 0 && (
-                    <p className="text-xs text-muted-foreground font-light">
-                      Seu recorde: <span className="font-bold text-foreground">{streak_best} dias</span>
+                    <p className="text-xs font-light" style={{ color: "var(--theme-accent)" }}>
+                      Seu recorde: <span className="font-bold">{streak_best} dias</span>
                     </p>
                   )}
                 </div>
@@ -478,28 +485,28 @@ const Recompensas = () => {
                       <span className="text-5xl font-bold" style={{ color: "var(--theme-accent)" }}>
                         {streak_current}
                       </span>
-                      <span className="text-base text-muted-foreground font-light">dias</span>
+                      <span className="text-base font-light text-primary-foreground/70">dias</span>
                     </div>
-                    <span className="text-4xl select-none">🔥</span>
+                    <Flame className="h-10 w-10" style={{ color: "var(--theme-accent)" }} />
                   </div>
                   <div className="space-y-1.5">
-                    <Progress value={daysToBonus === 0 ? 100 : streakProgress} className="h-2" />
-                    <p className="text-xs text-muted-foreground font-light">
+                    <Progress value={daysToBonus === 0 ? 100 : streakProgress} className="h-2 bg-primary-foreground/20 [&>div]:bg-accent" />
+                    <p className="text-xs font-light text-primary-foreground/70">
                       {daysToBonus === 0
-                        ? "🎉 Você atingiu um bônus hoje!"
+                        ? "Você atingiu um bônus hoje!"
                         : `${daysToBonus} dia${daysToBonus !== 1 ? "s" : ""} para o próximo bônus`}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground font-light">
+                  <p className="text-xs font-light text-primary-foreground/70">
                     Seu recorde:{" "}
-                    <span className="font-bold text-foreground">{streak_best} dias</span>
+                    <span className="font-bold text-primary-foreground">{streak_best} dias</span>
                   </p>
                 </>
               )}
 
               {/* 14-day activity calendar */}
               <div>
-                <p className="text-[11px] text-muted-foreground font-light mb-2">Últimos 14 dias</p>
+                <p className="text-[11px] font-light mb-2 text-primary-foreground/60">Últimos 14 dias</p>
                 <div className="flex gap-1.5">
                   {last14.map(({ key, label }) => {
                     const active  = activeDays.has(key);
@@ -510,8 +517,8 @@ const Recompensas = () => {
                         title={label}
                         className={cn(
                           "flex-1 aspect-square rounded-md transition-all",
-                          active ? "" : "bg-muted/60",
-                          isToday && "ring-2 ring-offset-1 ring-primary/40"
+                          active ? "" : "bg-white/15",
+                          isToday && "ring-2 ring-offset-1 ring-white/40"
                         )}
                         style={active
                           ? { background: "var(--theme-accent)", opacity: isToday ? 1 : 0.8 }
@@ -558,7 +565,7 @@ const Recompensas = () => {
                   onClick={() => setCategoryFilter(cat)}
                   className={cn("shrink-0 text-xs", categoryFilter === cat && "bg-primary text-primary-foreground")}
                 >
-                  {cat === "all" ? "Todos" : `${CATEGORY_EMOJIS[cat] || ""} ${CATEGORY_LABELS[cat] || cat}`}
+                  {cat === "all" ? "Todos" : (() => { const Icon = CATEGORY_ICONS[cat]; return <>{Icon && <Icon className="h-3 w-3 mr-1 inline" />}{CATEGORY_LABELS[cat] || cat}</>; })()}
                 </Button>
               ))}
             </div>
@@ -579,7 +586,7 @@ const Recompensas = () => {
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 {filtered.map(item => {
-                  const canAfford = gamification.coins >= item.coins_cost;
+                  const canAfford = gami.coins >= item.coins_cost;
                   return (
                     <Card
                       key={item.id}
@@ -590,14 +597,14 @@ const Recompensas = () => {
                       onClick={() => setConfirmItem(item)}
                     >
                       <CardContent className="p-4 flex flex-col gap-2 flex-1">
-                        <div className="text-3xl text-center py-2">
+                        <div className="flex justify-center py-2">
                           {item.image_url ? (
-                            <img src={item.image_url} alt={item.title} className="h-12 w-12 object-contain mx-auto" />
+                            <img src={item.image_url} alt={item.title} className="h-12 w-12 object-contain" />
                           ) : (
-                            CATEGORY_EMOJIS[item.category] || "🎁"
+                            (() => { const Icon = CATEGORY_ICONS[item.category] ?? Gift; return <Icon className="h-10 w-10 text-theme-brand" />; })()
                           )}
                         </div>
-                        <Badge variant="secondary" className="text-[10px] w-fit">
+                        <Badge className="text-[10px] w-fit bg-primary/10 text-theme-brand border-primary/20 hover:bg-primary/10">
                           {CATEGORY_LABELS[item.category] || item.category}
                         </Badge>
                         <p className="text-sm font-bold leading-tight">{item.title}</p>
@@ -605,8 +612,8 @@ const Recompensas = () => {
                           <p className="text-xs text-muted-foreground font-light line-clamp-2">{item.description}</p>
                         )}
                         <div className="mt-auto pt-2 flex items-center gap-1">
-                          <span className="text-sm">🪙</span>
-                          <span className={cn("text-sm font-bold", canAfford ? "text-yellow-600" : "text-muted-foreground")}>
+                          <Coins className="h-3.5 w-3.5 text-theme-brand/60 shrink-0" />
+                          <span className={cn("text-sm font-bold", canAfford ? "text-theme-brand" : "text-muted-foreground")}>
                             {item.coins_cost.toLocaleString("pt-BR")}
                           </span>
                         </div>
@@ -635,7 +642,7 @@ const Recompensas = () => {
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{(r.store_items as any)?.title || "—"}</p>
                         <p className="text-xs text-muted-foreground font-light">
-                          🪙 {r.coins_spent} · {new Date(r.redeemed_at).toLocaleDateString("pt-BR")}
+                          <Coins className="inline h-3 w-3 mr-0.5 text-theme-brand/60" />{r.coins_spent} · {new Date(r.redeemed_at).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
                       <Badge
@@ -672,7 +679,7 @@ const Recompensas = () => {
                   className={cn(
                     "text-xs px-3 py-1 rounded-full border transition-colors",
                     rankFilter === f
-                      ? "border-primary text-primary bg-primary/10 font-semibold"
+                      ? "border-primary text-theme-brand bg-primary/10 font-semibold"
                       : "border-border text-muted-foreground hover:border-muted-foreground"
                   )}
                 >
@@ -680,7 +687,7 @@ const Recompensas = () => {
                 </button>
               ))}
               {myRankPos && (
-                <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-theme-brand">
                   {myRankPos}° lugar
                 </span>
               )}
@@ -708,9 +715,9 @@ const Recompensas = () => {
                     {/* Podium top 3 */}
                     {ranking.length >= 1 && (
                       <div className="flex items-end justify-center gap-2 pt-2 pb-5">
-                        {ranking[1] && <PodiumItem entry={ranking[1]} podiumHeight="h-20" medal="🥈" />}
-                        <PodiumItem entry={ranking[0]} podiumHeight="h-28" medal="🥇" crown />
-                        {ranking[2] && <PodiumItem entry={ranking[2]} podiumHeight="h-14" medal="🥉" />}
+                        {ranking[1] && <PodiumItem entry={ranking[1]} podiumHeight="h-20" medalColor="#9CA3AF" medalSize="h-6 w-6" crown={false} />}
+                        <PodiumItem entry={ranking[0]} podiumHeight="h-28" medalColor="#FFD700" medalSize="h-7 w-7" crown />
+                        {ranking[2] && <PodiumItem entry={ranking[2]} podiumHeight="h-14" medalColor="#CD7C2F" medalSize="h-5 w-5" crown={false} />}
                       </div>
                     )}
                     {/* Positions 4–10 */}
@@ -744,17 +751,17 @@ const Recompensas = () => {
         {activeTab === "conquistas" && (
           <div className="space-y-6">
             {/* Stat cards */}
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-24 w-28 shrink-0 rounded-xl" />
                 ))
               ) : (
                 <>
-                  <StatCard icon="⚡" label="XP Total" value={gamification.xp_total.toLocaleString("pt-BR")} accent />
-                  <StatCard icon="🪙" label="Coins"    value={gamification.coins.toLocaleString("pt-BR")} />
-                  <StatCard icon="🔥" label="Streak"   value={`${streak_current} dias`} />
-                  <StatCard icon="🏆" label="Posição"  value={myRankPos ? `${myRankPos}°` : "—"} />
+                  <StatCard icon={Zap}    label="XP Total" value={gami.xp_total.toLocaleString("pt-BR")} accent />
+                  <StatCard icon={Coins}  label="Coins"    value={gami.coins.toLocaleString("pt-BR")} />
+                  <StatCard icon={Flame}  label="Streak"   value={`${streak_current} dias`} />
+                  <StatCard icon={Trophy} label="Posição"  value={myRankPos ? `${myRankPos}°` : "—"} />
                 </>
               )}
             </div>
@@ -790,19 +797,22 @@ const Recompensas = () => {
                       <button
                         key={badge.id}
                         onClick={() => setSelectedBadge(badge)}
-                        className="flex flex-col items-center gap-1 p-2.5 rounded-xl border border-border/60 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                        className="group flex flex-col items-center gap-1 p-2.5 rounded-xl border border-border/60 hover:border-primary hover:bg-primary transition-colors"
                       >
                         <div className="relative">
-                          <span className={cn("text-2xl leading-none block", !earned && "grayscale opacity-35")}>
-                            {badge.icon}
-                          </span>
+                          {(() => {
+                            const Icon = BADGE_ICON_MAP[badge.icon];
+                            return Icon
+                              ? <Icon className={cn("h-6 w-6 transition-colors", earned ? "text-theme-brand group-hover:text-accent" : "text-muted-foreground/40 group-hover:text-accent/50")} />
+                              : <span className={cn("text-2xl leading-none block", !earned && "grayscale opacity-35")}>{badge.icon}</span>;
+                          })()}
                           {!earned && (
-                            <Lock className="absolute -bottom-0.5 -right-1 h-3 w-3 text-muted-foreground/60" />
+                            <Lock className="absolute -bottom-0.5 -right-1 h-3 w-3 text-muted-foreground/60 group-hover:text-accent/50 transition-colors" />
                           )}
                         </div>
                         <span className={cn(
-                          "text-[9px] leading-tight font-medium text-center line-clamp-2",
-                          earned ? "text-foreground" : "text-muted-foreground"
+                          "text-[9px] leading-tight font-medium text-center line-clamp-2 transition-colors",
+                          earned ? "text-foreground group-hover:text-accent" : "text-muted-foreground group-hover:text-accent/50"
                         )}>
                           {badge.name}
                         </span>
@@ -832,9 +842,7 @@ const Recompensas = () => {
                     <div className="divide-y">
                       {xpEvents.map(ev => (
                         <div key={ev.id} className="flex items-center gap-3 py-3">
-                          <span className="text-lg shrink-0 w-6 text-center">
-                            {EVENT_ICONS[ev.event_type] ?? "⚡"}
-                          </span>
+                          {(() => { const Icon = EVENT_ICONS[ev.event_type] ?? Zap; return <Icon className="h-4 w-4 shrink-0 text-theme-brand" />; })()}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium truncate">
                               {ev.description || ev.event_type.replace(/_/g, " ")}
@@ -843,7 +851,7 @@ const Recompensas = () => {
                               {format(new Date(ev.created_at), "d MMM yyyy 'às' HH:mm", { locale: ptBR })}
                             </p>
                           </div>
-                          <span className="text-xs font-bold text-green-600 dark:text-green-400 shrink-0">
+                          <span className="text-xs font-bold text-theme-brand shrink-0">
                             +{ev.xp} XP
                           </span>
                         </div>
@@ -886,8 +894,8 @@ const Recompensas = () => {
               {confirmItem.description && (
                 <p className="text-center text-sm text-muted-foreground">{confirmItem.description}</p>
               )}
-              <div className="flex items-center justify-center gap-2 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <span className="text-xl">🪙</span>
+              <div className="flex items-center justify-center gap-2 py-2 bg-primary/5 rounded-lg">
+                <Coins className="h-5 w-5 text-theme-brand/60" />
                 <p className="text-sm">
                   Você vai usar <span className="font-bold">{confirmItem.coins_cost.toLocaleString("pt-BR")} coins</span>.
                 </p>
@@ -895,7 +903,7 @@ const Recompensas = () => {
               <p className="text-xs text-center text-muted-foreground">
                 Saldo após resgate:{" "}
                 <span className="font-bold">
-                  {(gamification.coins - confirmItem.coins_cost).toLocaleString("pt-BR")} coins
+                  {(gami.coins - confirmItem.coins_cost).toLocaleString("pt-BR")} coins
                 </span>
               </p>
             </div>
@@ -907,7 +915,7 @@ const Recompensas = () => {
             <Button
               className="bg-primary text-white"
               onClick={handleRedeem}
-              disabled={redeeming || !confirmItem || gamification.coins < (confirmItem?.coins_cost ?? 0)}
+              disabled={redeeming || !confirmItem || gami.coins < (confirmItem?.coins_cost ?? 0)}
             >
               {redeeming ? "Processando..." : "Confirmar resgate"}
             </Button>
@@ -956,29 +964,29 @@ const Recompensas = () => {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 const StatCard = ({
-  icon, label, value, accent,
+  icon: Icon, label, value, accent,
 }: {
-  icon: string; label: string; value: string; accent?: boolean;
+  icon: React.ElementType; label: string; value: string; accent?: boolean;
 }) => (
   <div className={cn(
-    "shrink-0 w-28 rounded-xl border p-3 flex flex-col gap-1",
+    "rounded-xl border p-3 flex flex-col gap-1",
     accent ? "border-primary/30 bg-primary/5" : "bg-card border-border"
   )}>
-    <span className="text-xl">{icon}</span>
+    <Icon className={cn("h-5 w-5", accent ? "text-theme-brand" : "text-muted-foreground")} />
     <p className="text-[11px] text-muted-foreground font-light leading-tight">{label}</p>
-    <p className={cn("text-lg font-bold leading-tight tabular-nums", accent && "text-primary")}>
+    <p className={cn("text-lg font-bold leading-tight tabular-nums", accent && "text-theme-brand")}>
       {value}
     </p>
   </div>
 );
 
 const PodiumItem = ({
-  entry, podiumHeight, medal, crown,
+  entry, podiumHeight, medalColor, medalSize = "h-5 w-5", crown,
 }: {
-  entry: RankingEntry; podiumHeight: string; medal: string; crown?: boolean;
+  entry: RankingEntry; podiumHeight: string; medalColor: string; medalSize?: string; crown?: boolean;
 }) => (
   <div className="flex flex-col items-center gap-1 flex-1 max-w-[90px]">
-    {crown && <span className="text-xl -mb-1">👑</span>}
+    {crown && <Crown className="h-5 w-5 text-theme-brand -mb-1" />}
     <Avatar className={cn("ring-2 ring-offset-1 ring-border", crown ? "h-12 w-12" : "h-9 w-9")}>
       <AvatarImage src={entry.avatar_url || undefined} />
       <AvatarFallback
@@ -994,16 +1002,16 @@ const PodiumItem = ({
     </Avatar>
     <p className={cn(
       "text-[10px] font-semibold truncate max-w-full text-center leading-tight",
-      entry.isMe && "text-primary"
+      entry.isMe && "text-theme-brand"
     )}>
       {entry.name}{entry.isMe && " (eu)"}
     </p>
     <div className={cn(
       "w-full rounded-t-lg flex flex-col items-center justify-end pb-2 pt-1 gap-0.5",
       podiumHeight,
-      crown ? "bg-yellow-50 dark:bg-yellow-950/30" : "bg-muted/50"
+      crown ? "bg-primary/10" : "bg-muted/50"
     )}>
-      <span className="text-lg">{medal}</span>
+      <Medal className={medalSize} style={{ color: medalColor }} />
       <span className="text-[9px] font-bold text-muted-foreground tabular-nums">
         {entry.xp_total.toLocaleString("pt-BR")} XP
       </span>
@@ -1028,14 +1036,14 @@ const RankRow = ({ entry }: { entry: RankingEntry }) => (
         {abbr(entry.name)}
       </AvatarFallback>
     </Avatar>
-    <p className={cn("flex-1 text-sm font-medium truncate", entry.isMe && "text-primary")}>
+    <p className={cn("flex-1 text-sm font-medium truncate", entry.isMe && "text-theme-brand")}>
       {entry.name}
       {entry.isMe && <span className="ml-1 text-xs font-normal opacity-70">(você)</span>}
     </p>
     <div className="flex items-center gap-1 shrink-0">
       <Zap
         className="h-3 w-3"
-        style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }}
+        style={{ fill: "var(--theme-brand-on-bg)", color: "var(--theme-brand-on-bg)" }}
       />
       <span className="text-xs font-bold tabular-nums">
         {entry.xp_total.toLocaleString("pt-BR")}

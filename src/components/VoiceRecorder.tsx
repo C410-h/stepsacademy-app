@@ -211,7 +211,8 @@ const VoiceRecorder = ({ studentId, stepId, onSent }: VoiceRecorderProps) => {
       {/* Idle state */}
       {recorderState === "idle" && (
         <Button
-          className="w-full bg-primary text-primary-foreground font-bold"
+          className="w-full font-bold"
+          style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}
           onClick={startRecording}
         >
           <Mic className="h-4 w-4 mr-2" />
@@ -261,10 +262,7 @@ const VoiceRecorder = ({ studentId, stepId, onSent }: VoiceRecorderProps) => {
                 Regravar
               </Button>
               <Button
-                className={cn(
-                  "flex-1 text-sm font-bold bg-primary text-primary-foreground",
-                  recorderState === "sending" && "opacity-70"
-                )}
+                className={cn("flex-1 text-sm font-bold bg-primary text-primary-foreground", recorderState === "sending" && "opacity-70")}
                 onClick={handleSend}
                 disabled={recorderState === "sending"}
               >

@@ -9,6 +9,7 @@ import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp, Coins, Gift }
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useTheme } from "@/contexts/ThemeContext";
 import CompleteProfileModal, { MissingField } from "@/components/CompleteProfileModal";
 import PushNotificationModal from "@/components/PushNotificationModal";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,11 +25,13 @@ const navItems = [
 
 const StudentLayout = ({ children }: { children: ReactNode }) => {
   const { profile } = useAuth();
+  const { theme } = useTheme();
   const { gamification } = useGamification();
   const { showPaymentAlert, diasOverdue, isCorporate } = usePaymentAlert();
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+  const logoSrc = theme === "bonjour" ? "/brand/logo-reto-cream.webp" : "/brand/logo-reto-darkpurple.webp";
 
   // Verifica campos faltando no perfil — apenas para alunos
   useEffect(() => {
@@ -62,7 +65,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
         {/* Logo */}
         <div className="px-5 py-4 border-b">
           <Link to="/">
-            <img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-16 w-auto object-contain -my-3" />
+            <img src={logoSrc} alt="steps academy" className="h-16 w-auto object-contain -my-3" />
           </Link>
         </div>
 
@@ -77,7 +80,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
                 cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
                   isActive
-                    ? "bg-primary/10 text-primary font-semibold"
+                    ? "bg-primary/10 text-theme-brand font-semibold"
                     : "text-muted-foreground font-normal hover:text-foreground hover:bg-muted"
                 )
               }
@@ -104,7 +107,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
               {gamification.studentId && (
                 <div className="flex items-center gap-0.5 mt-0.5">
                   <Zap className="h-3 w-3 shrink-0" style={{ fill: "var(--theme-accent)", color: "var(--theme-accent)" }} />
-                  <span className="text-xs font-semibold" style={{ color: "var(--theme-primary)" }}>
+                  <span className="text-xs font-semibold" style={{ color: "var(--theme-brand-on-bg)" }}>
                     {gamification.xp_total.toLocaleString("pt-BR")} XP
                   </span>
                 </div>
@@ -117,7 +120,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
 
       {/* ── Mobile Top Header ───────────────────────────────────── */}
       <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-16 w-auto object-contain -my-3" /></Link>
+        <Link to="/"><img src={logoSrc} alt="steps academy" className="h-16 w-auto object-contain -my-3" /></Link>
         <div className="flex items-center gap-1.5">
           <LanguageSwitcher direction="down" />
           {gamification.studentId && (

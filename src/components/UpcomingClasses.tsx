@@ -182,8 +182,8 @@ function SwipeableAction({
           {primaryIcon}
         </div>
         <span
-          className="text-sm font-bold text-white"
-          style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s" }}
+          className="text-sm font-bold"
+          style={{ opacity: progress > 0.3 ? 1 : 0, transition: "opacity 0.12s", color: "var(--theme-button-text)" }}
         >
           {primaryLabel}
         </span>
@@ -277,12 +277,7 @@ const UpcomingClasses = () => {
   const { toast } = useToast();
 
   const [loading, setLoading]       = useState(false);
-  const [events, setEvents]         = useState<ClassEvent[]>(
-    import.meta.env.DEV ? [
-      { id: "dev-1", title: "Aula individual", start: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), end: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 55 * 60 * 1000).toISOString(), meet_link: null, description: null, class_type: "individual", is_rescheduled: false, is_holiday: false, holiday_name: null },
-      { id: "dev-2", title: "Aula individual | Turma A", start: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 + 55 * 60 * 1000).toISOString(), meet_link: "https://meet.google.com", description: null, class_type: "group", is_rescheduled: false, is_holiday: false, holiday_name: null },
-    ] : []
-  );
+  const [events, setEvents]         = useState<ClassEvent[]>([]);
   const [teacherName, setTeacherName] = useState<string>("");
   const [sessionByTime, setSessionByTime] = useState<Map<string, ClassSession>>(new Map());
 
@@ -570,7 +565,7 @@ const UpcomingClasses = () => {
           ) : null;
 
           const isIndividual = ev.class_type !== "group";
-          const hasSession = !!matchedSession || import.meta.env.DEV;
+          const hasSession = !!matchedSession;
           const canReschedule = hasSession && !hasPassed(ev.start) && isIndividual;
           const canAbsence = hasSession && !hasPassed(ev.start) && !studentCancelled;
 
@@ -584,7 +579,7 @@ const UpcomingClasses = () => {
               } : undefined}
               primaryIcon={<CalendarClock className="h-5 w-5" />}
               primaryLabel="Remarcar"
-              primaryColor="var(--theme-primary)"
+              primaryColor="var(--theme-button-bg)"
               onSecondary={canAbsence ? () => { setSheetEvent(ev); setConfirming(true); setSheetOpen(true); } : undefined}
               secondaryIcon={<BanIcon className="h-5 w-5" />}
               secondaryLabel="Informar ausência"

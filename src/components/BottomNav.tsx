@@ -50,7 +50,7 @@ const BottomNav = () => {
                 cn(
                   "flex flex-col items-center gap-0.5 py-2 px-3 min-w-[44px] min-h-[44px] justify-center",
                   "text-[10px] font-light transition-colors",
-                  isActive ? "text-[var(--theme-primary)]" : "text-muted-foreground"
+                  isActive ? "text-[var(--theme-brand-on-bg)]" : "text-muted-foreground"
                 )
               }
             >
@@ -61,7 +61,7 @@ const BottomNav = () => {
                     style={{
                       width: 22,
                       height: 22,
-                      color: isActive ? "var(--theme-primary)" : undefined,
+                      color: isActive ? "var(--theme-brand-on-bg)" : undefined,
                     }}
                   />
                   <span className="leading-tight">{label}</span>
@@ -115,7 +115,7 @@ const BottomNav = () => {
                 cn(
                   "flex flex-col items-center gap-0.5 py-2 px-3 min-w-[44px] min-h-[44px] justify-center",
                   "text-[10px] font-light transition-colors",
-                  isActive ? "text-[var(--theme-primary)]" : "text-muted-foreground"
+                  isActive ? "text-[var(--theme-brand-on-bg)]" : "text-muted-foreground"
                 )
               }
             >
@@ -126,7 +126,7 @@ const BottomNav = () => {
                     style={{
                       width: 22,
                       height: 22,
-                      color: isActive ? "var(--theme-primary)" : undefined,
+                      color: isActive ? "var(--theme-brand-on-bg)" : undefined,
                     }}
                   />
                   <span className="leading-tight">{label}</span>
@@ -145,7 +145,7 @@ const BottomNav = () => {
               style={{
                 width: 26,
                 height: 26,
-                outline: perfilActive ? "2px solid var(--theme-primary)" : "2px solid transparent",
+                outline: perfilActive ? "2px solid var(--theme-brand-on-bg)" : "2px solid transparent",
                 outlineOffset: 1,
               }}
             >
@@ -162,7 +162,7 @@ const BottomNav = () => {
             </Avatar>
             <span
               className="leading-tight"
-              style={{ color: perfilActive ? "var(--theme-primary)" : undefined }}
+              style={{ color: perfilActive ? "var(--theme-brand-on-bg)" : undefined }}
             >
               Perfil
             </span>
