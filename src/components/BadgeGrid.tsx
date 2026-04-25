@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Lock, Star, Flame, Mic, BookOpen, GraduationCap, Trophy, Target, Zap, Medal, CalendarCheck } from "lucide-react";
+import { Lock, Star, Flame, Mic, BookOpen, GraduationCap, Trophy, Target, Zap, Medal, CalendarCheck, Rocket, Gem } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -34,6 +34,8 @@ const BADGE_ICON_MAP: Record<string, React.ElementType> = {
   zap:         Zap,
   medal:       Medal,
   calendar:    CalendarCheck,
+  rocket:      Rocket,
+  gem:         Gem,
 };
 
 // ── Condition descriptions ─────────────────────────────────────────────────────
