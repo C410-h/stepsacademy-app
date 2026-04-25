@@ -1565,7 +1565,7 @@ const Admin = () => {
                     className={cn(
                       "flex items-center gap-2.5 text-sm px-3 py-2 rounded-md w-full text-left transition-colors",
                       activeTab === item.value
-                        ? "bg-primary/10 text-primary font-medium"
+                        ? "bg-[var(--theme-accent)]/15 text-[var(--theme-brand-on-bg)] font-medium"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
@@ -1599,28 +1599,28 @@ const Admin = () => {
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <Users className="h-4 w-4 text-primary" />
+                        <Users className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
                         <span className="text-xs text-muted-foreground font-light">Alunos ativos</span>
                       </div>
-                      <p className="text-3xl font-bold text-primary">{metrics?.activeStudents ?? 0}</p>
+                      <p className="text-3xl font-bold text-[var(--theme-brand-on-bg)]">{metrics?.activeStudents ?? 0}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <GraduationCap className="h-4 w-4 text-primary" />
+                        <GraduationCap className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
                         <span className="text-xs text-muted-foreground font-light">Professores</span>
                       </div>
-                      <p className="text-3xl font-bold text-primary">{metrics?.totalTeachers ?? 0}</p>
+                      <p className="text-3xl font-bold text-[var(--theme-brand-on-bg)]">{metrics?.totalTeachers ?? 0}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <CalendarCheck className="h-4 w-4 text-primary" />
+                        <CalendarCheck className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
                         <span className="text-xs text-muted-foreground font-light">Aulas este mês</span>
                       </div>
-                      <p className="text-3xl font-bold text-primary">{metrics?.classesThisMonth ?? 0}</p>
+                      <p className="text-3xl font-bold text-[var(--theme-brand-on-bg)]">{metrics?.classesThisMonth ?? 0}</p>
                     </CardContent>
                   </Card>
                   <Card className={metrics?.studentsInactive7d ? "border-orange-300" : ""}>
@@ -1629,7 +1629,7 @@ const Admin = () => {
                         <AlertCircle className="h-4 w-4 text-orange-500" />
                         <span className="text-xs text-muted-foreground font-light">Sem aula (7d)</span>
                       </div>
-                      <p className={`text-3xl font-bold ${metrics?.studentsInactive7d ? "text-orange-500" : "text-primary"}`}>
+                      <p className={`text-3xl font-bold ${metrics?.studentsInactive7d ? "text-orange-500" : "text-[var(--theme-brand-on-bg)]"}`}>
                         {metrics?.studentsInactive7d ?? 0}
                       </p>
                     </CardContent>
@@ -1645,7 +1645,7 @@ const Admin = () => {
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <BookCheck className="h-4 w-4 text-[#C1FE00]" />
+                        <BookCheck className="h-4 w-4 text-[var(--theme-accent)]" />
                         <span className="text-xs text-muted-foreground font-light">Missões hoje</span>
                       </div>
                       <p className="text-2xl font-bold">{engagement?.missionsToday ?? 0}</p>
@@ -1672,7 +1672,7 @@ const Admin = () => {
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <BookOpen className="h-4 w-4 text-primary" />
+                        <BookOpen className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
                         <span className="text-xs text-muted-foreground font-light">Exercícios (7d)</span>
                       </div>
                       <p className="text-2xl font-bold">{engagement?.exercisesWeek ?? 0}</p>
@@ -1756,7 +1756,7 @@ const Admin = () => {
                         <div className="grid grid-cols-4 gap-2">
                           {group.levels.map(lv => (
                             <div key={lv.code} className="text-center bg-muted rounded-lg py-2 px-1">
-                              <p className="text-xs font-bold text-primary">{lv.code}</p>
+                              <p className="text-xs font-bold text-[var(--theme-brand-on-bg)]">{lv.code}</p>
                               <p className="text-lg font-bold">{lv.count}</p>
                               <p className="text-[10px] text-muted-foreground font-light leading-tight">{lv.name}</p>
                             </div>
@@ -1980,7 +1980,7 @@ const Admin = () => {
                             <span className="text-muted-foreground">Professor</span>
                             {selectedStudent.teacherId ? (
                               <button
-                                className="text-primary underline underline-offset-2 hover:opacity-70 transition-opacity"
+                                className="text-[var(--theme-brand-on-bg)] underline underline-offset-2 hover:opacity-70 transition-opacity"
                                 onClick={() => { setStudentDrawerOpen(false); navigate(`/admin/professor/${selectedStudent.teacherId}`); }}
                               >
                                 {selectedStudent.teacherName}
@@ -2144,7 +2144,7 @@ const Admin = () => {
                               <p className="text-xs font-bold">{c.language_name} · {c.level_name}</p>
                               <p className="text-[10px] text-muted-foreground">{new Date(c.issued_at).toLocaleDateString("pt-BR")}</p>
                             </div>
-                            <a href={`/certificado/${c.id}`} target="_blank" className="text-xs text-primary font-bold hover:underline">Ver</a>
+                            <a href={`/certificado/${c.id}`} target="_blank" className="text-xs text-[var(--theme-brand-on-bg)] font-bold hover:underline">Ver</a>
                           </div>
                         ))
                       )}
@@ -2396,7 +2396,7 @@ const Admin = () => {
             ) : (
               <div className="space-y-2">
                 {teachers.map(t => (
-                  <Card key={t.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate(`/admin/professor/${t.id}`)}>
+                  <Card key={t.id} className="cursor-pointer hover:border-[var(--theme-accent)]/40 transition-colors" onClick={() => navigate(`/admin/professor/${t.id}`)}>
                     <CardContent className="p-3">
                       <div className="flex items-start justify-between">
                         <div>
@@ -2526,10 +2526,10 @@ const Admin = () => {
                     </Card>
 
                     {selectedGroup?.id === g.id && (
-                      <Card className="mt-1 border-primary/20 bg-primary/5">
+                      <Card className="mt-1 border-[var(--theme-accent)]/20 bg-[var(--theme-accent)]/5">
                         <CardContent className="p-3 space-y-3">
                           {g.meet_link && (
-                            <a href={g.meet_link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                            <a href={g.meet_link} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--theme-brand-on-bg)] underline flex items-center gap-1">
                               <Globe className="h-3 w-3" />Link do Meet
                             </a>
                           )}
@@ -3173,7 +3173,7 @@ const Admin = () => {
                           <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tags {savingBankTags && <span className="font-normal normal-case">(salvando…)</span>}</p>
                           <div className="flex flex-wrap gap-1.5">
                             {(selectedBankEx.tags || []).map((tag: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
+                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[var(--theme-accent)]/15 text-[var(--theme-brand-on-bg)] border border-[var(--theme-accent)]/30">
                                 {tag}
                                 <button onClick={() => handleRemoveBankTag(idx)} className="hover:text-destructive transition-colors">
                                   <X className="h-2.5 w-2.5" />
@@ -3304,7 +3304,7 @@ const Admin = () => {
                     {adminNotifs.map((n: any) => (
                       <div
                         key={n.id}
-                        className={cn("flex items-start gap-3 py-3 cursor-pointer", !n.read && "bg-primary/5 -mx-6 px-6 rounded")}
+                        className={cn("flex items-start gap-3 py-3 cursor-pointer", !n.read && "bg-[var(--theme-accent)]/8 -mx-6 px-6 rounded")}
                         onClick={() => !n.read && markAdminNotifRead(n.id)}
                       >
                         <div className={cn("h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
@@ -3662,7 +3662,7 @@ const Admin = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-primary" />
+                  <Link2 className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
                   Link de Cadastro
                 </CardTitle>
               </CardHeader>
@@ -3910,7 +3910,7 @@ const Admin = () => {
                 className={cn(
                   "flex items-center gap-3 text-sm px-3 py-2.5 rounded-md w-full text-left transition-colors",
                   activeTab === item.value
-                    ? "bg-primary/10 text-primary font-medium"
+                    ? "bg-[var(--theme-accent)]/15 text-[var(--theme-brand-on-bg)] font-medium"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
