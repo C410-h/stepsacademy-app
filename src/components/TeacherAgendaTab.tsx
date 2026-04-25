@@ -15,7 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -168,6 +168,12 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [loadingSteps, setLoadingSteps]           = useState(false);
   const [pendingStepId, setPendingStepId]         = useState("");
 
+  // Group/duo attendance
+  const [attendees, setAttendees]               = useState<{ student_id: string; name: string; avatar: string | null }[]>([]);
+  const [loadingAttendees, setLoadingAttendees] = useState(false);
+  const [absentIds, setAbsentIds]               = useState<string[]>([]);
+  const [markingGroupCompleted, setMarkingGroupCompleted] = useState(false);
+
   const todayColRef    = useRef<HTMLDivElement>(null);
   const scrollContRef  = useRef<HTMLDivElement>(null);
 
@@ -266,7 +272,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   // Load step options when session drawer opens for a session without a linked step
   useEffect(() => {
     setPendingStepId("");
-    if (!selected || selected.step_id) { setStepOptions([]); return; }
+    if (!selected || selected.step_id || selected.student_id === null) { setStepOptions([]); return; }
 
     setLoadingSteps(true);
     (async () => {
@@ -274,7 +280,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
         const { data: student } = await supabase
           .from("students")
           .select("level_id, current_step_id")
-          .eq("id", selected.student_id)
+          .eq("id", selected.student_id!)
           .single();
 
         if (!student?.level_id) { setStepOptions([]); return; }
@@ -312,6 +318,67 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       }
     })();
   }, [selected?.id, selected?.step_id]);
+
+  // Load attendees for duo/group sessions (student_id === null)
+  useEffect(() => {
+    setAttendees([]);
+    setAbsentIds([]);
+    if (!selected || selected.student_id !== null) return;
+
+    setLoadingAttendees(true);
+    (async () => {
+      try {
+        // Try session_attendees first (populated at session creation)
+        const { data: existing } = await (supabase as any)
+          .from("session_attendees")
+          .select("student_id")
+          .eq("session_id", selected.id);
+
+        let studentIds: string[] = existing?.length
+          ? existing.map((a: any) => a.student_id)
+          : [];
+
+        if (!studentIds.length) {
+          // Fallback: load via group_id
+          const { data: sess } = await (supabase as any)
+            .from("class_sessions")
+            .select("group_id")
+            .eq("id", selected.id)
+            .single();
+          if (sess?.group_id) {
+            const { data: gs } = await (supabase as any)
+              .from("group_students")
+              .select("student_id")
+              .eq("group_id", sess.group_id);
+            studentIds = (gs ?? []).map((g: any) => g.student_id);
+          }
+        }
+
+        if (!studentIds.length) { setAttendees([]); return; }
+
+        const { data: studentRows } = await supabase
+          .from("students")
+          .select("id, user_id")
+          .in("id", studentIds);
+
+        const userIds = (studentRows ?? []).map((s: any) => s.user_id);
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("id, name, avatar_url")
+          .in("id", userIds);
+
+        const profileMap = new Map((profileRows ?? []).map((p: any) => [p.id, p]));
+        setAttendees(
+          (studentRows ?? []).map((s: any) => {
+            const prof = profileMap.get(s.user_id) as any;
+            return { student_id: s.id, name: prof?.name ?? "Aluno", avatar: prof?.avatar_url ?? null };
+          })
+        );
+      } finally {
+        setLoadingAttendees(false);
+      }
+    })();
+  }, [selected?.id]);
 
   // Fetch GCal events once on mount — covers next 30 days, filtered per week in render
   useEffect(() => {
@@ -444,6 +511,30 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       toast({ title: 'Erro ao confirmar presença', variant: 'destructive' });
     }
     setMarkingAttended(false);
+  };
+
+  const handleMarkGroupCompleted = async () => {
+    if (!selected) return;
+    setMarkingGroupCompleted(true);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("complete-class-session", {
+        body: { session_id: selected.id, absent_student_ids: absentIds },
+        headers: { Authorization: `Bearer ${authSession?.access_token}` },
+      });
+      if (error) throw error;
+      patchSession(selected.id, { status: "completed" });
+      const presentCount = attendees.length - absentIds.length;
+      toast({
+        title: "Aula marcada como realizada!",
+        description: absentIds.length > 0
+          ? `${presentCount} presente${presentCount !== 1 ? "s" : ""}, ${absentIds.length} ausente${absentIds.length !== 1 ? "s" : ""}.`
+          : `${attendees.length} aluno${attendees.length !== 1 ? "s" : ""} com presença confirmada.`,
+      });
+    } catch {
+      toast({ title: "Erro ao marcar aula", variant: "destructive" });
+    }
+    setMarkingGroupCompleted(false);
   };
 
   const handleMarkCompleted = async () => {
@@ -1029,6 +1120,71 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     {cfg.label}
                   </span>
 
+                  {/* Attendance list — only for group/duo sessions */}
+                  {selected.student_id === null && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5" />
+                        Presença dos alunos
+                      </p>
+                      {loadingAttendees ? (
+                        <div className="space-y-2">
+                          <div className="animate-pulse h-10 bg-muted rounded-lg" />
+                          <div className="animate-pulse h-10 bg-muted rounded-lg" />
+                        </div>
+                      ) : attendees.length === 0 ? (
+                        <p className="text-xs text-muted-foreground font-light">Nenhum aluno encontrado nesta turma.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {attendees.map(a => {
+                            const isAbsent = absentIds.includes(a.student_id);
+                            return (
+                              <div key={a.student_id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Avatar className="h-7 w-7 shrink-0">
+                                    <AvatarImage src={a.avatar || undefined} />
+                                    <AvatarFallback className="bg-primary text-primary-foreground text-[9px]">
+                                      {abbr(a.name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm font-medium truncate">{a.name.split(" ")[0]}</span>
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                  <button
+                                    disabled={selected.status === "completed"}
+                                    onClick={() => setAbsentIds(prev => prev.filter(id => id !== a.student_id))}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                                      !isAbsent
+                                        ? "bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300"
+                                        : "bg-muted text-muted-foreground hover:bg-teal-50 dark:hover:bg-teal-950/20",
+                                      selected.status === "completed" && "opacity-60 cursor-default"
+                                    )}
+                                  >
+                                    Presente
+                                  </button>
+                                  <button
+                                    disabled={selected.status === "completed"}
+                                    onClick={() => setAbsentIds(prev => prev.includes(a.student_id) ? prev : [...prev, a.student_id])}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                                      isAbsent
+                                        ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                                        : "bg-muted text-muted-foreground hover:bg-red-50 dark:hover:bg-red-950/20",
+                                      selected.status === "completed" && "opacity-60 cursor-default"
+                                    )}
+                                  >
+                                    Falta
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Student absence warning */}
                   {selected.student_cancel_requested_at && (
                     <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3.5 py-3">
@@ -1068,8 +1224,8 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     </Button>
                   )}
 
-                  {/* Step da aula */}
-                  <div className="space-y-2">
+                  {/* Step da aula — individual sessions only */}
+                  {selected.student_id !== null && <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5" />
                       Passo da aula
@@ -1154,47 +1310,65 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                         O passo será vinculado ao marcar como realizada.
                       </p>
                     )}
-                  </div>
+                  </div>}
 
                   {/* Actions */}
                   <div className="space-y-2">
-                    {canMarkAttended && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2 border-teal-400/60 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/20"
-                        onClick={handleMarkAttended}
-                        disabled={markingAttended}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        {markingAttended ? "Salvando..." : "Marcar como presente"}
-                      </Button>
-                    )}
-                    {canConfirmMissed && (
-                      <Button
-                        variant="destructive"
-                        className="w-full gap-2"
-                        onClick={handleConfirmMissed}
-                        disabled={confirmingMissed}
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                        {confirmingMissed ? "Confirmando..." : "Confirmar falta"}
-                      </Button>
-                    )}
-                    {canMarkCompleted && (hasStep || !stepOptions.length) && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2 border-green-400/60 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/20"
-                        onClick={handleMarkCompleted}
-                        disabled={markingCompleted}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        {markingCompleted ? "Salvando..." : "Marcar como realizada"}
-                      </Button>
-                    )}
-                    {canMarkCompleted && !hasStep && stepOptions.length > 0 && (
-                      <p className="text-center text-[11px] text-muted-foreground font-light">
-                        Selecione o passo acima para liberar esta ação.
-                      </p>
+                    {selected.student_id === null ? (
+                      // ── Group / duo session actions ──
+                      canMarkCompleted && (
+                        <Button
+                          variant="outline"
+                          className="w-full gap-2 border-green-400/60 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/20"
+                          onClick={handleMarkGroupCompleted}
+                          disabled={markingGroupCompleted || loadingAttendees}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          {markingGroupCompleted ? "Salvando..." : "Marcar como realizada"}
+                        </Button>
+                      )
+                    ) : (
+                      // ── Individual session actions ──
+                      <>
+                        {canMarkAttended && (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 border-teal-400/60 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/20"
+                            onClick={handleMarkAttended}
+                            disabled={markingAttended}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            {markingAttended ? "Salvando..." : "Marcar como presente"}
+                          </Button>
+                        )}
+                        {canConfirmMissed && (
+                          <Button
+                            variant="destructive"
+                            className="w-full gap-2"
+                            onClick={handleConfirmMissed}
+                            disabled={confirmingMissed}
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                            {confirmingMissed ? "Confirmando..." : "Confirmar falta"}
+                          </Button>
+                        )}
+                        {canMarkCompleted && (hasStep || !stepOptions.length) && (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 border-green-400/60 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/20"
+                            onClick={handleMarkCompleted}
+                            disabled={markingCompleted}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            {markingCompleted ? "Salvando..." : "Marcar como realizada"}
+                          </Button>
+                        )}
+                        {canMarkCompleted && !hasStep && stepOptions.length > 0 && (
+                          <p className="text-center text-[11px] text-muted-foreground font-light">
+                            Selecione o passo acima para liberar esta ação.
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
 
