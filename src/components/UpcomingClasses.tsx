@@ -352,7 +352,7 @@ const UpcomingClasses = () => {
         if (futureToInsert.length > 0) {
           await (supabase as any)
             .from("class_sessions")
-            .upsert(futureToInsert, { onConflict: "google_event_id", ignoreDuplicates: true });
+            .upsert(futureToInsert, { onConflict: "google_event_id,student_id", ignoreDuplicates: true });
         }
 
         // Past events this month → status "completed"
@@ -387,7 +387,7 @@ const UpcomingClasses = () => {
         if (pastToInsert.length > 0) {
           await (supabase as any)
             .from("class_sessions")
-            .upsert(pastToInsert, { onConflict: "google_event_id", ignoreDuplicates: true });
+            .upsert(pastToInsert, { onConflict: "google_event_id,student_id", ignoreDuplicates: true });
         }
       }
 
