@@ -10,34 +10,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Camera, Pencil, Check, X, Zap, Flame, Trophy, Lock, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight, LogOut, Coins, Globe, Target, CalendarDays, GraduationCap, PenLine, Star, BookOpen, Medal } from "lucide-react";
+import { Camera, Pencil, Check, X, Zap, Flame, Trophy, ExternalLink, Mic, CreditCard, HelpCircle, ChevronRight, LogOut, Coins, Globe, Target, CalendarDays, GraduationCap, PenLine } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PAYMENT_ENABLED } from "@/lib/featureFlags";
 import { differenceInDays } from "date-fns";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { LanguageSwitcherList } from "@/components/LanguageSwitcher";
+import BadgeGrid, { BadgeItem } from "@/components/BadgeGrid";
 import {
   isPushSupported,
   isPushSubscribed,
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/lib/pushNotifications";
-
-// ─── Badge icon map ───────────────────────────────────────────────────────────
-
-const BADGE_ICON_MAP: Record<string, React.ElementType> = {
-  star: Star,
-  flame: Flame,
-  mic: Mic,
-  book: BookOpen,
-  graduation: GraduationCap,
-  trophy: Trophy,
-  target: Target,
-  zap: Zap,
-  medal: Medal,
-  calendar: CalendarDays,
-};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -63,16 +49,6 @@ interface Gamification {
   streak_best: number;
 }
 
-interface BadgeItem {
-  id: string;
-  name: string;
-  description: string | null;
-  icon: string;
-  condition_type: string;
-  condition_value: number;
-  earned: boolean;
-  earned_at: string | null;
-}
 
 interface CertItem {
   id: string;
@@ -314,7 +290,6 @@ const Perfil = () => {
   const [completedClasses, setCompletedClasses] = useState<number>(0);
   const [exercisesDone, setExercisesDone] = useState<number>(0);
   const [badges, setBadges] = useState<BadgeItem[]>([]);
-  const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
   const [certificates, setCertificates] = useState<CertItem[]>([]);
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
@@ -431,9 +406,11 @@ const Perfil = () => {
           const earnedMap = new Map<string, string>();
           (earnedBadgesRes.data || []).forEach((eb: any) => earnedMap.set(eb.badge_id, eb.earned_at));
           const merged: BadgeItem[] = allBadgesRes.data.map((b: any) => ({
-            ...b, earned: earnedMap.has(b.id), earned_at: earnedMap.get(b.id) || null,
+            id: b.id, name: b.name, description: b.description,
+            icon: b.icon, condition_type: b.condition_type, condition_value: b.condition_value,
+            earned_at: earnedMap.get(b.id) || null,
           }));
-          merged.sort((a, b) => (b.earned ? 1 : 0) - (a.earned ? 1 : 0));
+          merged.sort((a, b) => (b.earned_at ? 1 : 0) - (a.earned_at ? 1 : 0));
           setBadges(merged);
         }
 
@@ -822,76 +799,9 @@ const Perfil = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-5">
-              <div className="grid grid-cols-4 lg:grid-cols-6 gap-3">
-                {badges.map(badge => (
-                  <button
-                    key={badge.id}
-                    onClick={() => setSelectedBadge(badge)}
-                    className={cn(
-                      "group flex flex-col items-center gap-1 p-2 rounded-xl border transition-all",
-                      badge.earned
-                        ? "border-[var(--theme-button-bg)] bg-[var(--theme-button-bg)] cursor-pointer"
-                        : "border-border bg-muted/20 opacity-50 cursor-default"
-                    )}
-                  >
-                    <span className="flex items-center justify-center h-7 w-7">
-                      {(() => {
-                        if (!badge.earned) return <Lock className="h-5 w-5 text-muted-foreground" />;
-                        const Icon = BADGE_ICON_MAP[badge.icon];
-                        if (Icon) return <Icon className="h-6 w-6 text-[var(--theme-button-text)]" />;
-                        return <span className="text-2xl">{badge.icon}</span>;
-                      })()}
-                    </span>
-                    <span className={cn(
-                      "text-[10px] text-center leading-tight font-light line-clamp-2 transition-colors",
-                      badge.earned
-                        ? "text-[var(--theme-button-text)]"
-                        : "text-muted-foreground"
-                    )}>
-                      {badge.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <BadgeGrid badges={badges} columns={6} />
             </CardContent>
           </Card>
-        )}
-
-        {/* Badge detail dialog */}
-        {selectedBadge && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedBadge(null)}>
-            <div className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-              <div className="text-center">
-                <div className="flex justify-center mb-2">
-                  {(() => {
-                    if (!selectedBadge.earned) return <Lock className="h-12 w-12 text-muted-foreground opacity-50" />;
-                    const Icon = BADGE_ICON_MAP[selectedBadge.icon];
-                    if (Icon) return <Icon className="h-12 w-12 text-theme-brand" />;
-                    return <span className="text-5xl">{selectedBadge.icon}</span>;
-                  })()}
-                </div>
-                <p className="font-bold text-lg">{selectedBadge.name}</p>
-                {selectedBadge.description && (
-                  <p className="text-sm text-muted-foreground mt-1">{selectedBadge.description}</p>
-                )}
-              </div>
-              {selectedBadge.earned ? (
-                <p className="text-center text-xs text-theme-brand font-bold">
-                  ✓ Conquistado em {new Date(selectedBadge.earned_at!).toLocaleDateString("pt-BR")}
-                </p>
-              ) : (
-                <p className="text-center text-xs text-muted-foreground">
-                  Continue praticando para desbloquear esta conquista!
-                </p>
-              )}
-              <button
-                onClick={() => setSelectedBadge(null)}
-                className="w-full text-center text-sm text-theme-brand font-bold py-2"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
         )}
 
         {/* ── Minhas gravações ── */}

@@ -15,10 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "@/hooks/use-toast";
-import { ShoppingBag, Clock, CheckCircle2, Lock, Trophy, Zap, Flame, Coins, Tag, CalendarDays, Gift, BookOpen, PenLine, Target, Mic, Star, CalendarCheck, GraduationCap, Medal, Crown } from "lucide-react";
+import { ShoppingBag, Clock, CheckCircle2, Trophy, Zap, Flame, Coins, Tag, CalendarDays, Gift, BookOpen, PenLine, Target, Mic, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subDays, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import BadgeGrid, { BadgeItem } from "@/components/BadgeGrid";
 
 const db = supabase as any;
 
@@ -55,15 +56,6 @@ interface RankingEntry {
   avatar_url: string | null;
 }
 
-interface BadgeItem {
-  id: string;
-  name: string;
-  icon: string;
-  description: string | null;
-  condition_type: string;
-  condition_value: number;
-  earned_at: string | null;
-}
 
 interface XpEvent {
   id: string;
@@ -101,19 +93,6 @@ const EVENT_ICONS: Record<string, React.ElementType> = {
   speaking:         Mic,
 };
 
-const BADGE_ICON_MAP: Record<string, React.ElementType> = {
-  star: Star, footprints: Star, mic: Mic, flame: Flame, zap: Zap,
-  trophy: Trophy, book: BookOpen, calendar: CalendarCheck,
-  graduation: GraduationCap, medal: Medal, target: Target,
-};
-
-const CONDITION_LABELS: Record<string, (v: number) => string> = {
-  streak:         (v) => `Manter um streak de ${v} dias consecutivos`,
-  xp_total:       (v) => `Acumular ${v.toLocaleString("pt-BR")} XP`,
-  lesson_count:   (v) => `Completar ${v} aulas`,
-  exercise_count: (v) => `Responder ${v} exercícios corretamente`,
-  speaking_count: (v) => `Fazer ${v} atividades de fala`,
-};
 
 const abbr = (name: string) =>
   name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -152,7 +131,6 @@ const Recompensas = () => {
 
   // ── Conquistas ────────────────────────────────────────────────────────────
   const [badges, setBadges]               = useState<BadgeItem[]>([]);
-  const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
   const [badgesLoading, setBadgesLoading] = useState(false);
   const [badgesLoaded, setBadgesLoaded]   = useState(false);
   const [xpEvents, setXpEvents]           = useState<XpEvent[]>([]);
@@ -777,49 +755,14 @@ const Recompensas = () => {
                 )}
               </div>
 
-              {badgesLoading ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <Skeleton key={i} className="h-24 rounded-xl" />
-                  ))}
-                </div>
-              ) : badges.length === 0 ? (
+              {badges.length === 0 && !badgesLoading ? (
                 <Card>
                   <CardContent className="py-8 text-center text-sm text-muted-foreground font-light">
                     Nenhuma conquista cadastrada ainda.
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  {badges.map(badge => {
-                    const earned = badge.earned_at !== null;
-                    return (
-                      <button
-                        key={badge.id}
-                        onClick={() => setSelectedBadge(badge)}
-                        className="group flex flex-col items-center gap-1 p-2.5 rounded-xl border border-border/60 hover:border-primary hover:bg-primary transition-colors"
-                      >
-                        <div className="relative">
-                          {(() => {
-                            const Icon = BADGE_ICON_MAP[badge.icon];
-                            return Icon
-                              ? <Icon className={cn("h-6 w-6 transition-colors", earned ? "text-theme-brand group-hover:text-accent" : "text-muted-foreground/40 group-hover:text-accent/50")} />
-                              : <span className={cn("text-2xl leading-none block", !earned && "grayscale opacity-35")}>{badge.icon}</span>;
-                          })()}
-                          {!earned && (
-                            <Lock className="absolute -bottom-0.5 -right-1 h-3 w-3 text-muted-foreground/60 group-hover:text-accent/50 transition-colors" />
-                          )}
-                        </div>
-                        <span className={cn(
-                          "text-[9px] leading-tight font-medium text-center line-clamp-2 transition-colors",
-                          earned ? "text-foreground group-hover:text-accent" : "text-muted-foreground group-hover:text-accent/50"
-                        )}>
-                          {badge.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <BadgeGrid badges={badges} loading={badgesLoading} />
               )}
             </section>
 
@@ -923,40 +866,6 @@ const Recompensas = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ── Badge Detail Modal ────────────────────────────────────────────────── */}
-      <Dialog open={!!selectedBadge} onOpenChange={o => !o && setSelectedBadge(null)}>
-        {selectedBadge && (
-          <DialogContent className="max-w-[320px] mx-auto rounded-2xl">
-            <DialogHeader className="items-center text-center space-y-3 pt-2">
-              <span className={cn("text-5xl", !selectedBadge.earned_at && "grayscale opacity-40")}>
-                {selectedBadge.icon}
-              </span>
-              <DialogTitle className="text-base">{selectedBadge.name}</DialogTitle>
-              {selectedBadge.description && (
-                <DialogDescription className="text-sm font-light text-center">
-                  {selectedBadge.description}
-                </DialogDescription>
-              )}
-            </DialogHeader>
-            <div className="space-y-3 pb-2">
-              <div className="rounded-xl bg-muted/50 p-3 text-sm font-light text-center text-muted-foreground">
-                {CONDITION_LABELS[selectedBadge.condition_type]?.(selectedBadge.condition_value)
-                  ?? `${selectedBadge.condition_type}: ${selectedBadge.condition_value}`}
-              </div>
-              {selectedBadge.earned_at ? (
-                <p className="text-center text-xs text-green-600 dark:text-green-400 font-medium">
-                  ✅ Desbloqueada em{" "}
-                  {format(new Date(selectedBadge.earned_at), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                </p>
-              ) : (
-                <p className="text-center text-xs text-muted-foreground font-light">
-                  🔒 Ainda não desbloqueada
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
     </StudentLayout>
   );
 };
