@@ -1645,7 +1645,7 @@ const Admin = () => {
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <BookCheck className="h-4 w-4 text-[var(--theme-accent)]" />
+                        <BookCheck className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
                         <span className="text-xs text-muted-foreground font-light">Missões hoje</span>
                       </div>
                       <p className="text-2xl font-bold">{engagement?.missionsToday ?? 0}</p>
