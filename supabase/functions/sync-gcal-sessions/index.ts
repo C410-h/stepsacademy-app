@@ -42,7 +42,11 @@ async function resolveAccessToken(profileId: string): Promise<string | null> {
   return tokenData.access_token
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const body = await req.json().catch(() => ({}))
+  const timeMin = body.timeMin ?? new Date().toISOString()
+  const timeMax = body.timeMax ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
   try {
     const { data: teachers } = await supabase
       .from('profiles')
@@ -68,9 +72,6 @@ Deno.serve(async () => {
       const alias = aliases[normalized]
       return alias ? (langMap.get(alias) ?? null) : null
     }
-
-    const timeMin = new Date().toISOString()
-    const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
     // Load holiday dates to skip during sync
     const { data: holidayRows } = await supabase
