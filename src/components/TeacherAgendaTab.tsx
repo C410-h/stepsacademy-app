@@ -34,7 +34,8 @@ interface GCalEvent {
 
 interface SessionWithStudent {
   id: string;
-  student_id: string;
+  student_id: string | null;
+  language_id: string | null;
   scheduled_at: string;
   ends_at: string | null;
   rescheduled_at: string | null;
@@ -181,13 +182,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -208,19 +209,27 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     }
 
     // Enrich with student info
-    const studentIds = [...new Set(raw.map(s => s.student_id))] as string[];
-    const { data: studentRows } = await supabase
-      .from("students")
-      .select("id, user_id, languages!students_language_id_fkey(name)")
-      .in("id", studentIds);
+    const studentIds = [...new Set(raw.map(s => s.student_id).filter(Boolean))] as string[];
+    const groupLanguageIds = [...new Set(
+      raw.filter(s => !s.student_id && s.language_id).map(s => s.language_id)
+    )] as string[];
 
-    const studentMap = new Map((studentRows || []).map((s: any) => [s.id, s]));
-    const userIds    = (studentRows || []).map((s: any) => s.user_id);
+    const [{ data: studentRows }, { data: groupLangRows }] = await Promise.all([
+      studentIds.length
+        ? supabase.from("students").select("id, user_id, languages!students_language_id_fkey(name)").in("id", studentIds)
+        : Promise.resolve({ data: [] }),
+      groupLanguageIds.length
+        ? (supabase as any).from("languages").select("id, name").in("id", groupLanguageIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
-    const { data: profileRows } = await supabase
-      .from("profiles")
-      .select("id, name, avatar_url")
-      .in("id", userIds);
+    const studentMap  = new Map((studentRows  || []).map((s: any) => [s.id, s]));
+    const groupLangMap = new Map((groupLangRows || []).map((l: any) => [l.id, l.name]));
+    const userIds     = (studentRows || []).map((s: any) => s.user_id);
+
+    const { data: profileRows } = userIds.length
+      ? await supabase.from("profiles").select("id, name, avatar_url").in("id", userIds)
+      : { data: [] };
 
     const profileMap = new Map((profileRows || []).map((p: any) => [p.id, p]));
 
@@ -229,9 +238,9 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       const prof = st ? profileMap.get(st.user_id) as any : null;
       return {
         ...s,
-        student_name:   prof?.name       || "Aluno",
+        student_name:   prof?.name       || "",
         student_avatar: prof?.avatar_url || null,
-        language_name:  (st as any)?.languages?.name || "",
+        language_name:  (st as any)?.languages?.name || groupLangMap.get(s.language_id) || "",
       };
     });
 
@@ -519,7 +528,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
           <p className="text-xs font-bold tabular-nums">
             {formatTime(e.start)}{e.end ? ` – ${formatTime(e.end)}` : ""}
           </p>
-          {name && <p className="text-xs font-medium truncate">{name.split(" ")[0]}</p>}
+          {name && <p className="text-xs font-medium truncate">{name}</p>}
           {language && <p className="text-[10px] text-muted-foreground font-light">{language}</p>}
           {holidayName ? (
             <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
@@ -963,7 +972,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                         <div className="flex items-center gap-1.5 group">
                           <div>
                             <p className="font-bold">{selected.title || selected.student_name}</p>
-                            {selected.title && (
+                            {selected.title && selected.student_name && (
                               <p className="text-[11px] text-muted-foreground font-light">{selected.student_name}</p>
                             )}
                             {selected.language_name && (
