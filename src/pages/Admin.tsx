@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,6 +152,7 @@ const NotifCard = ({ ns, notifLog, savingNotif, onSave }: NotifCardProps) => {
 
 const Admin = () => {
   const { profile, signOut } = useAuth();
+  const { theme: activeTheme } = useTheme();
   const navigate = useNavigate();
 
   // ── Reference data
@@ -1494,7 +1496,7 @@ const Admin = () => {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <a href="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32" /></a>
+          <a href="/"><img src={activeTheme === "bonjour" ? "/brand/logo-reto-cream.webp" : "/brand/logo-reto-darkpurple.webp"} alt="steps academy" className="h-32" /></a>
         </div>
         <div className="flex items-center gap-3">
           <button
