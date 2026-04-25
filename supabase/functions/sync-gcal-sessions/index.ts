@@ -168,55 +168,43 @@ Deno.serve(async () => {
             .eq('student_id', matched[0].studentId)
             .eq('status', 'scheduled')
 
-        } else if (matched.length === 2) {
-          // ── Dupla ──────────────────────────────────────────────────────────
-          const [a, b] = matched.sort((x, y) => x.name.localeCompare(y.name))
-          const title  = `${a.name.split(' ')[0]} & ${b.name.split(' ')[0]}`
-          sessionData  = {
-            google_event_id: e.id,
-            student_id:  null,
-            teacher_id:  teacher.id,
-            scheduled_at: scheduledAt,
-            ends_at:     endsAt,
-            meet_link:   meetLink,
-            language_id: languageId,
-            title,
-            status:      'scheduled',
-          }
-          // Partial unique index covers google_event_id WHERE student_id IS NULL
-          await supabase.from('class_sessions').upsert(sessionData, {
-            onConflict: 'google_event_id',
-            ignoreDuplicates: true,
-          })
-          await supabase.from('class_sessions')
-            .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
-            .eq('google_event_id', e.id)
-            .is('student_id', null)
-            .eq('status', 'scheduled')
-
         } else {
-          // ── Grupo (0 ou 3+ matches) ────────────────────────────────────────
-          // Grupo usa o identificador do título GCal como display name.
-          sessionData  = {
-            google_event_id: e.id,
-            student_id:  null,
-            teacher_id:  teacher.id,
-            scheduled_at: scheduledAt,
-            ends_at:     endsAt,
-            meet_link:   meetLink,
-            language_id: languageId,
-            title:       identifier,
-            status:      'scheduled',
+          // ── Dupla ou Grupo (student_id IS NULL) ────────────────────────────
+          // ON CONFLICT can't reference partial indexes via Supabase JS, so we
+          // do an explicit existence check instead of upsert.
+          let title: string
+          if (matched.length === 2) {
+            const [a, b] = matched.sort((x, y) => x.name.localeCompare(y.name))
+            title = `${a.name.split(' ')[0]} & ${b.name.split(' ')[0]}`
+          } else {
+            title = identifier
           }
-          await supabase.from('class_sessions').upsert(sessionData, {
-            onConflict: 'google_event_id',
-            ignoreDuplicates: true,
-          })
-          await supabase.from('class_sessions')
-            .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
+
+          const { data: existing } = await supabase
+            .from('class_sessions')
+            .select('id')
             .eq('google_event_id', e.id)
             .is('student_id', null)
-            .eq('status', 'scheduled')
+            .maybeSingle()
+
+          if (!existing) {
+            await supabase.from('class_sessions').insert({
+              google_event_id: e.id,
+              student_id:  null,
+              teacher_id:  teacher.id,
+              scheduled_at: scheduledAt,
+              ends_at:     endsAt,
+              meet_link:   meetLink,
+              language_id: languageId,
+              title,
+              status:      'scheduled',
+            })
+          } else {
+            await supabase.from('class_sessions')
+              .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
+              .eq('id', existing.id)
+              .eq('status', 'scheduled')
+          }
         }
 
         synced++
