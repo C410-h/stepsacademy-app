@@ -3,6 +3,7 @@ import { Bell, BellOff, Zap, Calendar, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { subscribeToPush, isPushSupported, isPushSubscribed } from "@/lib/pushNotifications";
+import { supabase } from "@/integrations/supabase/client";
 
 const STORAGE_KEY = "push_modal_dismissed_at";
 const SNOOZE_DAYS = 7;
@@ -30,7 +31,13 @@ export default function PushNotificationModal({ studentId }: Props) {
     isPushSubscribed().then(subscribed => {
       if (!subscribed) {
         // Delay a few seconds so it doesn't pop immediately on load
-        const t = setTimeout(() => setOpen(true), 3000);
+        const t = setTimeout(() => {
+          setOpen(true);
+          // Log that the modal was shown
+          if (studentId) {
+            (supabase as any).from("push_prompt_log").insert({ student_id: studentId, event: "shown" });
+          }
+        }, 3000);
         return () => clearTimeout(t);
       }
     });
@@ -42,16 +49,21 @@ export default function PushNotificationModal({ studentId }: Props) {
     const success = await subscribeToPush(studentId);
     setLoading(false);
     if (success) {
+      (supabase as any).from("push_prompt_log").insert({ student_id: studentId, event: "enabled" });
       setOpen(false);
     } else {
       // Permission denied by browser — don't show again
       localStorage.setItem(STORAGE_KEY, String(Date.now()));
+      (supabase as any).from("push_prompt_log").insert({ student_id: studentId, event: "dismissed" });
       setOpen(false);
     }
   };
 
   const handleDismiss = () => {
     localStorage.setItem(STORAGE_KEY, String(Date.now()));
+    if (studentId) {
+      (supabase as any).from("push_prompt_log").insert({ student_id: studentId, event: "dismissed" });
+    }
     setOpen(false);
   };
 

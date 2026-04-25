@@ -94,6 +94,9 @@ const NOTIF_TYPE_LABELS: Record<string, string> = {
   step_completed: "Passo concluído",
   level_completed: "Nível concluído",
   welcome: "Boas-vindas",
+  class_reminder_30min: "Lembrete de aula — 30 min antes",
+  class_reminder_10min: "Lembrete de aula — 10 min antes",
+  class_reminder_start: "Lembrete de aula — início",
 };
 
 // ─── NotifCard (extracted to keep hooks at top level) ────────────────────────
@@ -331,6 +334,7 @@ const Admin = () => {
   const [notifLog, setNotifLog] = useState<any[]>([]);
   const [notifLoading, setNotifLoading] = useState(true);
   const [adminNotifs, setAdminNotifs] = useState<any[]>([]);
+  const [pushPromptStats, setPushPromptStats] = useState<any[]>([]);
 
   // ── Manual push notification modal
   const [pushModalOpen, setPushModalOpen] = useState(false);
@@ -440,6 +444,7 @@ const Admin = () => {
     loadNotificationSettings();
     loadNotifLog();
     loadAdminNotifs();
+    loadPushPromptStats();
     loadMaterials();
     loadAllSteps();
     loadAdmins();
@@ -1044,6 +1049,45 @@ const Admin = () => {
     const { data } = await (supabase as any).from("admin_notifications")
       .select("*").order("created_at", { ascending: false }).limit(100);
     setAdminNotifs(data || []);
+  };
+
+  const loadPushPromptStats = async () => {
+    const [{ data: logs }, { data: subs }] = await Promise.all([
+      (supabase as any)
+        .from("push_prompt_log")
+        .select("student_id, event, created_at, students!push_prompt_log_student_id_fkey(profiles!students_user_id_fkey(name))")
+        .order("created_at", { ascending: false }),
+      (supabase as any)
+        .from("push_subscriptions")
+        .select("student_id"),
+    ]);
+    const subscribedIds = new Set((subs || []).map((s: any) => s.student_id));
+    // Group by student
+    const map = new Map<string, any>();
+    for (const row of (logs || [])) {
+      const sid = row.student_id;
+      if (!map.has(sid)) {
+        map.set(sid, {
+          student_id: sid,
+          name: row.students?.profiles?.name ?? "—",
+          subscribed: subscribedIds.has(sid),
+          shown: 0, dismissed: 0, lastDismissed: null,
+        });
+      }
+      const entry = map.get(sid);
+      if (row.event === "shown") entry.shown++;
+      if (row.event === "dismissed") {
+        entry.dismissed++;
+        if (!entry.lastDismissed || row.created_at > entry.lastDismissed) entry.lastDismissed = row.created_at;
+      }
+    }
+    // Sort: not subscribed first, then by most recent dismissal
+    setPushPromptStats(
+      [...map.values()].sort((a, b) => {
+        if (a.subscribed !== b.subscribed) return a.subscribed ? 1 : -1;
+        return (b.lastDismissed ?? "") > (a.lastDismissed ?? "") ? 1 : -1;
+      })
+    );
   };
 
   const markAdminNotifRead = async (id: string) => {
@@ -3290,6 +3334,43 @@ const Admin = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* ── Push subscription tracker ── */}
+            {pushPromptStats.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Push — Alunos que viram o modal
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      {pushPromptStats.filter(s => s.subscribed).length}/{pushPromptStats.length} ativaram
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="divide-y text-sm">
+                    {pushPromptStats.map(s => (
+                      <div key={s.student_id} className="flex items-center gap-3 py-2.5">
+                        <div className={cn(
+                          "h-2 w-2 rounded-full shrink-0",
+                          s.subscribed ? "bg-green-500" : "bg-amber-400"
+                        )} />
+                        <span className="flex-1 font-medium truncate">{s.name}</span>
+                        {s.subscribed ? (
+                          <span className="text-xs text-green-600 font-medium shrink-0">Ativo</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {s.dismissed > 0
+                              ? `Recusou ${s.dismissed}× · ${s.lastDismissed ? new Date(s.lastDismissed).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : ""}`
+                              : `Viu ${s.shown}× · sem resposta`}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">Configurações de notificações push</p>
