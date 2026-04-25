@@ -1095,7 +1095,31 @@ const AulaPage = () => {
               <Button
                 className="w-full font-bold h-12"
                 style={{ background: "var(--theme-button-bg)", color: "var(--theme-button-text)" }}
-                onClick={() => window.open(student.meetLink!, "_blank")}
+                onClick={async () => {
+                  window.open(student.meetLink!, "_blank");
+                  // Mark the nearest scheduled session as attended
+                  try {
+                    const windowStart = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+                    const windowEnd   = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+                    const { data: sessions } = await (supabase as any)
+                      .from("class_sessions")
+                      .select("id")
+                      .eq("student_id", student.id)
+                      .eq("status", "scheduled")
+                      .gte("scheduled_at", windowStart)
+                      .lte("scheduled_at", windowEnd)
+                      .order("scheduled_at", { ascending: true })
+                      .limit(1);
+                    if (sessions?.[0]?.id) {
+                      await (supabase as any)
+                        .from("class_sessions")
+                        .update({ status: "attended" })
+                        .eq("id", sessions[0].id);
+                    }
+                  } catch {
+                    // non-blocking — student still enters the class
+                  }
+                }}
               >
                 <ExternalLink className="h-5 w-5 mr-2" />
                 Entrar na aula

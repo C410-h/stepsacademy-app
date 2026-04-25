@@ -17,12 +17,12 @@ serve(async (req) => {
   )
 
   try {
-    const threshold = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const threshold = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
 
     const { data, error } = await supabase
       .from('class_sessions')
       .update({ status: 'missed_pending' })
-      .eq('status', 'scheduled')
+      .eq('status', 'scheduled')   // 'attended' is intentionally excluded
       .lt('scheduled_at', threshold)
       .select('id, student_id')
 

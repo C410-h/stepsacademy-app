@@ -75,6 +75,7 @@ const DAY_ABBR = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
   scheduled:        { label: "Agendada",       badge: "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300" },
+  attended:         { label: "Presente",        badge: "bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300" },
   completed:        { label: "Realizada",       badge: "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
   rescheduled:      { label: "Remarcada",       badge: "bg-yellow-50 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300" },
   missed_pending:   { label: "Falta pendente",  badge: "bg-[#FEF3C7] text-[#92400E] dark:bg-amber-950/50 dark:text-amber-200" },
@@ -146,6 +147,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [savingNotes, setSavingNotes]             = useState(false);
   const [confirmingMissed, setConfirmingMissed]   = useState(false);
   const [markingCompleted, setMarkingCompleted]   = useState(false);
+  const [markingAttended, setMarkingAttended]     = useState(false);
 
   // Reagendar
   const [rescheduleOpen, setRescheduleOpen]       = useState(false);
@@ -415,6 +417,24 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       toast({ title: "Erro ao confirmar falta", variant: "destructive" });
     }
     setConfirmingMissed(false);
+  };
+
+  const handleMarkAttended = async () => {
+    if (!selected) return;
+    setMarkingAttended(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('class_sessions')
+        .update({ status: 'attended' })
+        .eq('id', selected.id);
+      if (error) throw error;
+      setSelected(prev => prev ? { ...prev, status: 'attended' } : prev);
+      setSessions(prev => prev.map(s => s.id === selected.id ? { ...s, status: 'attended' } : s));
+      toast({ title: 'Presença confirmada!' });
+    } catch {
+      toast({ title: 'Erro ao confirmar presença', variant: 'destructive' });
+    }
+    setMarkingAttended(false);
   };
 
   const handleMarkCompleted = async () => {
@@ -854,8 +874,9 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             const cfg = STATUS_CONFIG[selected.status] ?? { label: selected.status, badge: "bg-muted text-muted-foreground" };
             const sessionDateStr     = start.substring(0, 10);
             const sessionHoliday     = holidays.get(sessionDateStr);
-            const canConfirmMissed   = !sessionHoliday && selected.status === "missed_pending";
-            const canMarkCompleted   = !sessionHoliday && selected.status === "scheduled";
+            const canConfirmMissed   = !sessionHoliday && (selected.status === "missed_pending" || selected.status === "attended");
+            const canMarkAttended    = !sessionHoliday && (selected.status === "scheduled" || selected.status === "missed_pending");
+            const canMarkCompleted   = !sessionHoliday && (selected.status === "scheduled" || selected.status === "attended");
             const hasStep            = !!(selected.step_id || pendingStepId);
             // Group step options by unit for the picker
             const unitGroups = stepOptions.reduce<{ unit_id: string; unit_number: number; unit_title: string | null; steps: StepOption[] }[]>((acc, s) => {
@@ -1058,7 +1079,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                           </div>
                         );
                       })()
-                    ) : (canMarkCompleted || selected.status === "completed") ? (
+                    ) : (canMarkCompleted || selected.status === "attended" || selected.status === "completed") ? (
                       // Step picker — for upcoming sessions (required) or retroactive labeling (optional)
                       <div className="space-y-2">
                         {canMarkCompleted && (
@@ -1128,6 +1149,17 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
 
                   {/* Actions */}
                   <div className="space-y-2">
+                    {canMarkAttended && (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2 border-teal-400/60 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/20"
+                        onClick={handleMarkAttended}
+                        disabled={markingAttended}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {markingAttended ? "Salvando..." : "Marcar como presente"}
+                      </Button>
+                    )}
                     {canConfirmMissed && (
                       <Button
                         variant="destructive"
