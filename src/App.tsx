@@ -88,7 +88,7 @@ const App = () => (
               <Route path="/certificado/:id" element={<Certificado />} />
               <Route path="/planos" element={<Planos />} />
               <Route path="/cadastro" element={<Cadastro />} />
-              <Route path="/acesso" element={<Acesso />} />
+              <Route path="/r/:code" element={<Acesso />} />
               <Route path="/aguardando-ativacao" element={<AguardandoAtivacao />} />
               <Route path="/acesso-suspenso" element={<AcessoSuspensoPage />} />
               <Route path="/privacidade" element={<PrivacyPolicy />} />

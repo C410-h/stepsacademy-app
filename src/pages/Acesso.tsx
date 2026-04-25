@@ -1,21 +1,25 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
 /**
- * Vanity short-link for the registration flow.
- * /acesso → resolves the current active token → redirects to /cadastro?token=xxx
- * If no active token exists, redirects to /cadastro (shows the invite-only page).
+ * Short-link for the registration flow.
+ * /r/:code → looks up token starting with :code → redirects to /cadastro?token=full-uuid
+ * The short code is the first 8 chars of the token UUID — still unguessable, but shareable.
  */
 export default function Acesso() {
   const navigate = useNavigate();
+  const { code } = useParams<{ code: string }>();
 
   useEffect(() => {
+    if (!code) { navigate("/cadastro", { replace: true }); return; }
+
     (supabase as any)
       .from("registration_tokens")
       .select("token")
       .eq("active", true)
+      .ilike("token", `${code}%`)
       .single()
       .then(({ data }: { data: { token: string } | null }) => {
         if (data?.token) {
@@ -24,7 +28,7 @@ export default function Acesso() {
           navigate("/cadastro", { replace: true });
         }
       });
-  }, [navigate]);
+  }, [code, navigate]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
