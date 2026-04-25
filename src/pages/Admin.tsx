@@ -391,16 +391,47 @@ const Admin = () => {
   const [loadingHolidays, setLoadingHolidays] = useState(false);
   const [savingHoliday, setSavingHoliday] = useState(false);
 
+  const [cancellingHoliday, setCancellingHoliday] = useState<string | null>(null);
+
   const loadHolidays = useCallback(async (year: number) => {
     setLoadingHolidays(true);
     const { data } = await (supabase as any)
       .from("national_holidays")
-      .select("id, date, name")
-      .eq("year", year)
+      .select("id, date, name, message, sessions_cancelled, cancelled_at")
+      .gte("date", `${year}-01-01`)
+      .lte("date", `${year}-12-31`)
       .order("date", { ascending: true });
     setHolidays(data || []);
     setLoadingHolidays(false);
   }, []);
+
+  const cancelHolidaySessions = async (holiday: any) => {
+    setCancellingHoliday(holiday.id);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-holiday-sessions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authSession?.access_token}`,
+          },
+          body: JSON.stringify({ date: holiday.date, force: !!holiday.cancelled_at }),
+        }
+      );
+      const result = await res.json();
+      if (result.ok) {
+        toast({ title: `${result.cancelled} aulas canceladas, ${result.notified ?? 0} alunos notificados` });
+        loadHolidays(holidayYear);
+      } else {
+        toast({ title: result.message ?? result.error ?? "Erro ao cancelar", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro ao cancelar aulas", variant: "destructive" });
+    }
+    setCancellingHoliday(null);
+  };
 
   useEffect(() => { loadHolidays(holidayYear); }, [holidayYear, loadHolidays]);
 
@@ -3569,22 +3600,49 @@ const Admin = () => {
                 ) : holidays.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Nenhum feriado cadastrado para {holidayYear}.</p>
                 ) : (
-                  <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                  <div className="space-y-0 max-h-72 overflow-y-auto">
                     {holidays.map(h => (
-                      <div key={h.id} className="flex items-center justify-between text-xs py-1.5 border-b last:border-0">
-                        <div>
-                          <span className="font-medium">
-                            {new Date(h.date + "T12:00:00").toLocaleDateString("pt-BR")}
-                          </span>
-                          <span className="ml-2 text-muted-foreground">{h.name}</span>
+                      <div key={h.id} className="py-2 border-b last:border-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-medium text-xs shrink-0">
+                              {new Date(h.date + "T12:00:00").toLocaleDateString("pt-BR")}
+                            </span>
+                            <span className="text-xs text-muted-foreground truncate">{h.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {h.cancelled_at ? (
+                              <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded-full bg-muted">
+                                {h.sessions_cancelled} canceladas
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => cancelHolidaySessions(h)}
+                                disabled={cancellingHoliday === h.id}
+                                className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                              >
+                                {cancellingHoliday === h.id ? "..." : "Cancelar aulas"}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteHoliday(h.id)}
+                              className="text-destructive/40 hover:text-destructive transition-colors p-1"
+                              aria-label="Remover feriado"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => deleteHoliday(h.id)}
-                          className="text-destructive/50 hover:text-destructive transition-colors p-1"
-                          aria-label="Remover feriado"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {h.message && (
+                          <p className="text-[10px] text-muted-foreground font-light leading-snug line-clamp-2 pl-0.5">
+                            {h.message}
+                          </p>
+                        )}
+                        {h.cancelled_at && (
+                          <p className="text-[10px] text-muted-foreground pl-0.5">
+                            Processado em {new Date(h.cancelled_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

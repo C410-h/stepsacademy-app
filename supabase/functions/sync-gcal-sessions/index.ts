@@ -72,6 +72,14 @@ Deno.serve(async () => {
     const timeMin = new Date().toISOString()
     const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
+    // Load holiday dates to skip during sync
+    const { data: holidayRows } = await supabase
+      .from('national_holidays')
+      .select('date')
+      .gte('date', timeMin.substring(0, 10))
+      .lte('date', timeMax.substring(0, 10))
+    const holidayDates = new Set((holidayRows ?? []).map((h: any) => h.date))
+
     let synced = 0
 
     for (const teacher of teachers ?? []) {
@@ -101,6 +109,10 @@ Deno.serve(async () => {
         const meetLink    = e.hangoutLink ?? null
 
         if (!scheduledAt || !endsAt || !identifier) continue
+
+        // Skip sessions on national holidays
+        const sessionDate = scheduledAt.substring(0, 10)
+        if (holidayDates.has(sessionDate)) continue
 
         // Match students by attendee email (primary + alternate)
         const matched: Array<{ studentId: string; name: string }> = []
