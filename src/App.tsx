@@ -26,6 +26,7 @@ import Recompensas from "./pages/Recompensas";
 import Certificado from "./pages/Certificado";
 import Planos from "./pages/Planos";
 import Cadastro from "./pages/Cadastro";
+import Acesso from "./pages/Acesso";
 import AuthCallback from "./pages/AuthCallback";
 import AguardandoAtivacao from "./pages/AguardandoAtivacao";
 import AcessoSuspensoPage from "./pages/AcessoSuspensoPage";
@@ -87,6 +88,7 @@ const App = () => (
               <Route path="/certificado/:id" element={<Certificado />} />
               <Route path="/planos" element={<Planos />} />
               <Route path="/cadastro" element={<Cadastro />} />
+              <Route path="/acesso" element={<Acesso />} />
               <Route path="/aguardando-ativacao" element={<AguardandoAtivacao />} />
               <Route path="/acesso-suspenso" element={<AcessoSuspensoPage />} />
               <Route path="/privacidade" element={<PrivacyPolicy />} />

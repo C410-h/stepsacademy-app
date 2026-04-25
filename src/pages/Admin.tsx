@@ -3668,7 +3668,7 @@ const Admin = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Compartilhe este link com novos alunos para que possam criar a conta deles. O link é único e pode ser regenerado a qualquer momento.
+                  Compartilhe este link com novos alunos para que possam criar a conta deles. O link curto é permanente — o token muda por baixo automaticamente.
                 </p>
                 {regTokenLoading ? (
                   <div className="space-y-2">
@@ -3680,15 +3680,15 @@ const Admin = () => {
                     <div className="flex gap-2">
                       <Input
                         readOnly
-                        value={`https://stepsacademy.com.br/cadastro?token=${regToken}`}
-                        className="text-xs font-mono text-muted-foreground"
+                        value="https://stepsacademy.com.br/acesso"
+                        className="text-sm font-medium text-foreground"
                       />
                       <Button
                         variant="outline"
                         size="sm"
                         className="shrink-0"
                         onClick={() => {
-                          navigator.clipboard.writeText(`https://stepsacademy.com.br/cadastro?token=${regToken}`);
+                          navigator.clipboard.writeText("https://stepsacademy.com.br/acesso");
                           toast({ title: "Link copiado!", description: "Cole e envie ao novo aluno." });
                         }}
                       >
