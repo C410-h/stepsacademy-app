@@ -85,7 +85,7 @@ interface PaymentRow {
   student_id: string | null;
 }
 
-const LANG_COLORS: Record<string, string> = { "Inglês": "#520A70", "Espanhol": "#F97316", "Libras": "#FF97CB" };
+const LANG_COLORS: Record<string, string> = { "Inglês": "var(--theme-brand-on-bg)", "Espanhol": "#F97316", "Libras": "var(--theme-accent)" };
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
 const NOTIF_TYPE_LABELS: Record<string, string> = {
@@ -1692,11 +1692,11 @@ const Admin = () => {
                   {dashLoading ? <Skeleton className="h-40 w-full" /> : (
                     <ResponsiveContainer width="100%" height={160}>
                       <BarChart data={weeklyClasses} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="week" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip />
-                        <Bar dataKey="aulas" fill="#520A70" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="aulas" fill="var(--theme-brand-on-bg)" radius={[3, 3, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -1711,11 +1711,11 @@ const Admin = () => {
                   <CardContent>
                     <ResponsiveContainer width="100%" height={160}>
                       <BarChart layout="vertical" data={topXpStudents} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis type="number" tick={{ fontSize: 10 }} />
                         <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
                         <Tooltip />
-                        <Bar dataKey="xp" fill="#C1FE00" radius={[0, 3, 3, 0]} />
+                        <Bar dataKey="xp" fill="var(--theme-accent)" radius={[0, 3, 3, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -1942,7 +1942,7 @@ const Admin = () => {
                           {s.teacherName && <p className="text-xs text-muted-foreground">Prof: {s.teacherName}</p>}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-[#C1FE00] text-[#1D1D1B] text-[10px]" : "text-[10px]"}>
+                          <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px]" : "text-[10px]"}>
                             {s.status === "active" ? "ativo" : s.status}
                           </Badge>
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -1971,7 +1971,7 @@ const Admin = () => {
                         <div className="flex justify-between"><span className="text-muted-foreground">Nível</span><span>{selectedStudent.level?.code} — {selectedStudent.level?.name}</span></div>
                         <div className="flex justify-between"><span className="text-muted-foreground">Passo atual</span><span>{selectedStudent.currentStepNumber}</span></div>
                         <div className="flex justify-between"><span className="text-muted-foreground">Status</span>
-                          <Badge variant={selectedStudent.status === "active" ? "default" : "secondary"} className={selectedStudent.status === "active" ? "bg-[#C1FE00] text-[#1D1D1B] text-[10px]" : "text-[10px]"}>
+                          <Badge variant={selectedStudent.status === "active" ? "default" : "secondary"} className={selectedStudent.status === "active" ? "bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px]" : "text-[10px]"}>
                             {selectedStudent.status}
                           </Badge>
                         </div>
@@ -2516,7 +2516,7 @@ const Admin = () => {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant={g.active ? "default" : "secondary"} className={g.active ? "bg-[#C1FE00] text-[#1D1D1B] text-[10px]" : "text-[10px]"}>
+                            <Badge variant={g.active ? "default" : "secondary"} className={g.active ? "bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px]" : "text-[10px]"}>
                               {g.active ? "ativa" : "inativa"}
                             </Badge>
                             <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${selectedGroup?.id === g.id ? "rotate-90" : ""}`} />
@@ -2751,7 +2751,7 @@ const Admin = () => {
                             <div className="flex items-center gap-1 shrink-0">
                               {m.file_url ? (
                                 <a href={m.file_url} target="_blank" rel="noopener noreferrer">
-                                  <Badge variant="default" className="bg-[#C1FE00] text-[#1D1D1B] text-[10px] cursor-pointer">✓ Arquivo</Badge>
+                                  <Badge variant="default" className="bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px] cursor-pointer">✓ Arquivo</Badge>
                                 </a>
                               ) : (
                                 <Badge variant="secondary" className="text-[10px]">Sem arquivo</Badge>
