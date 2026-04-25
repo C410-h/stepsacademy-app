@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
  * /r/:code → looks up token starting with :code → redirects to /cadastro?token=full-uuid
  * The short code is the first 8 chars of the token UUID — still unguessable, but shareable.
  */
-export default function Acesso() {
+export default function ShortLink() {
   const navigate = useNavigate();
   const { code } = useParams<{ code: string }>();
 
