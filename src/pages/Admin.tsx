@@ -1715,7 +1715,7 @@ const Admin = () => {
                         <XAxis type="number" tick={{ fontSize: 10 }} />
                         <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
                         <Tooltip />
-                        <Bar dataKey="xp" fill="var(--theme-accent)" radius={[0, 3, 3, 0]} />
+                        <Bar dataKey="xp" fill="var(--theme-brand-on-bg)" radius={[0, 3, 3, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
