@@ -73,6 +73,21 @@ Deno.serve(async (req) => {
       return alias ? (langMap.get(alias) ?? null) : null
     }
 
+    // Parse event title into lang/identifier/isRescheduled
+    // Format A: "Inglês | Pedro"  → standard session
+    // Format B: "Aula de inglês (Pedro)" → student-rescheduled session
+    function parseTitle(summary: string): { langPart: string; identifier: string; isRescheduled: boolean } | null {
+      if (summary.includes(' | ')) {
+        const [langPart, identPart] = summary.split(' | ')
+        const identifier = identPart?.trim()
+        if (!identifier) return null
+        return { langPart: langPart.trim(), identifier, isRescheduled: false }
+      }
+      const m = summary.match(/^aula de (.+?) \((.+)\)$/i)
+      if (m) return { langPart: m[1].trim(), identifier: m[2].trim(), isRescheduled: true }
+      return null
+    }
+
     // Load holiday dates to skip during sync
     const { data: holidayRows } = await supabase
       .from('national_holidays')
@@ -97,14 +112,16 @@ Deno.serve(async (req) => {
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
       const calData = await res.json()
-      const events = (calData.items ?? []).filter(
-        (e: any) => (e.summary ?? '').includes(' | ')
-      )
+      const events = (calData.items ?? []).filter((e: any) => {
+        const s = e.summary ?? ''
+        return s.includes(' | ') || /^aula de .+ \(.+\)$/i.test(s)
+      })
 
       for (const e of events) {
-        const [langPart, identPart] = (e.summary ?? '').split(' | ')
-        const identifier  = identPart?.trim()
-        const languageId  = resolveLanguageId(langPart?.trim() ?? '')
+        const parsed = parseTitle(e.summary ?? '')
+        if (!parsed) continue
+        const { langPart, identifier, isRescheduled } = parsed
+        const languageId  = resolveLanguageId(langPart)
         const scheduledAt = e.start?.dateTime || e.start?.date
         const endsAt      = e.end?.dateTime || e.end?.date
         const meetLink    = e.hangoutLink ?? null
@@ -169,7 +186,8 @@ Deno.serve(async (req) => {
             ends_at:     endsAt,
             meet_link:   meetLink,
             language_id: languageId,
-            status:      isPast ? 'completed' : 'scheduled',
+            is_rescheduled: isRescheduled,
+            status:      isPast ? 'attended' : 'scheduled',
           }, {
             onConflict: 'google_event_id,student_id',
             ignoreDuplicates: true,
@@ -210,6 +228,7 @@ Deno.serve(async (req) => {
               ends_at:     endsAt,
               meet_link:   meetLink,
               language_id: languageId,
+              is_rescheduled: isRescheduled,
               title,
               status:      isPast ? 'completed' : 'scheduled',
             }).select('id').maybeSingle()
