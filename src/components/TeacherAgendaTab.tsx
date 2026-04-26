@@ -2,6 +2,11 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users, FlaskConical,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users, FlaskConical, Trash2,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -178,6 +183,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [absentIds, setAbsentIds]               = useState<string[]>([]);
   const [markingGroupCompleted, setMarkingGroupCompleted] = useState(false);
   const [togglingTrial, setTogglingTrial]               = useState(false);
+  const [deletingSession, setDeletingSession]           = useState(false);
 
   const todayColRef    = useRef<HTMLDivElement>(null);
   const scrollContRef  = useRef<HTMLDivElement>(null);
@@ -596,6 +602,31 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     await supabase.from("class_sessions").update({ is_trial: value }).eq("id", selected.id);
     patchSession(selected.id, { is_trial: value });
     setTogglingTrial(false);
+  };
+
+  const handleDeleteSession = async () => {
+    if (!selected) return;
+    setDeletingSession(true);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-class-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authSession?.access_token}`,
+        },
+        body: JSON.stringify({ session_id: selected.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Erro ao excluir");
+      setSessions(prev => prev.filter(s => s.id !== selected.id));
+      setDrawerOpen(false);
+      toast({ title: "Aula excluída com sucesso" });
+    } catch (e: any) {
+      toast({ title: "Erro ao excluir aula", description: e.message, variant: "destructive" });
+    } finally {
+      setDeletingSession(false);
+    }
   };
 
   const handleReschedule = (s: SessionWithStudent) => {
@@ -1453,6 +1484,38 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                       {savingNotes ? "Salvando..." : "Salvar observações"}
                     </Button>
                   </div>
+
+                  {/* Delete session */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={deletingSession}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deletingSession ? "Excluindo..." : "Excluir aula"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir esta aula?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          A aula será removida do banco de dados{selected.google_event_id ? " e do Google Agenda" : ""}. Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={handleDeleteSession}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </>
             );
