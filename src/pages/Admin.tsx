@@ -1647,8 +1647,8 @@ const Admin = () => {
           {/* Desktop: sidebar + content */}
           <div className="lg:flex lg:gap-8">
             {/* Desktop sidebar nav */}
-            <aside className="hidden lg:flex flex-col w-44 shrink-0 border-r pr-4 pt-1">
-              <nav className="space-y-0.5 sticky top-20">
+            <aside className="hidden lg:flex flex-col w-44 shrink-0 border-r pr-4 pt-1 sticky top-20 self-start max-h-[calc(100vh-5rem)] overflow-y-auto">
+              <nav className="space-y-0.5">
                 {[
                   { value: "overview", label: "Visão Geral", icon: LayoutGrid },
                   { value: "students", label: "Alunos", icon: Users },
