@@ -186,6 +186,12 @@ const Admin = () => {
   const [showAddAltEmail, setShowAddAltEmail] = useState(false);
   const [newAltEmail, setNewAltEmail] = useState("");
   const [newAltLabel, setNewAltLabel] = useState("");
+
+  // ── Drawer profile data (Dados cadastrais)
+  const [drawerProfileData, setDrawerProfileData] = useState<{
+    full_name: string | null; email: string | null;
+    cpf: string | null; phone: string | null; birth_date: string | null;
+  } | null>(null);
   const [addingAltEmail, setAddingAltEmail] = useState(false);
 
   // ── Add language enrollment
@@ -337,6 +343,7 @@ const Admin = () => {
   const [notifLoading, setNotifLoading] = useState(true);
   const [adminNotifs, setAdminNotifs] = useState<any[]>([]);
   const [pushPromptStats, setPushPromptStats] = useState<any[]>([]);
+  const [profileCompletionStats, setProfileCompletionStats] = useState<any[]>([]);
 
   // ── Manual push notification modal
   const [pushModalOpen, setPushModalOpen] = useState(false);
@@ -478,6 +485,7 @@ const Admin = () => {
     loadNotifLog();
     loadAdminNotifs();
     loadPushPromptStats();
+    loadProfileCompletionStats();
     loadMaterials();
     loadAllSteps();
     loadAdmins();
@@ -623,6 +631,7 @@ const Admin = () => {
     setShowAddAltEmail(false);
     setNewAltEmail("");
     setNewAltLabel("");
+    setDrawerProfileData(null);
     setNewStepId(""); setStepUnitId(""); setStepSteps([]);
     setStepLevelId(student.levelId || "");
     const [
@@ -632,6 +641,7 @@ const Admin = () => {
       { data: progress },
       { data: personalMats },
       { data: altEmails },
+      { data: profileRow },
     ] = await Promise.all([
       (supabase as any).from("student_gamification").select("xp_total, coins, streak_current, streak_best").eq("student_id", student.id).single(),
       (supabase as any).from("placement_tests").select("assigned_level, test_type, notes, completed_at").eq("student_id", student.id).order("created_at", { ascending: false }).limit(1),
@@ -639,6 +649,7 @@ const Admin = () => {
       supabase.from("student_progress").select("status").eq("student_id", student.id),
       (supabase as any).from("student_materials").select("id, material_id, note, materials(id, title, type)").eq("student_id", student.id).eq("is_personal", true),
       (supabase as any).from("profile_alternate_emails").select("id, email, label").eq("profile_id", student.userId),
+      (supabase as any).from("profiles").select("full_name, email, cpf, phone, birth_date").eq("id", student.userId).single(),
     ]);
     setDrawerGamification(gamif || null);
     setDrawerPlacement(placements?.[0] || null);
@@ -649,6 +660,7 @@ const Admin = () => {
     setDrawerProgress({ done, available, locked });
     setDrawerPersonalMats((personalMats as any[]) || []);
     setDrawerAltEmails((altEmails as any[]) || []);
+    setDrawerProfileData(profileRow || null);
     setDrawerLoading(false);
     await loadDrawerCerts(student.id);
   };
@@ -1119,6 +1131,39 @@ const Admin = () => {
       [...map.values()].sort((a, b) => {
         if (a.subscribed !== b.subscribed) return a.subscribed ? 1 : -1;
         return (b.lastDismissed ?? "") > (a.lastDismissed ?? "") ? 1 : -1;
+      })
+    );
+  };
+
+  const loadProfileCompletionStats = async () => {
+    const { data: logs } = await (supabase as any)
+      .from("profile_completion_log")
+      .select("profile_id, event, created_at, profiles!profile_completion_log_profile_id_fkey(name)")
+      .order("created_at", { ascending: false });
+
+    const map = new Map<string, any>();
+    for (const row of (logs || [])) {
+      const pid = row.profile_id;
+      if (!map.has(pid)) {
+        map.set(pid, {
+          profile_id: pid,
+          name: row.profiles?.name ?? "—",
+          shown: 0,
+          completed: false,
+          completedAt: null,
+        });
+      }
+      const entry = map.get(pid);
+      if (row.event === "shown") entry.shown++;
+      if (row.event === "completed") {
+        entry.completed = true;
+        if (!entry.completedAt || row.created_at > entry.completedAt) entry.completedAt = row.created_at;
+      }
+    }
+    setProfileCompletionStats(
+      [...map.values()].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return (b.completedAt ?? "") > (a.completedAt ?? "") ? 1 : -1;
       })
     );
   };
@@ -2024,6 +2069,50 @@ const Admin = () => {
                         <div className="flex justify-between"><span className="text-muted-foreground">Cadastro</span><span>{formatDate(selectedStudent.createdAt)}</span></div>
                       </CardContent>
                     </Card>
+
+                    {/* Dados cadastrais */}
+                    {drawerProfileData && (
+                      <Card>
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-bold">Dados cadastrais</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0 space-y-1 text-xs">
+                          {drawerProfileData.full_name && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground shrink-0">Nome completo</span>
+                              <span className="text-right">{drawerProfileData.full_name}</span>
+                            </div>
+                          )}
+                          {drawerProfileData.email && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground shrink-0">E-mail</span>
+                              <span className="text-right break-all">{drawerProfileData.email}</span>
+                            </div>
+                          )}
+                          {drawerProfileData.phone && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground shrink-0">Telefone</span>
+                              <span>{drawerProfileData.phone}</span>
+                            </div>
+                          )}
+                          {drawerProfileData.cpf && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground shrink-0">CPF</span>
+                              <span>{drawerProfileData.cpf}</span>
+                            </div>
+                          )}
+                          {drawerProfileData.birth_date && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground shrink-0">Nascimento</span>
+                              <span>{new Date(drawerProfileData.birth_date + "T12:00:00").toLocaleDateString("pt-BR")}</span>
+                            </div>
+                          )}
+                          {!drawerProfileData.full_name && !drawerProfileData.cpf && !drawerProfileData.birth_date && (
+                            <p className="text-muted-foreground italic">Dados cadastrais não preenchidos.</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
 
                     {/* Gamification */}
                     {drawerGamification && (
@@ -3367,6 +3456,43 @@ const Admin = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* ── Profile completion tracker ── */}
+            {profileCompletionStats.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <UserCheck className="h-4 w-4" />
+                    Perfil completo — Alunos que viram o modal
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      {profileCompletionStats.filter(s => s.completed).length}/{profileCompletionStats.length} completaram
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="divide-y text-sm">
+                    {profileCompletionStats.map(s => (
+                      <div key={s.profile_id} className="flex items-center gap-3 py-2.5">
+                        <div className={cn(
+                          "h-2 w-2 rounded-full shrink-0",
+                          s.completed ? "bg-green-500" : "bg-amber-400"
+                        )} />
+                        <span className="flex-1 font-medium truncate">{s.name}</span>
+                        {s.completed ? (
+                          <span className="text-xs text-green-600 font-medium shrink-0">
+                            Concluído {s.completedAt ? new Date(s.completedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : ""}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            Viu {s.shown}× · aguardando
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── Push subscription tracker ── */}
             {pushPromptStats.length > 0 && (

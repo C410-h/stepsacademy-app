@@ -20,6 +20,7 @@ export async function signInWithGoogle() {
 interface Profile {
   id: string;
   name: string;
+  full_name: string | null;
   role: string;
   phone: string | null;
   avatar_url: string | null;
@@ -57,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, name, role, phone, avatar_url, force_password_change")
+        .select("id, name, full_name, role, phone, avatar_url, force_password_change")
         .eq("id", userId)
         .single();
 

@@ -39,21 +39,29 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
 
     (supabase as any)
       .from("profiles")
-      .select("name, phone, cpf, birth_date")
+      .select("name, full_name, phone, cpf, birth_date")
       .eq("id", profile.id)
       .single()
-      .then(({ data, error }: { data: any; error: any }) => {
+      .then(async ({ data, error }: { data: any; error: any }) => {
         if (error) {
           console.error("[StudentLayout] profile check:", error.message);
           return;
         }
         if (!data) return;
         const missing: MissingField[] = [];
-        if (!data.name?.trim())   missing.push("name");
-        if (!data.cpf?.trim())    missing.push("cpf");
-        if (!data.phone?.trim())  missing.push("phone");
-        if (!data.birth_date)     missing.push("birth_date");
+        if (!data.name?.trim())      missing.push("name");
+        if (!data.full_name?.trim()) missing.push("full_name");
+        if (!data.cpf?.trim())       missing.push("cpf");
+        if (!data.phone?.trim())     missing.push("phone");
+        if (!data.birth_date)        missing.push("birth_date");
         setMissingFields(missing);
+
+        // Log that the modal was shown (only when full_name is missing)
+        if (missing.includes("full_name")) {
+          await (supabase as any)
+            .from("profile_completion_log")
+            .insert({ profile_id: profile.id, event: "shown" });
+        }
       });
   }, [profile?.id]);
 

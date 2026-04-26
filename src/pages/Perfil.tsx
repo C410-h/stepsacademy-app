@@ -30,6 +30,7 @@ import {
 interface ProfileData {
   id: string;
   name: string;
+  full_name: string | null;
   phone: string | null;
   avatar_url: string | null;
 }
@@ -353,7 +354,7 @@ const Perfil = () => {
       // Profile
       const profilePromise = db
         .from("profiles")
-        .select("id, name, phone, avatar_url")
+        .select("id, name, full_name, phone, avatar_url")
         .eq("id", authProfile.id)
         .single()
         .then(({ data }: any) => data as ProfileData | null);
@@ -547,6 +548,20 @@ const Perfil = () => {
     toast({ title: "Telefone atualizado!" });
   };
 
+  const saveFullName = async (full_name: string) => {
+    if (!profile) return;
+    const { error } = await (supabase as any)
+      .from("profiles")
+      .update({ full_name })
+      .eq("id", profile.id);
+    if (error) {
+      toast({ title: "Erro ao salvar nome completo", variant: "destructive" });
+      throw error;
+    }
+    setProfile(prev => prev ? { ...prev, full_name } : prev);
+    toast({ title: "Nome completo atualizado!" });
+  };
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   const initials = profile?.name
@@ -638,13 +653,20 @@ const Perfil = () => {
                 onChange={handleAvatarChange}
               />
 
-              {/* Editable name & phone */}
+              {/* Editable name, full_name & phone */}
               <div className="w-full space-y-3 px-2">
                 <EditableField
-                  label="Nome"
+                  label="Nome de exibição"
                   value={profile?.name || ""}
                   onSave={saveName}
-                  placeholder="Seu nome completo"
+                  placeholder="Nome e sobrenome"
+                  dark
+                />
+                <EditableField
+                  label="Nome completo"
+                  value={profile?.full_name || ""}
+                  onSave={saveFullName}
+                  placeholder="Como no documento"
                   dark
                 />
                 <EditableField

@@ -16,7 +16,7 @@ import { Loader2, UserCircle } from "lucide-react";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
-export type MissingField = "name" | "phone" | "cpf" | "birth_date";
+export type MissingField = "name" | "full_name" | "phone" | "cpf" | "birth_date";
 
 interface Props {
   open: boolean;
@@ -41,7 +41,6 @@ const formatPhone = (v: string) => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
-// Máscara DD/MM/AAAA
 const formatBirthDate = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 8);
   if (d.length <= 2) return d;
@@ -49,20 +48,25 @@ const formatBirthDate = (v: string) => {
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
 };
 
-// Converte DD/MM/AAAA → Date (retorna null se inválido)
 const parseBirthDate = (v: string): Date | null => {
   const parts = v.split("/");
   if (parts.length !== 3 || parts[2].length !== 4) return null;
   const [day, month, year] = parts.map(Number);
   if (!day || !month || !year) return null;
   const date = new Date(year, month - 1, day);
-  // Verificar se a data é válida (ex: 31/02 não existe)
   if (
     date.getFullYear() !== year ||
     date.getMonth() !== month - 1 ||
     date.getDate() !== day
   ) return null;
   return date;
+};
+
+// Derives a display name (first + last word) from a full legal name
+const deriveUsername = (fullName: string): string => {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 2) return parts.join(" ");
+  return `${parts[0]} ${parts[parts.length - 1]}`;
 };
 
 // ── Componente ─────────────────────────────────────────────────────────────────
@@ -72,8 +76,8 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
 
   const needs = (f: MissingField) => missingFields.includes(f);
 
-  // Valores dos campos
   const [name, setName] = useState(profile?.name || "");
+  const [fullName, setFullName] = useState("");
   const [cpf, setCpf] = useState("");
   const [phone, setPhone] = useState(profile?.phone || "");
   const [birthDate, setBirthDate] = useState("");
@@ -90,6 +94,12 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
       const parts = name.trim().split(/\s+/);
       if (parts.length < 2 || parts.some(p => p.length === 0))
         e.name = "Informe nome e sobrenome.";
+    }
+
+    if (needs("full_name")) {
+      const parts = fullName.trim().split(/\s+/).filter(Boolean);
+      if (parts.length < 2)
+        e.full_name = "Informe seu nome completo (nome e sobrenome).";
     }
 
     if (needs("cpf")) {
@@ -130,9 +140,13 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
       if (needs("cpf"))        updates.cpf        = cpf.replace(/\D/g, "");
       if (needs("phone"))      updates.phone      = phone;
       if (needs("birth_date")) {
-        // Salvar em formato ISO (AAAA-MM-DD) para o banco
         const [dd, mm, aaaa] = birthDate.split("/");
         updates.birth_date = `${aaaa}-${mm}-${dd}`;
+      }
+      if (needs("full_name")) {
+        updates.full_name = fullName.trim();
+        // Auto-derive username (display name) as first + last word
+        updates.name = deriveUsername(fullName);
       }
 
       const { error } = await (supabase as any)
@@ -141,6 +155,11 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
         .eq("id", profile.id);
 
       if (error) throw error;
+
+      // Log completion
+      await (supabase as any)
+        .from("profile_completion_log")
+        .insert({ profile_id: profile.id, event: "completed" });
 
       toast({ title: "Perfil atualizado!" });
       onComplete();
@@ -162,7 +181,6 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
 
   return (
     <Dialog open={open}>
-      {/* [&>button]:hidden oculta o X automático do DialogContent */}
       <DialogContent
         className="w-full max-w-md mx-auto sm:max-w-md [&>button]:hidden"
         onInteractOutside={e => e.preventDefault()}
@@ -197,7 +215,7 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
             />
           </div>
 
-          {/* Nome completo */}
+          {/* Nome completo (campo legado — para perfis sem nome algum) */}
           {needs("name") && (
             <div className="space-y-1.5">
               <Label htmlFor="cp-name">Nome completo</Label>
@@ -210,6 +228,26 @@ const CompleteProfileModal = ({ open, missingFields, onComplete }: Props) => {
               />
               {errors.name && (
                 <p className="text-xs text-destructive">{errors.name}</p>
+              )}
+            </div>
+          )}
+
+          {/* Nome completo legal (full_name) */}
+          {needs("full_name") && (
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-fullname">Nome completo (como no documento)</Label>
+              <Input
+                id="cp-fullname"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                placeholder="Ex: Ana Carolina Souza Lima"
+                autoComplete="name"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Seu nome de exibição no app será gerado automaticamente.
+              </p>
+              {errors.full_name && (
+                <p className="text-xs text-destructive">{errors.full_name}</p>
               )}
             </div>
           )}
