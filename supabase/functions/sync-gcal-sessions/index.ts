@@ -116,7 +116,10 @@ Deno.serve(async (req) => {
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
       const calData = await res.json()
-      const events = (calData.items ?? []).filter((e: any) => {
+      const allItems: any[] = calData.items ?? []
+      // All GCal event IDs in this window (used for deletion check below)
+      const gcalEventIds = new Set(allItems.map((e: any) => e.id).filter(Boolean))
+      const events = allItems.filter((e: any) => {
         const s = e.summary ?? ''
         return s.includes(' | ') || /^aula de .+/i.test(s)
       })
@@ -276,6 +279,24 @@ Deno.serve(async (req) => {
         }
 
         synced++
+      }
+
+      // ── 2-way sync: delete future sessions whose GCal event no longer exists ──
+      const { data: dbSessions } = await supabase
+        .from('class_sessions')
+        .select('id, google_event_id')
+        .eq('teacher_id', teacher.id)
+        .in('status', ['scheduled', 'rescheduled'])
+        .gte('scheduled_at', timeMin)
+        .lt('scheduled_at', timeMax)
+        .not('google_event_id', 'is', null)
+
+      const orphaned = (dbSessions ?? []).filter((s: any) => !gcalEventIds.has(s.google_event_id))
+      if (orphaned.length) {
+        const orphanedIds = orphaned.map((s: any) => s.id)
+        await supabase.from('session_attendees').delete().in('session_id', orphanedIds)
+        await supabase.from('class_sessions').delete().in('id', orphanedIds)
+        console.log(`[sync-gcal] deleted ${orphaned.length} orphaned session(s) for teacher ${teacher.id}`, orphanedIds)
       }
     }
 
