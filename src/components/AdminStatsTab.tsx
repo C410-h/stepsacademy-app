@@ -21,6 +21,7 @@ export interface AdminStatsTabProps {
   highlightSection?: string;
   onSectionHighlighted?: () => void;
   onStudentClick?: (studentId: string) => void;
+  onTeacherClick?: (teacherProfileId: string) => void;
 }
 
 interface SessionRow {
@@ -150,7 +151,7 @@ const SectionHeader = ({ icon, title, badge, sub }: {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick }: AdminStatsTabProps) => {
+const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick, onTeacherClick }: AdminStatsTabProps) => {
   const [period, setPeriod]             = useState<Period>("month");
   const [loading, setLoading]           = useState(true);
   const [sessions, setSessions]         = useState<SessionRow[]>([]);
@@ -550,7 +551,11 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick 
                 <tbody>
                   {teacherStats.map(t => (
                     <tr key={t.teacherId} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{t.name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {onTeacherClick
+                          ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onTeacherClick(t.teacherId)}>{t.name}</button>
+                          : t.name}
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums">{t.individual}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{t.group}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{t.trial}</td>

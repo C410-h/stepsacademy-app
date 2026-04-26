@@ -667,11 +667,34 @@ const Admin = () => {
     await loadDrawerCerts(student.id);
   };
 
-  const openStudentById = (studentId: string) => {
+  const openStudentById = async (studentId: string) => {
     const found = students.find(s => s.id === studentId);
     if (found) { openStudentDrawer(found); return; }
-    // Student not in local list (e.g. loaded from stats tab before students tab loaded) — switch to students tab so it loads
-    setActiveTab("students");
+    // Students list not loaded yet — fetch this student directly
+    const { data: studs } = await supabase.from("students").select(`
+      id, status, user_id, language_id, level_id, current_step_id, created_at,
+      profiles!students_user_id_fkey(name),
+      steps!students_current_step_id_fkey(number),
+      teacher_students(teacher_id, teachers(profiles!teachers_user_id_fkey(name)))
+    `).eq("id", studentId).limit(1);
+    if (!studs?.[0]) return;
+    const s = studs[0] as any;
+    const { data: langs } = await supabase.from("languages").select("id, name").eq("active", true);
+    const { data: lvls } = await supabase.from("levels").select("id, name, code, language_id");
+    const langData = (langs || []).find((l: any) => l.id === s.language_id);
+    const levelData = (lvls || []).find((l: any) => l.id === s.level_id);
+    const teacherEntry = s.teacher_students?.[0];
+    const tp = teacherEntry?.teachers?.profiles;
+    const teacherName = Array.isArray(tp) ? tp[0]?.name || null : tp?.name || null;
+    const row: StudentRow = {
+      id: s.id, status: s.status, currentStepNumber: s.steps?.number || 0, userId: s.user_id,
+      profile: s.profiles ? { name: s.profiles.name } : null,
+      language: langData ? { name: langData.name } : null,
+      level: levelData ? { name: levelData.name, code: levelData.code } : null,
+      teacherName, teacherId: teacherEntry?.teacher_id || null,
+      createdAt: s.created_at, languageId: s.language_id, levelId: s.level_id,
+    };
+    openStudentDrawer(row);
   };
 
   const handleAddAltEmail = async () => {
@@ -1546,6 +1569,7 @@ const Admin = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = "alunos.csv"; a.click();
+    toast({ title: "CSV exportado!", description: `${filteredStudents.length} aluno(s) em alunos.csv` });
   };
 
   if (profile?.role !== "admin") return <Navigate to="/" replace />;
@@ -2586,7 +2610,7 @@ const Admin = () => {
             <Dialog open={!!linkTeacherId} onOpenChange={open => { if (!open) setLinkTeacherId(null); }}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Vincular aluno ao professor</DialogTitle>
+                  <DialogTitle>Vincular aluno — {teachers.find(t => t.id === linkTeacherId)?.name ?? "professor"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div>
@@ -2720,7 +2744,9 @@ const Admin = () => {
                             <Select value={addStudentToGroupId} onValueChange={setAddStudentToGroupId}>
                               <SelectTrigger className="flex-1 h-8 text-xs"><SelectValue placeholder="Adicionar aluno" /></SelectTrigger>
                               <SelectContent>
-                                {students.map(s => <SelectItem key={s.id} value={s.id}>{s.profile?.name || s.id}</SelectItem>)}
+                                {students
+                                  .filter(s => !groupStudents.some((gs: any) => gs.student_id === s.id))
+                                  .map(s => <SelectItem key={s.id} value={s.id}>{s.profile?.name || s.id}</SelectItem>)}
                               </SelectContent>
                             </Select>
                             <Button size="sm" className="h-8 bg-primary text-white" onClick={handleAddStudentToGroup} disabled={addingToGroup || !addStudentToGroupId}>
@@ -2803,6 +2829,10 @@ const Admin = () => {
               highlightSection={statsSection}
               onSectionHighlighted={() => setStatsSection(undefined)}
               onStudentClick={openStudentById}
+              onTeacherClick={(profileId) => {
+                const t = teachers.find(t => t.userId === profileId);
+                if (t) navigate(`/admin/professor/${t.id}`);
+              }}
             />
           </TabsContent>
 

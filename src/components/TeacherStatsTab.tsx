@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -106,11 +107,28 @@ const HighlightCard = ({ title, info, value, label }: {
   </Card>
 );
 
+const TREND_LABELS: Record<string, string> = {
+  up: "Frequência melhorou",
+  down: "Frequência piorou",
+  flat: "Frequência estável",
+};
+
 const TrendIcon = ({ trend }: { trend: "up" | "down" | "flat" | "none" }) => {
-  if (trend === "up")   return <TrendingUp className="h-3.5 w-3.5 text-green-500" />;
-  if (trend === "down") return <TrendingDown className="h-3.5 w-3.5 text-red-500" />;
-  if (trend === "flat") return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
-  return null;
+  const label = TREND_LABELS[trend];
+  const icon =
+    trend === "up"   ? <TrendingUp className="h-3.5 w-3.5 text-green-500" /> :
+    trend === "down" ? <TrendingDown className="h-3.5 w-3.5 text-red-500" /> :
+    trend === "flat" ? <Minus className="h-3.5 w-3.5 text-muted-foreground" /> :
+    null;
+  if (!icon) return null;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <UITooltip>
+        <TooltipTrigger asChild><span>{icon}</span></TooltipTrigger>
+        <TooltipContent side="top"><p className="text-xs">{label}</p></TooltipContent>
+      </UITooltip>
+    </TooltipProvider>
+  );
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
