@@ -277,7 +277,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
 
         const lastCompleted =
           sSessions
-            .filter((ss) => ss.status === "completed")
+            .filter((ss) => ss.status === "completed" || ss.status === "attended")
             .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))[0] ?? null;
 
         const groupInfo = groupByStudentId.get(s.id) ?? null;

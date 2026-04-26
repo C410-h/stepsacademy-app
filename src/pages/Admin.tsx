@@ -64,7 +64,7 @@ interface EngagementMetrics {
 }
 interface LanguageDist { id: string; name: string; count: number; color: string; }
 interface LevelDist { languageName: string; levels: { code: string; name: string; count: number }[]; }
-interface RecentClass { studentName: string; teacherName: string; stepNumber: number; completedAt: string; }
+interface RecentClass { studentName: string; teacherName: string; completedAt: string; }
 interface LangOption { id: string; name: string; }
 interface LevelOption { id: string; name: string; code: string; language_id: string; }
 interface PendingStudentRow {
@@ -874,25 +874,26 @@ const Admin = () => {
     const todayStr = now.toISOString().split("T")[0];
 
     const [
-      { data: activeStuds }, { data: teacherCount }, { data: monthClasses },
-      { data: recentClassData }, { data: studsWithLang }, { data: allLangs },
+      { data: activeStuds }, { data: teacherCount }, { count: monthSessionCount },
+      { data: recentSessionData }, { data: studsWithLang }, { data: allLangs },
       { data: allLevels }, { data: recentStudData },
     ] = await Promise.all([
       supabase.from("students").select("id, language_id, level_id", { count: "exact" }).eq("status", "active"),
       supabase.from("teachers").select("id", { count: "exact" }),
-      supabase.from("classes").select("id, student_id", { count: "exact" }).eq("status", "completed").gte("scheduled_at", monthStart),
-      supabase.from("classes").select(`scheduled_at, step_id, students!classes_student_id_fkey(profiles!students_user_id_fkey(name)), teachers!classes_teacher_id_fkey(profiles!teachers_user_id_fkey(name)), steps!classes_step_id_fkey(number)`).eq("status", "completed").order("scheduled_at", { ascending: false }).limit(10),
+      (supabase as any).from("class_sessions").select("id", { count: "exact", head: true }).in("status", ["attended", "completed"]).gte("scheduled_at", monthStart).lte("scheduled_at", now.toISOString()),
+      (supabase as any).from("class_sessions").select("id, scheduled_at, title, teacher_id, student_id").in("status", ["attended", "completed"]).order("scheduled_at", { ascending: false }).limit(10),
       supabase.from("students").select("id, language_id, level_id, status").eq("status", "active"),
       supabase.from("languages").select("id, name").eq("active", true),
       supabase.from("levels").select("id, name, code, language_id"),
       supabase.from("students").select(`id, created_at, language_id, level_id, status, profiles!students_user_id_fkey(name)`).order("created_at", { ascending: false }).limit(5),
     ]);
 
-    const { data: activeClasses7d } = await supabase.from("classes").select("student_id").eq("status", "completed").gte("scheduled_at", sevenDaysAgo);
-    const activeSet = new Set((activeClasses7d || []).map((c: any) => c.student_id));
+    // Active students in last 7 days (by class_sessions)
+    const { data: activeSessions7d } = await (supabase as any).from("class_sessions").select("student_id").in("status", ["attended", "completed"]).gte("scheduled_at", sevenDaysAgo).lte("scheduled_at", now.toISOString()).not("student_id", "is", null);
+    const activeSet = new Set((activeSessions7d || []).map((c: any) => c.student_id));
     const inactiveCount = (activeStuds || []).filter(s => !activeSet.has(s.id)).length;
 
-    setMetrics({ activeStudents: activeStuds?.length || 0, totalTeachers: teacherCount?.length || 0, classesThisMonth: monthClasses?.length || 0, studentsInactive7d: inactiveCount });
+    setMetrics({ activeStudents: activeStuds?.length || 0, totalTeachers: teacherCount?.length || 0, classesThisMonth: monthSessionCount || 0, studentsInactive7d: inactiveCount });
 
     // lang dist
     const langMap: Record<string, number> = {};
@@ -922,12 +923,26 @@ const Admin = () => {
       setRecentStudents(recent);
     }
 
-    // recent classes
-    if (recentClassData) {
-      const classes: RecentClass[] = (recentClassData as any[]).map((c: any) => {
-        const sp = c.students?.profiles; const studentName = Array.isArray(sp) ? sp[0]?.name : sp?.name || "—";
-        const tp = c.teachers?.profiles; const teacherName = Array.isArray(tp) ? tp[0]?.name : tp?.name || "—";
-        return { studentName, teacherName, stepNumber: c.steps?.number || 0, completedAt: c.scheduled_at };
+    // recent sessions — resolve teacher + student names
+    if (recentSessionData && recentSessionData.length > 0) {
+      const teacherIds = [...new Set((recentSessionData as any[]).map((s: any) => s.teacher_id).filter(Boolean))];
+      const studentIds = [...new Set((recentSessionData as any[]).filter((s: any) => s.student_id).map((s: any) => s.student_id))];
+      const [{ data: teacherProfs }, { data: studRows }] = await Promise.all([
+        teacherIds.length ? supabase.from("profiles").select("id, name").in("id", teacherIds as string[]) : Promise.resolve({ data: [] }),
+        studentIds.length ? supabase.from("students").select("id, user_id").in("id", studentIds as string[]) : Promise.resolve({ data: [] }),
+      ]);
+      const studUserIds = (studRows || []).map((s: any) => s.user_id);
+      const { data: studProfs } = studUserIds.length
+        ? await supabase.from("profiles").select("id, name").in("id", studUserIds)
+        : { data: [] };
+      const teacherProfMap = new Map((teacherProfs || []).map((p: any) => [p.id, p.name]));
+      const studUserMap = new Map((studRows || []).map((s: any) => [s.id, s.user_id]));
+      const studNameMap = new Map((studProfs || []).map((p: any) => [p.id, p.name]));
+      const classes: RecentClass[] = (recentSessionData as any[]).map((s: any) => {
+        const userId = studUserMap.get(s.student_id);
+        const studentName = userId ? (studNameMap.get(userId) ?? s.title ?? "—") : (s.title ?? "—");
+        const teacherName = teacherProfMap.get(s.teacher_id) ?? "—";
+        return { studentName, teacherName, completedAt: s.scheduled_at };
       });
       setRecentClasses(classes);
     }
@@ -951,9 +966,9 @@ const Admin = () => {
       setEngagement({ missionsToday: missionsData?.length || 0, xpTotal, avgStreak, exercisesWeek: exercisesData?.length || 0 });
     } catch (_) {}
 
-    // Weekly classes chart (last 8 weeks)
+    // Weekly sessions chart (last 8 weeks)
     try {
-      const { data: allClasses } = await supabase.from("classes").select("scheduled_at").eq("status", "completed").gte("scheduled_at", new Date(Date.now() - 56 * 24 * 60 * 60 * 1000).toISOString());
+      const { data: allClasses } = await (supabase as any).from("class_sessions").select("scheduled_at").in("status", ["attended", "completed"]).gte("scheduled_at", new Date(Date.now() - 56 * 24 * 60 * 60 * 1000).toISOString()).lte("scheduled_at", now.toISOString());
       const weeks: { week: string; aulas: number }[] = [];
       for (let i = 7; i >= 0; i--) {
         const wStart = new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
@@ -1865,10 +1880,7 @@ const Admin = () => {
                             <span className="font-medium">{c.studentName}</span>
                             <span className="text-muted-foreground"> · {c.teacherName}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span>Passo {c.stepNumber}</span>
-                            <span>{formatDate(c.completedAt)}</span>
-                          </div>
+                          <span className="text-muted-foreground">{formatDate(c.completedAt)}</span>
                         </div>
                       ))}
                     </div>
