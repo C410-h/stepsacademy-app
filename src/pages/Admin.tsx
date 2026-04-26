@@ -889,10 +889,14 @@ const Admin = () => {
       supabase.from("students").select(`id, created_at, language_id, level_id, status, profiles!students_user_id_fkey(name)`).order("created_at", { ascending: false }).limit(5),
     ]);
 
-    // Active students in last 7 days (by class_sessions)
-    const { data: activeSessions7d } = await (supabase as any).from("class_sessions").select("student_id").in("status", ["attended", "completed"]).gte("scheduled_at", sevenDaysAgo).lte("scheduled_at", now.toISOString()).not("student_id", "is", null);
-    const activeSet = new Set((activeSessions7d || []).map((c: any) => c.student_id));
-    const inactiveCount = (activeStuds || []).filter(s => !activeSet.has(s.id)).length;
+    // Active students in last 7 days — exclude group students (their sessions have no student_id)
+    const [{ data: activeSessions7d }, { data: groupStudentRows }] = await Promise.all([
+      (supabase as any).from("class_sessions").select("student_id").in("status", ["attended", "completed"]).gte("scheduled_at", sevenDaysAgo).lte("scheduled_at", now.toISOString()).not("student_id", "is", null),
+      supabase.from("group_students").select("student_id"),
+    ]);
+    const activeSet   = new Set((activeSessions7d || []).map((c: any) => c.student_id));
+    const groupSet    = new Set((groupStudentRows  || []).map((g: any) => g.student_id));
+    const inactiveCount = (activeStuds || []).filter(s => !activeSet.has(s.id) && !groupSet.has(s.id)).length;
 
     setMetrics({ activeStudents: activeStuds?.length || 0, totalTeachers: teacherCount?.length || 0, classesThisMonth: monthSessionCount || 0, studentsInactive7d: inactiveCount });
 
