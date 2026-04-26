@@ -151,10 +151,7 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
     ]);
 
     // "Caio Aluno Profile" (caio1997h.g@gmail.com) — owner's test account, must not pollute stats
-    const TEST_PROFILE_IDS = new Set([
-      "2ddf8deb-871d-4c39-bc16-00852a38f5fa",
-      "6d493786-12e9-4e3f-b17e-40c10b97cd57", // claude.test@stepsacademy.dev
-    ]);
+    const TEST_PROFILE_IDS = new Set(["2ddf8deb-871d-4c39-bc16-00852a38f5fa"]);
     const profMap = new Map(((profsRes.data || []) as any[]).map(p => [p.id, p]));
     const gamiMap = new Map(((gamiRes.data || []) as any[]).map(g => [g.student_id, g]));
 
