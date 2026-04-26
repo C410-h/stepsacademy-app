@@ -222,8 +222,8 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
     const allStudentIds = allStudsRaw.map((s: any) => s.id);
     const allUserIds    = allStudsRaw.map((s: any) => s.user_id).filter(Boolean);
 
-    // ── Batch 2: profiles + gamification + teacher mappings ────────────────
-    const [profRes, gamiRes, tsRes, tProfRes] = await Promise.all([
+    // ── Batch 2: profiles + gamification + teacher mappings + group memberships
+    const [profRes, gamiRes, tsRes, tProfRes, groupStudRes] = await Promise.all([
       allUserIds.length
         ? supabase.from("profiles").select("id, name").in("id", allUserIds)
         : Promise.resolve({ data: [] }),
@@ -234,6 +234,9 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
         ? supabase.from("teacher_students").select("student_id, teachers!teacher_students_teacher_id_fkey(user_id)").in("student_id", allStudentIds)
         : Promise.resolve({ data: [] }),
       supabase.from("profiles").select("id, name").eq("role", "teacher"),
+      allStudentIds.length
+        ? (supabase as any).from("group_students").select("student_id, group_id").in("student_id", allStudentIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const profNameMap = new Map(((profRes.data || []) as any[]).map((p: any) => [p.id, p.name as string]));
@@ -246,7 +249,12 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
     const tProfMap = new Map(((tProfRes.data || []) as any[]).map((t: any) => [t.id as string, t.name as string]));
     setTeacherMap(tProfMap);
 
-    // ── Last session per student ───────────────────────────────────────────
+    // student_id → group_id (for group session lookups)
+    const studToGroup = new Map<string, string>(
+      ((groupStudRes.data || []) as any[]).map((r: any) => [r.student_id as string, r.group_id as string])
+    );
+
+    // ── Last session per student (individual sessions in last 7d) ─────────
     const last7dMap = new Map<string, string>();
     for (const s of ses7d) {
       if (!s.student_id) continue;
@@ -254,21 +262,67 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
       if (!ex || s.scheduled_at > ex) last7dMap.set(s.student_id, s.scheduled_at);
     }
 
-    // For inactive students, fetch their last session ever
+    // Also check group sessions in last 7d for group students
+    const groupIds7d = [...new Set(
+      allStudsRaw
+        .filter((s: any) => !last7dMap.has(s.id) && studToGroup.has(s.id))
+        .map((s: any) => studToGroup.get(s.id) as string)
+    )];
+    if (groupIds7d.length > 0) {
+      const { data: grpSes7d } = await (supabase as any)
+        .from("class_sessions")
+        .select("group_id, scheduled_at")
+        .in("status", ["attended", "completed"])
+        .in("group_id", groupIds7d)
+        .gte("scheduled_at", sevenDaysAgo);
+      const grpLatest7d = new Map<string, string>();
+      for (const s of (grpSes7d || [])) {
+        const ex = grpLatest7d.get(s.group_id);
+        if (!ex || s.scheduled_at > ex) grpLatest7d.set(s.group_id, s.scheduled_at);
+      }
+      for (const [sid, gid] of studToGroup.entries()) {
+        const d = grpLatest7d.get(gid);
+        if (d) { const ex = last7dMap.get(sid); if (!ex || d > ex) last7dMap.set(sid, d); }
+      }
+    }
+
+    // For students still not seen in 7d, fetch their last session ever
     const inactiveIds = allStudsRaw.filter((s: any) => !last7dMap.has(s.id)).map((s: any) => s.id as string);
     const lastEverMap = new Map<string, string>();
     if (inactiveIds.length > 0) {
-      const { data: lastSes } = await (supabase as any)
-        .from("class_sessions")
-        .select("student_id, scheduled_at")
-        .in("status", ["attended", "completed"])
-        .in("student_id", inactiveIds)
-        .order("scheduled_at", { ascending: false });
-      const seen = new Set<string>();
-      for (const s of (lastSes || [])) {
-        if (!seen.has(s.student_id)) {
-          seen.add(s.student_id);
-          lastEverMap.set(s.student_id, s.scheduled_at);
+      const inactiveGroupIds = [...new Set(inactiveIds.map(id => studToGroup.get(id)).filter(Boolean) as string[])];
+      const [indivSes, grpSesEver] = await Promise.all([
+        (supabase as any)
+          .from("class_sessions")
+          .select("student_id, scheduled_at")
+          .in("status", ["attended", "completed"])
+          .in("student_id", inactiveIds)
+          .order("scheduled_at", { ascending: false }),
+        inactiveGroupIds.length
+          ? (supabase as any)
+              .from("class_sessions")
+              .select("group_id, scheduled_at")
+              .in("status", ["attended", "completed"])
+              .in("group_id", inactiveGroupIds)
+              .order("scheduled_at", { ascending: false })
+          : Promise.resolve({ data: [] }),
+      ]);
+      // Individual last sessions
+      const seenIndiv = new Set<string>();
+      for (const s of (indivSes.data || [])) {
+        if (!seenIndiv.has(s.student_id)) { seenIndiv.add(s.student_id); lastEverMap.set(s.student_id, s.scheduled_at); }
+      }
+      // Group last sessions — map back to student IDs
+      const grpLatestEver = new Map<string, string>();
+      const seenGrp = new Set<string>();
+      for (const s of (grpSesEver.data || [])) {
+        if (!seenGrp.has(s.group_id)) { seenGrp.add(s.group_id); grpLatestEver.set(s.group_id, s.scheduled_at); }
+      }
+      for (const sid of inactiveIds) {
+        const gid = studToGroup.get(sid);
+        if (gid) {
+          const d = grpLatestEver.get(gid);
+          if (d) { const ex = lastEverMap.get(sid); if (!ex || d > ex) lastEverMap.set(sid, d); }
         }
       }
     }
