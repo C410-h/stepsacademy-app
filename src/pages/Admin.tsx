@@ -667,6 +667,13 @@ const Admin = () => {
     await loadDrawerCerts(student.id);
   };
 
+  const openStudentById = (studentId: string) => {
+    const found = students.find(s => s.id === studentId);
+    if (found) { openStudentDrawer(found); return; }
+    // Student not in local list (e.g. loaded from stats tab before students tab loaded) — switch to students tab so it loads
+    setActiveTab("students");
+  };
+
   const handleAddAltEmail = async () => {
     if (!selectedStudent || !newAltEmail.trim()) return;
     setAddingAltEmail(true);
@@ -1597,7 +1604,7 @@ const Admin = () => {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <a href="/"><img src={activeTheme === "bonjour" ? "/brand/logo-reto-cream.webp" : "/brand/logo-reto-darkpurple.webp"} alt="steps academy" className="h-32" /></a>
+          <a href="/"><img src={activeTheme === "bonjour" ? "/brand/logo-reto-cream.webp" : "/brand/logo-reto-darkpurple.webp"} alt="steps academy" className="h-32 -my-10" /></a>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -1645,9 +1652,9 @@ const Admin = () => {
           </div>
 
           {/* Desktop: sidebar + content */}
-          <div className="lg:flex lg:gap-8">
+          <div className="lg:flex lg:gap-8 lg:items-start">
             {/* Desktop sidebar nav */}
-            <aside className="hidden lg:flex flex-col w-44 shrink-0 border-r pr-4 pt-1 sticky top-20 self-start max-h-[calc(100vh-5rem)] overflow-y-auto">
+            <aside className="hidden lg:block w-44 shrink-0 border-r pr-4 pt-1 sticky top-20">
               <nav className="space-y-0.5">
                 {[
                   { value: "overview", label: "Visão Geral", icon: LayoutGrid },
@@ -2795,6 +2802,7 @@ const Admin = () => {
             <AdminStatsTab
               highlightSection={statsSection}
               onSectionHighlighted={() => setStatsSection(undefined)}
+              onStudentClick={openStudentById}
             />
           </TabsContent>
 

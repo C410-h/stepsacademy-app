@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import AdminTeacherDetail from "./pages/AdminTeacherDetail";
+import AdminUITest from "./pages/AdminUITest";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -93,6 +94,7 @@ const App = () => (
               <Route path="/acesso-suspenso" element={<AcessoSuspensoPage />} />
               <Route path="/privacidade" element={<PrivacyPolicy />} />
               <Route path="/termos" element={<TermsOfService />} />
+              <Route path="/admin-ui-test" element={<AdminUITest />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
             </GamificationProvider>

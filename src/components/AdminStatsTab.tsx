@@ -15,11 +15,12 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Period = "month" | "last_month" | "3months" | "year";
-type StudentSort = "sessions" | "xp" | "streak" | "lastClass";
+type StudentSort = "name" | "teacher" | "level" | "sessions" | "xp" | "streak" | "lastClass";
 
 export interface AdminStatsTabProps {
   highlightSection?: string;
   onSectionHighlighted?: () => void;
+  onStudentClick?: (studentId: string) => void;
 }
 
 interface SessionRow {
@@ -107,7 +108,7 @@ const SortableTh = ({ col, active, dir, onClick, right, children }: SortableThPr
     className={`px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px] cursor-pointer hover:text-foreground select-none ${right ? "text-right" : "text-left"}`}
     onClick={() => onClick(col)}
   >
-    <span className="inline-flex items-center gap-1 justify-end w-full">
+    <span className={`inline-flex items-center gap-1 ${right ? "justify-end w-full" : ""}`}>
       {children}
       {active === col
         ? (dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
@@ -149,7 +150,7 @@ const SectionHeader = ({ icon, title, badge, sub }: {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTabProps) => {
+const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick }: AdminStatsTabProps) => {
   const [period, setPeriod]             = useState<Period>("month");
   const [loading, setLoading]           = useState(true);
   const [sessions, setSessions]         = useState<SessionRow[]>([]);
@@ -463,6 +464,9 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
     const d = sortDir === "desc" ? -1 : 1;
     arr.sort((a, b) => {
       switch (studentSort) {
+        case "name":      return d * a.name.localeCompare(b.name, "pt-BR");
+        case "teacher":   return d * a.teacherName.localeCompare(b.teacherName, "pt-BR");
+        case "level":     return d * a.level.localeCompare(b.level, "pt-BR");
         case "xp":        return d * (a.xp - b.xp);
         case "streak":    return d * (a.streak - b.streak);
         case "lastClass": return d * ((a.lastSessionDate ?? "").localeCompare(b.lastSessionDate ?? ""));
@@ -587,9 +591,9 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b">
-                    <Th>Aluno</Th>
-                    <Th>Professor</Th>
-                    <Th>Nível</Th>
+                    <SortableTh col="name"    active={studentSort} dir={sortDir} onClick={handleSort}>Aluno</SortableTh>
+                    <SortableTh col="teacher" active={studentSort} dir={sortDir} onClick={handleSort}>Professor</SortableTh>
+                    <SortableTh col="level"   active={studentSort} dir={sortDir} onClick={handleSort}>Nível</SortableTh>
                     <SortableTh col="sessions" active={studentSort} dir={sortDir} onClick={handleSort} right>
                       Aulas <span className="text-[9px] font-normal opacity-60">({PERIOD_LABELS[period]})</span>
                     </SortableTh>
@@ -601,7 +605,11 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
                 <tbody>
                   {sortedStudents.map(s => (
                     <tr key={s.studentId} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-2.5 font-medium">{s.name}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        {onStudentClick
+                          ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onStudentClick(s.studentId)}>{s.name}</button>
+                          : s.name}
+                      </td>
                       <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName}</td>
                       <td className="px-4 py-2.5">
                         <Badge variant="outline" className="text-[10px] py-0">{s.level}</Badge>
@@ -665,7 +673,11 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
                     const severity = days === null ? "text-red-500" : days >= 14 ? "text-red-500" : "text-orange-500";
                     return (
                       <tr key={s.studentId} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-2.5 font-medium">{s.name}</td>
+                        <td className="px-4 py-2.5 font-medium">
+                          {onStudentClick
+                            ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onStudentClick(s.studentId)}>{s.name}</button>
+                            : s.name}
+                        </td>
                         <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName}</td>
                         <td className="px-4 py-2.5 text-muted-foreground">
                           {s.language} · <Badge variant="outline" className="text-[10px] py-0">{s.level}</Badge>
@@ -710,7 +722,11 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
                 <tbody>
                   {engRows.map(r => (
                     <tr key={r.studentId} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-2.5 font-medium">{r.name}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        {onStudentClick
+                          ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onStudentClick(r.studentId)}>{r.name}</button>
+                          : r.name}
+                      </td>
                       <td className="px-4 py-2.5 text-right">
                         {r.missionsToday > 0
                           ? <span className="font-semibold text-green-600">✓ concluída</span>
