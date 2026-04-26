@@ -133,7 +133,7 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
         .in("status", ["attended","completed","rescheduled","missed","missed_pending","missed_recovered"]),
       supabase
         .from("teacher_students")
-        .select("students!inner(id, user_id, levels!students_level_id_fkey(name), steps!students_current_step_id_fkey(number))")
+        .select("students!inner(id, user_id, is_demo, levels!students_level_id_fkey(name), steps!students_current_step_id_fkey(number))")
         .eq("teacher_id", teacherId),
     ]);
 
@@ -150,15 +150,13 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
         : Promise.resolve({ data: [] }),
     ]);
 
-    // "Caio Aluno Profile" (caio1997h.g@gmail.com) — owner's test account, must not pollute stats
-    const TEST_PROFILE_IDS = new Set(["2ddf8deb-871d-4c39-bc16-00852a38f5fa"]);
     const profMap = new Map(((profsRes.data || []) as any[]).map(p => [p.id, p]));
     const gamiMap = new Map(((gamiRes.data || []) as any[]).map(g => [g.student_id, g]));
 
     const infoMap = new Map<string, StudentInfo>();
     for (const row of tsRows) {
       const s    = row.students;
-      if (TEST_PROFILE_IDS.has(s.user_id)) continue;
+      if (s.is_demo) continue;
       const prof = profMap.get(s.user_id);
       const gami = gamiMap.get(s.id);
       infoMap.set(s.id, {

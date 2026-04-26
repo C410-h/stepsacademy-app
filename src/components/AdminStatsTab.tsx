@@ -61,7 +61,7 @@ const AdminStatsTab = () => {
   const [loading, setLoading]         = useState(true);
   const [sessions, setSessions]       = useState<SessionRow[]>([]);
   const [teacherMap, setTeacherMap]   = useState<Map<string, string>>(new Map());
-  const [studentMap, setStudentMap]   = useState<Map<string, { name: string; teacherProfileId: string | null; xp: number; streak: number }>>(new Map());
+  const [studentMap, setStudentMap]   = useState<Map<string, { name: string; teacherProfileId: string | null; xp: number; streak: number; isDemo: boolean }>>(new Map());
 
   const { start, end } = useMemo(() => getPeriodRange(period), [period]);
 
@@ -90,7 +90,7 @@ const AdminStatsTab = () => {
         ? supabase.from("profiles").select("id, name").in("id", teacherProfileIds)
         : Promise.resolve({ data: [] }),
       studentIds.length
-        ? supabase.from("students").select("id, user_id").in("id", studentIds)
+        ? (supabase as any).from("students").select("id, user_id, is_demo").in("id", studentIds)
         : Promise.resolve({ data: [] }),
       studentIds.length
         ? (supabase as any).from("student_gamification").select("student_id, xp_total, streak_current").in("student_id", studentIds)
@@ -105,6 +105,7 @@ const AdminStatsTab = () => {
       ? await supabase.from("profiles").select("id, name").in("id", studUserIds)
       : { data: [] };
 
+    const demoStudentIds = new Set(((tsRows.data || []) as any[]).filter(s => s.is_demo).map(s => s.id));
     const studUserMap = new Map(((tsRows.data || []) as any[]).map(s => [s.id, s.user_id]));
     const studNameMap = new Map(((studProfs || []) as any[]).map(p => [p.id, p.name]));
     const gamiMap     = new Map(((gamiRows.data || []) as any[]).map(g => [g.student_id, g]));
@@ -126,15 +127,22 @@ const AdminStatsTab = () => {
       const name   = userId ? (studNameMap.get(userId) ?? "—") : "—";
       const gami   = gamiMap.get(sid);
       const teacherProfileId = studToTeacherProfileId.get(sid) ?? null;
-      sMap.set(sid, { name, teacherProfileId, xp: gami?.xp_total || 0, streak: gami?.streak_current || 0 });
+      const isDemo = demoStudentIds.has(sid);
+      sMap.set(sid, { name, teacherProfileId, xp: gami?.xp_total || 0, streak: gami?.streak_current || 0, isDemo });
     }
     setStudentMap(sMap);
     setLoading(false);
   };
 
+  const demoIds = useMemo(() => {
+    const ids = new Set<string>();
+    studentMap.forEach((v, k) => { if (v.isDemo) ids.add(k); });
+    return ids;
+  }, [studentMap]);
+
   const completedSessions = useMemo(
-    () => sessions.filter(s => s.status === "attended" || s.status === "completed"),
-    [sessions]
+    () => sessions.filter(s => (s.status === "attended" || s.status === "completed") && !demoIds.has(s.student_id ?? "")),
+    [sessions, demoIds]
   );
 
   // KPIs

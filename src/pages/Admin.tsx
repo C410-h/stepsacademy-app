@@ -879,11 +879,11 @@ const Admin = () => {
       { data: recentSessionData }, { data: studsWithLang }, { data: allLangs },
       { data: allLevels }, { data: recentStudData },
     ] = await Promise.all([
-      supabase.from("students").select("id, language_id, level_id", { count: "exact" }).eq("status", "active"),
+      supabase.from("students").select("id, language_id, level_id, is_demo").eq("status", "active"),
       supabase.from("teachers").select("id", { count: "exact" }),
       (supabase as any).from("class_sessions").select("id", { count: "exact", head: true }).in("status", ["attended", "completed"]).gte("scheduled_at", monthStart).lte("scheduled_at", now.toISOString()),
       (supabase as any).from("class_sessions").select("id, scheduled_at, title, teacher_id, student_id").in("status", ["attended", "completed"]).order("scheduled_at", { ascending: false }).limit(10),
-      supabase.from("students").select("id, language_id, level_id, status").eq("status", "active"),
+      supabase.from("students").select("id, language_id, level_id, status").eq("status", "active").eq("is_demo", false),
       supabase.from("languages").select("id, name").eq("active", true),
       supabase.from("levels").select("id, name, code, language_id"),
       supabase.from("students").select(`id, created_at, language_id, level_id, status, profiles!students_user_id_fkey(name)`).order("created_at", { ascending: false }).limit(5),
@@ -896,9 +896,10 @@ const Admin = () => {
     ]);
     const activeSet   = new Set((activeSessions7d || []).map((c: any) => c.student_id));
     const groupSet    = new Set((groupStudentRows  || []).map((g: any) => g.student_id));
-    const inactiveCount = (activeStuds || []).filter(s => !activeSet.has(s.id) && !groupSet.has(s.id)).length;
+    const inactiveCount = (activeStuds || []).filter(s => !s.is_demo && !activeSet.has(s.id) && !groupSet.has(s.id)).length;
 
-    setMetrics({ activeStudents: activeStuds?.length || 0, totalTeachers: teacherCount?.length || 0, classesThisMonth: monthSessionCount || 0, studentsInactive7d: inactiveCount });
+    const realActiveStuds = (activeStuds || []).filter((s: any) => !s.is_demo);
+    setMetrics({ activeStudents: realActiveStuds.length, totalTeachers: teacherCount?.length || 0, classesThisMonth: monthSessionCount || 0, studentsInactive7d: inactiveCount });
 
     // lang dist
     const langMap: Record<string, number> = {};
