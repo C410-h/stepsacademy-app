@@ -143,19 +143,25 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
 
     const [profsRes, gamiRes] = await Promise.all([
       userIds.length
-        ? supabase.from("profiles").select("id, name, avatar_url").in("id", userIds)
+        ? supabase.from("profiles").select("id, name, avatar_url, email").in("id", userIds)
         : Promise.resolve({ data: [] }),
       studentIds.length
         ? (supabase as any).from("student_gamification").select("student_id, xp_total, streak_current").in("student_id", studentIds)
         : Promise.resolve({ data: [] }),
     ]);
 
+    // "Caio Aluno Profile" (caio1997h.g@gmail.com) — owner's test account, must not pollute stats
+    const TEST_PROFILE_IDS = new Set([
+      "2ddf8deb-871d-4c39-bc16-00852a38f5fa",
+      "6d493786-12e9-4e3f-b17e-40c10b97cd57", // claude.test@stepsacademy.dev
+    ]);
     const profMap = new Map(((profsRes.data || []) as any[]).map(p => [p.id, p]));
     const gamiMap = new Map(((gamiRes.data || []) as any[]).map(g => [g.student_id, g]));
 
     const infoMap = new Map<string, StudentInfo>();
     for (const row of tsRows) {
       const s    = row.students;
+      if (TEST_PROFILE_IDS.has(s.user_id)) continue;
       const prof = profMap.get(s.user_id);
       const gami = gamiMap.get(s.id);
       infoMap.set(s.id, {

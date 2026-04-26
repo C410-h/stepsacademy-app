@@ -22,9 +22,10 @@ import AdminApprovalsTab from "@/components/AdminApprovalsTab";
 import AdminContentByStepTab from "@/components/AdminContentByStepTab";
 import AdminPaymentsTab from "@/components/AdminPaymentsTab";
 import AdminStoreTab from "@/components/AdminStoreTab";
+import AdminStatsTab from "@/components/AdminStatsTab";
 import AdminSuggestionsDrawer from "@/components/AdminSuggestionsDrawer";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
   Plus, Upload, LogOut, Users, Copy, GraduationCap,
@@ -32,7 +33,7 @@ import {
   Download, Zap, Flame, BookCheck, Settings, Bell,
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
   UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
-  Library, X, MessageSquarePlus, ShoppingBag, Menu,
+  Library, X, MessageSquarePlus, ShoppingBag, Menu, TrendingUp,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -221,7 +222,7 @@ const Admin = () => {
   // ── Dashboard tab
   const [metrics, setMetrics] = useState<DashMetrics | null>(null);
   const [engagement, setEngagement] = useState<EngagementMetrics | null>(null);
-  const [weeklyClasses, setWeeklyClasses] = useState<{ week: string; aulas: number }[]>([]);
+  const [weeklyClasses, setWeeklyClasses] = useState<{ day: string; realizadas: number; remarcadas: number }[]>([]);
   const [topXpStudents, setTopXpStudents] = useState<{ name: string; xp: number }[]>([]);
   const [langDist, setLangDist] = useState<LanguageDist[]>([]);
   const [levelDist, setLevelDist] = useState<LevelDist[]>([]);
@@ -956,31 +957,34 @@ const Admin = () => {
         { data: exercisesData },
       ] = await Promise.all([
         (supabase as any).from("daily_missions").select("id", { count: "exact" }).eq("completed", true).eq("date", todayStr),
-        (supabase as any).from("xp_events").select("xp"),
+        (supabase as any).from("student_gamification").select("xp_total"),
         (supabase as any).from("student_gamification").select("streak_current"),
         (supabase as any).from("xp_events").select("id", { count: "exact" }).in("event_type", ["lesson_exercise", "stepbystep"]).gte("created_at", weekStart),
       ]);
-      const xpTotal = (xpData || []).reduce((sum: number, e: any) => sum + (e.xp || 0), 0);
+      const xpTotal = (xpData || []).reduce((sum: number, e: any) => sum + (e.xp_total || 0), 0);
       const streakArr = streakData || [];
       const avgStreak = streakArr.length > 0 ? Math.round(streakArr.reduce((sum: number, s: any) => sum + (s.streak_current || 0), 0) / streakArr.length) : 0;
       setEngagement({ missionsToday: missionsData?.length || 0, xpTotal, avgStreak, exercisesWeek: exercisesData?.length || 0 });
     } catch (_) {}
 
-    // Weekly sessions chart (last 8 weeks)
+    // Daily sessions chart (last 4 weeks = 28 days)
     try {
-      const { data: allClasses } = await (supabase as any).from("class_sessions").select("scheduled_at").in("status", ["attended", "completed"]).gte("scheduled_at", new Date(Date.now() - 56 * 24 * 60 * 60 * 1000).toISOString()).lte("scheduled_at", now.toISOString());
-      const weeks: { week: string; aulas: number }[] = [];
-      for (let i = 7; i >= 0; i--) {
-        const wStart = new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
-        const wEnd = new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000);
-        const count = (allClasses || []).filter((c: any) => {
+      const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: allClasses } = await (supabase as any).from("class_sessions").select("scheduled_at, status").in("status", ["attended", "completed", "rescheduled"]).gte("scheduled_at", fourWeeksAgo).lte("scheduled_at", now.toISOString());
+      const days: { day: string; realizadas: number; remarcadas: number }[] = [];
+      for (let i = 27; i >= 0; i--) {
+        const dStart = new Date(now.getTime() - (i + 1) * 24 * 60 * 60 * 1000);
+        const dEnd   = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const daySessions = (allClasses || []).filter((c: any) => {
           const d = new Date(c.scheduled_at);
-          return d >= wStart && d < wEnd;
-        }).length;
-        const label = `${wStart.getDate()}/${wStart.getMonth() + 1}`;
-        weeks.push({ week: label, aulas: count });
+          return d >= dStart && d < dEnd;
+        });
+        const realizadas  = daySessions.filter((c: any) => c.status === "attended" || c.status === "completed").length;
+        const remarcadas  = daySessions.filter((c: any) => c.status === "rescheduled").length;
+        const label = i % 7 === 0 ? `${dStart.getDate()}/${dStart.getMonth() + 1}` : "";
+        days.push({ day: label, realizadas, remarcadas });
       }
-      setWeeklyClasses(weeks);
+      setWeeklyClasses(days);
     } catch (_) {}
 
     // Top 5 students by XP
@@ -1623,6 +1627,7 @@ const Admin = () => {
                 { value: "students", label: "Alunos" },
                 { value: "teachers", label: "Professores" },
                 { value: "groups", label: "Turmas" },
+                { value: "stats", label: "Estatísticas" },
                 { value: "content", label: "Conteúdo" },
                 { value: "notifications", label: "Notificações" },
                 { value: "payments", label: "Pagamentos" },
@@ -1643,6 +1648,7 @@ const Admin = () => {
                   { value: "students", label: "Alunos", icon: Users },
                   { value: "teachers", label: "Professores", icon: GraduationCap },
                   { value: "groups", label: "Turmas", icon: BookOpen },
+                  { value: "stats", label: "Estatísticas", icon: TrendingUp },
                   { value: "content", label: "Conteúdo", icon: FileText },
                   { value: "notifications", label: "Notificações", icon: Bell },
                   { value: "payments", label: "Pagamentos", icon: CreditCard },
@@ -1777,17 +1783,19 @@ const Admin = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold">Aulas por semana (últimas 8 semanas)</CardTitle>
+                  <CardTitle className="text-sm font-bold">Aulas por dia (últimas 4 semanas)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {dashLoading ? <Skeleton className="h-40 w-full" /> : (
-                    <ResponsiveContainer width="100%" height={160}>
-                      <BarChart data={weeklyClasses} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
-                        <Bar dataKey="aulas" fill="var(--theme-brand-on-bg)" radius={[3, 3, 0, 0]} />
+                  {dashLoading ? <Skeleton className="h-48 w-full" /> : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={weeklyClasses} margin={{ top: 4, right: 4, bottom: 0, left: -20 }} barSize={6}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="day" tick={{ fontSize: 9 }} interval={0} />
+                        <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                        <Tooltip formatter={(v: number, name: string) => [v, name === "realizadas" ? "Realizadas" : "Remarcadas"]} labelFormatter={(l: string) => l || ""} />
+                        <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} formatter={(v) => v === "realizadas" ? "Realizadas" : "Remarcadas"} />
+                        <Bar dataKey="realizadas" stackId="a" fill="var(--theme-brand-on-bg)" />
+                        <Bar dataKey="remarcadas" stackId="a" fill="hsl(var(--muted-foreground))" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -2765,6 +2773,11 @@ const Admin = () => {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </TabsContent>
+
+          {/* ── Tab: Estatísticas ─────────────────────────────────────────────── */}
+          <TabsContent value="stats" className="space-y-4">
+            <AdminStatsTab />
           </TabsContent>
 
           {/* ── Tab: Conteúdo ─────────────────────────────────────────────────── */}
@@ -4093,6 +4106,7 @@ const Admin = () => {
               { value: "students",       label: "Alunos",        icon: Users },
               { value: "teachers",       label: "Professores",   icon: GraduationCap },
               { value: "groups",         label: "Turmas",        icon: BookOpen },
+              { value: "stats",          label: "Estatísticas",  icon: TrendingUp },
               { value: "content",        label: "Conteúdo",      icon: FileText },
               { value: "notifications",  label: "Notificações",  icon: Bell },
               { value: "payments",       label: "Pagamentos",    icon: CreditCard },
