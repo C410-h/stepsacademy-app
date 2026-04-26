@@ -571,7 +571,7 @@ const ProgressTab = () => {
 
     const { data: student } = await supabase
       .from("students")
-      .select("id, level_id, current_step_id, steps!students_current_step_id_fkey(number, title)")
+      .select("id, level_id, current_step_id, is_demo, steps!students_current_step_id_fkey(number, title)")
       .eq("user_id", profile.id)
       .single();
 
@@ -624,6 +624,22 @@ const ProgressTab = () => {
         stepsArray.push({ id: avail.id, number: i, title: avail.title, status: "available", doneAt: null, isInherited: false });
       } else {
         stepsArray.push({ id: "", number: i, title: null, status: "locked", doneAt: null, isInherited: false });
+      }
+    }
+
+    // Demo profiles: unlock all steps with real IDs from DB
+    if (s.is_demo) {
+      const { data: units } = await db.from("units").select("id").eq("level_id", s.level_id);
+      const unitIds = ((units || []) as any[]).map((u: any) => u.id);
+      if (unitIds.length > 0) {
+        const { data: allSteps } = await db.from("steps").select("id, number, title").in("unit_id", unitIds).order("number");
+        const stepById = new Map(((allSteps || []) as any[]).map((st: any) => [st.number, { id: st.id, title: st.title }]));
+        for (let i = 0; i < stepsArray.length; i++) {
+          if (stepsArray[i].status === "locked") {
+            const info = stepById.get(stepsArray[i].number);
+            if (info) stepsArray[i] = { ...stepsArray[i], id: info.id, title: info.title, status: "available" };
+          }
+        }
       }
     }
 

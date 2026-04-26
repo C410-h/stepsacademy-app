@@ -45,6 +45,7 @@ interface StudentInfo {
   viewingStepTitle: string | null;
   viewingUnitId: string | null;
   isPastStep: boolean;
+  isDemo: boolean;
 }
 
 interface VocabWord {
@@ -672,7 +673,7 @@ const AulaPage = () => {
     const { data: raw } = await supabase
       .from("students")
       .select(`
-        id, current_step_id, level_id, onboarding_completed,
+        id, current_step_id, level_id, onboarding_completed, is_demo,
         levels!students_level_id_fkey(name, code, total_steps),
         languages!students_language_id_fkey(name),
         steps!students_current_step_id_fkey(number, title, unit_id)
@@ -740,6 +741,7 @@ const AulaPage = () => {
       viewingStepTitle,
       viewingUnitId,
       isPastStep,
+      isDemo: s.is_demo ?? false,
     });
 
     // Check missed_pending sessions
@@ -897,7 +899,7 @@ const AulaPage = () => {
             const isCurrentStep = step.id === student.current_step_id;
             let status: "done" | "available" | "locked";
             if (progressStatus === "done") status = "done";
-            else if (progressStatus === "available" || isCurrentStep) status = "available";
+            else if (progressStatus === "available" || isCurrentStep || student.isDemo) status = "available";
             else status = "locked";
             return {
               id: step.id,

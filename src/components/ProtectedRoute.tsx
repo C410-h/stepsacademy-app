@@ -14,6 +14,7 @@ interface ProtectedRouteProps {
 interface StudentPaymentInfo {
   payment_status: string;
   is_corporate: boolean;
+  is_demo: boolean;
   overdue_since: string | null;
 }
 
@@ -33,7 +34,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     }
     (supabase as any)
       .from("students")
-      .select("payment_status, is_corporate, overdue_since")
+      .select("payment_status, is_corporate, is_demo, overdue_since")
       .eq("user_id", profile.id)
       .maybeSingle()
       .then(({ data }: { data: StudentPaymentInfo | null }) => {
@@ -75,10 +76,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
   // Lógica de inadimplência apenas para estudantes após o check
   if (profile?.role === "student" && paymentChecked && paymentInfo) {
-    const { payment_status, is_corporate, overdue_since } = paymentInfo;
+    const { payment_status, is_corporate, is_demo, overdue_since } = paymentInfo;
 
-    // Corporativos (AllGreen) passam sem restrição
-    if (!is_corporate && payment_status === "overdue" && overdue_since) {
+    // Corporativos e demos passam sem restrição de pagamento
+    if (!is_corporate && !is_demo && payment_status === "overdue" && overdue_since) {
       const diasOverdue = differenceInDays(new Date(), new Date(overdue_since));
 
       if (diasOverdue > 5 && location.pathname !== "/acesso-suspenso") {
