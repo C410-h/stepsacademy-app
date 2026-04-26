@@ -206,7 +206,7 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
         .gte("created_at", sevenDaysAgo),
       (supabase as any)
         .from("class_sessions")
-        .select("student_id, scheduled_at")
+        .select("id, student_id, scheduled_at")
         .in("status", ["attended", "completed"])
         .gte("scheduled_at", sevenDaysAgo),
     ]);
@@ -262,7 +262,7 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
       if (!ex || s.scheduled_at > ex) last7dMap.set(s.student_id, s.scheduled_at);
     }
 
-    // Also check group sessions in last 7d for group students
+    // Also check group sessions (via group_id) in last 7d
     const groupIds7d = [...new Set(
       allStudsRaw
         .filter((s: any) => !last7dMap.has(s.id) && studToGroup.has(s.id))
@@ -286,18 +286,39 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
       }
     }
 
+    // Also check session_attendees for duo/group sessions in last 7d (student_id = null sessions)
+    const nullStudentIds7d = ses7d.filter((s: any) => !s.student_id).map((s: any) => s.id as string);
+    if (nullStudentIds7d.length > 0 && allStudentIds.length > 0) {
+      const { data: att7d } = await (supabase as any)
+        .from("session_attendees")
+        .select("student_id, session_id")
+        .in("session_id", nullStudentIds7d)
+        .in("student_id", allStudentIds);
+      const ses7dById = new Map<string, string>(
+        ses7d.filter((s: any) => s.id).map((s: any) => [s.id as string, s.scheduled_at as string])
+      );
+      for (const att of (att7d || [])) {
+        const date = ses7dById.get(att.session_id);
+        if (!date) continue;
+        const ex = last7dMap.get(att.student_id);
+        if (!ex || date > ex) last7dMap.set(att.student_id, date);
+      }
+    }
+
     // For students still not seen in 7d, fetch their last session ever
     const inactiveIds = allStudsRaw.filter((s: any) => !last7dMap.has(s.id)).map((s: any) => s.id as string);
     const lastEverMap = new Map<string, string>();
     if (inactiveIds.length > 0) {
       const inactiveGroupIds = [...new Set(inactiveIds.map(id => studToGroup.get(id)).filter(Boolean) as string[])];
-      const [indivSes, grpSesEver] = await Promise.all([
+      const [indivSes, grpSesEver, attSesEver] = await Promise.all([
+        // Individual sessions
         (supabase as any)
           .from("class_sessions")
           .select("student_id, scheduled_at")
           .in("status", ["attended", "completed"])
           .in("student_id", inactiveIds)
           .order("scheduled_at", { ascending: false }),
+        // Group sessions (via group_id)
         inactiveGroupIds.length
           ? (supabase as any)
               .from("class_sessions")
@@ -306,13 +327,18 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
               .in("group_id", inactiveGroupIds)
               .order("scheduled_at", { ascending: false })
           : Promise.resolve({ data: [] }),
+        // Duo/group sessions (via session_attendees)
+        (supabase as any)
+          .from("session_attendees")
+          .select("student_id, class_sessions!inner(scheduled_at, status)")
+          .in("student_id", inactiveIds),
       ]);
       // Individual last sessions
       const seenIndiv = new Set<string>();
       for (const s of (indivSes.data || [])) {
         if (!seenIndiv.has(s.student_id)) { seenIndiv.add(s.student_id); lastEverMap.set(s.student_id, s.scheduled_at); }
       }
-      // Group last sessions — map back to student IDs
+      // Group last sessions (group_id path) — map back to student IDs
       const grpLatestEver = new Map<string, string>();
       const seenGrp = new Set<string>();
       for (const s of (grpSesEver.data || [])) {
@@ -324,6 +350,13 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTab
           const d = grpLatestEver.get(gid);
           if (d) { const ex = lastEverMap.get(sid); if (!ex || d > ex) lastEverMap.set(sid, d); }
         }
+      }
+      // Duo/group sessions (session_attendees path)
+      for (const row of (attSesEver.data || [])) {
+        const cs = row.class_sessions;
+        if (!cs || !["attended", "completed"].includes(cs.status)) continue;
+        const ex = lastEverMap.get(row.student_id);
+        if (!ex || cs.scheduled_at > ex) lastEverMap.set(row.student_id, cs.scheduled_at);
       }
     }
 
