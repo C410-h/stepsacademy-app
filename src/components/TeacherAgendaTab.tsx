@@ -52,6 +52,7 @@ interface SessionWithStudent {
   student_cancel_requested_at: string | null;
   reschedule_count: number | null;
   is_trial: boolean | null;
+  group_id: string | null;
   student_name: string;
   student_avatar: string | null;
   language_name: string;
@@ -192,13 +193,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count, is_trial")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count, is_trial, group_id")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count, is_trial")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count, is_trial, group_id")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -1159,8 +1160,8 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     {cfg.label}
                   </span>
 
-                  {/* Experimental toggle */}
-                  <div className={cn(
+                  {/* Experimental toggle — individual + dupla, não grupo formal */}
+                  {!selected.group_id && <div className={cn(
                     "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors",
                     selected.is_trial
                       ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
@@ -1178,7 +1179,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                       onCheckedChange={handleToggleTrial}
                       disabled={togglingTrial}
                     />
-                  </div>
+                  </div>}
 
                   {/* Attendance list — only for group/duo sessions */}
                   {isGroup && (
