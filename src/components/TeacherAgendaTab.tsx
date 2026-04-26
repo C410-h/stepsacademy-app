@@ -49,6 +49,7 @@ interface SessionWithStudent {
   missed_confirmed_at: string | null;
   missed_confirmed_by: string | null;
   student_cancel_requested_at: string | null;
+  reschedule_count: number | null;
   student_name: string;
   student_avatar: string | null;
   language_name: string;
@@ -188,13 +189,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -652,7 +653,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const { start, end } = getEffectiveTimes(s);
     const cfg            = STATUS_CONFIG[s.status] ?? { label: s.status, badge: "bg-muted text-muted-foreground" };
     const soon           = !holidayName && s.status === "scheduled" && isStartingSoon(start);
-    const isRescheduled = s.status === "rescheduled";
+    const isRescheduled = s.status === "rescheduled" || (s.reschedule_count ?? 0) > 0;
     return (
       <button className="w-full text-left" onClick={() => openDrawer(s)}>
         <Card

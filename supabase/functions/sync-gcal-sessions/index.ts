@@ -83,8 +83,12 @@ Deno.serve(async (req) => {
         if (!identifier) return null
         return { langPart: langPart.trim(), identifier, isRescheduled: false }
       }
-      const m = summary.match(/^aula de (.+?) \((.+)\)$/i)
-      if (m) return { langPart: m[1].trim(), identifier: m[2].trim(), isRescheduled: true }
+      // Format B1: "Aula de inglês (Pedro)" — parens
+      const m1 = summary.match(/^aula de (.+?) \((.+)\)$/i)
+      if (m1) return { langPart: m1[1].trim(), identifier: m1[2].trim(), isRescheduled: true }
+      // Format B2: "Aula de Inglês - Pedro" — dash
+      const m2 = summary.match(/^aula de (.+?) [-–] (.+)$/i)
+      if (m2) return { langPart: m2[1].trim(), identifier: m2[2].trim(), isRescheduled: true }
       return null
     }
 
@@ -114,7 +118,7 @@ Deno.serve(async (req) => {
       const calData = await res.json()
       const events = (calData.items ?? []).filter((e: any) => {
         const s = e.summary ?? ''
-        return s.includes(' | ') || /^aula de .+ \(.+\)$/i.test(s)
+        return s.includes(' | ') || /^aula de .+/i.test(s)
       })
 
       for (const e of events) {
