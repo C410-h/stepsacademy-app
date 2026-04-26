@@ -71,22 +71,21 @@ const Teacher = () => {
       .eq("teacher_id", teacher.id);
 
     if (rows) {
-      const students = await Promise.all(
-        rows.map(async (r: any) => {
-          const s = r.students;
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("name")
-            .eq("id", s.user_id)
-            .maybeSingle();
-          return {
-            studentId: s.id,
-            userId: s.user_id,
-            name: prof?.name || "Aluno",
-            languageName: s.languages?.name || "",
-          };
-        })
-      );
+      const userIds = rows.map((r: any) => r.students.user_id).filter(Boolean) as string[];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", userIds);
+      const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.name]));
+      const students = rows.map((r: any) => {
+        const s = r.students;
+        return {
+          studentId: s.id,
+          userId: s.user_id,
+          name: profileMap.get(s.user_id) || "Aluno",
+          languageName: s.languages?.name || "",
+        };
+      });
       setSimpleStudents(students);
     }
 

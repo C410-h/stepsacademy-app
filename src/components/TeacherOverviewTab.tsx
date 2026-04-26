@@ -116,13 +116,15 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
 
   // Fetch upcoming events: today's first, else next day with events
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
+      if (!session?.access_token || cancelled) return;
       const { data } = await supabase.functions.invoke("google-calendar", {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: { action: "list_teacher_events", payload: {} },
       });
+      if (cancelled) return;
 
       const events: UpcomingEvent[] = data?.events || [];
       setAllGcalEvents(events);
@@ -156,6 +158,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         }
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const loadData = async () => {

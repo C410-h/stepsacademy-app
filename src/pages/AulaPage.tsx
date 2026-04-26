@@ -448,7 +448,7 @@ const ExercisesEngine = ({
       setSessionCoins(prev => prev + actualCoins);
       onXpEarned?.(actualXp, actualCoins);
       await refreshGamification();
-      supabase.functions.invoke("update-streak").catch(() => {});
+      supabase.functions.invoke("update-streak").catch((e) => console.error("streak update failed:", e));
     }
   }, [studentId, gamification, exercises, currentIndex, refreshGamification, onXpEarned]);
 
@@ -930,11 +930,13 @@ const AulaPage = () => {
       setPdfUrl(m.file_url);
     }
     if (!m.accessed) {
-      await (supabase as any).from("material_accesses").upsert(
+      const { error } = await (supabase as any).from("material_accesses").upsert(
         { student_id: student.id, material_id: m.id, accessed_at: new Date().toISOString() },
         { onConflict: "student_id,material_id" }
       );
-      setMaterials(prev => prev.map(mat => mat.id === m.id ? { ...mat, accessed: true } : mat));
+      if (!error) {
+        setMaterials(prev => prev.map(mat => mat.id === m.id ? { ...mat, accessed: true } : mat));
+      }
     }
   };
 
