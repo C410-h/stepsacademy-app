@@ -117,10 +117,14 @@ serve(async (req) => {
         .upsert(attendanceRecords, { onConflict: 'session_id,student_id' })
     }
 
-    // 2d. Avança progresso apenas de quem esteve presente
+    // 2d. Avança progresso apenas de quem esteve presente (não avança em aulas experimentais)
     const progressResults: Record<string, string> = {}
-    for (const studentId of presentIds) {
-      progressResults[studentId] = await advanceStudentProgress(supabase, studentId, session_id)
+    if (targetSession.is_trial) {
+      for (const studentId of presentIds) progressResults[studentId] = 'experimental — progresso não avançado'
+    } else {
+      for (const studentId of presentIds) {
+        progressResults[studentId] = await advanceStudentProgress(supabase, studentId, session_id)
+      }
     }
     for (const studentId of absentIds.filter(id => attendeeIds.includes(id))) {
       progressResults[studentId] = 'ausente — progresso não avançado'

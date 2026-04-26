@@ -1159,28 +1159,26 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     {cfg.label}
                   </span>
 
-                  {/* Experimental toggle — only for individual sessions */}
-                  {!isGroup && (
-                    <div className={cn(
-                      "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors",
-                      selected.is_trial
-                        ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
-                        : "border-border"
-                    )}>
-                      <div className="flex items-center gap-2">
-                        <FlaskConical className={cn("h-4 w-4 shrink-0", selected.is_trial ? "text-amber-500" : "text-muted-foreground")} />
-                        <div>
-                          <p className="text-sm font-medium">Aula experimental?</p>
-                          <p className="text-[11px] text-muted-foreground font-light">Não avança step · conta como 0,5 aula</p>
-                        </div>
+                  {/* Experimental toggle */}
+                  <div className={cn(
+                    "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors",
+                    selected.is_trial
+                      ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
+                      : "border-border"
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className={cn("h-4 w-4 shrink-0", selected.is_trial ? "text-amber-500" : "text-muted-foreground")} />
+                      <div>
+                        <p className="text-sm font-medium">Aula experimental?</p>
+                        <p className="text-[11px] text-muted-foreground font-light">Não avança step · conta como 0,5 aula</p>
                       </div>
-                      <Switch
-                        checked={selected.is_trial ?? false}
-                        onCheckedChange={handleToggleTrial}
-                        disabled={togglingTrial}
-                      />
                     </div>
-                  )}
+                    <Switch
+                      checked={selected.is_trial ?? false}
+                      onCheckedChange={handleToggleTrial}
+                      disabled={togglingTrial}
+                    />
+                  </div>
 
                   {/* Attendance list — only for group/duo sessions */}
                   {isGroup && (
