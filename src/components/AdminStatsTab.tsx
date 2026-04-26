@@ -1,14 +1,26 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, Users, Zap, Flame, GraduationCap, TrendingUp } from "lucide-react";
-import { startOfMonth, startOfYear, subMonths, format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import {
+  CalendarCheck, Users, Zap, Flame, GraduationCap, TrendingUp,
+  AlertCircle, BookCheck, ChevronUp, ChevronDown, ChevronsUpDown,
+} from "lucide-react";
+import {
+  startOfMonth, startOfYear, subMonths, subDays, differenceInDays, format,
+} from "date-fns";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 type Period = "month" | "last_month" | "3months" | "year";
+type StudentSort = "sessions" | "xp" | "streak" | "lastClass";
+
+export interface AdminStatsTabProps {
+  highlightSection?: string;
+  onSectionHighlighted?: () => void;
+}
 
 interface SessionRow {
   id: string;
@@ -28,15 +40,28 @@ interface TeacherStats {
   total: number;
 }
 
-interface StudentStats {
+interface ActiveStudent {
   studentId: string;
   name: string;
   teacherName: string;
-  sessions: number;
-  xpTotal: number;
+  language: string;
+  level: string;
+  xp: number;
   streak: number;
-  lastSession: string | null;
+  lastSessionDate: string | null;
+  daysSinceLastClass: number | null;
+  sessionsInPeriod: number;
 }
+
+interface EngagementRow {
+  studentId: string;
+  name: string;
+  missionsToday: number;
+  exercisesWeek: number;
+  xpFromExercises: number;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "month",      label: "Este mês" },
@@ -44,6 +69,10 @@ const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "3months",    label: "Últimos 3 meses" },
   { value: "year",       label: "Este ano" },
 ];
+
+const PERIOD_LABELS: Record<Period, string> = {
+  month: "este mês", last_month: "mês passado", "3months": "3 meses", year: "este ano",
+};
 
 function getPeriodRange(period: Period): { start: Date; end: Date } {
   const now = new Date();
@@ -56,106 +85,271 @@ function getPeriodRange(period: Period): { start: Date; end: Date } {
 const ptDate = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
 
-const AdminStatsTab = () => {
-  const [period, setPeriod]           = useState<Period>("month");
-  const [loading, setLoading]         = useState(true);
-  const [sessions, setSessions]       = useState<SessionRow[]>([]);
-  const [teacherMap, setTeacherMap]   = useState<Map<string, string>>(new Map());
-  const [studentMap, setStudentMap]   = useState<Map<string, { name: string; teacherProfileId: string | null; xp: number; streak: number; isDemo: boolean }>>(new Map());
+// ── Mini UI helpers ───────────────────────────────────────────────────────────
 
-  const { start, end } = useMemo(() => getPeriodRange(period), [period]);
+const Th = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+  <th className={`px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px] ${right ? "text-right" : "text-left"}`}>
+    {children}
+  </th>
+);
+
+interface SortableThProps {
+  col: StudentSort;
+  active: StudentSort;
+  dir: "asc" | "desc";
+  onClick: (col: StudentSort) => void;
+  right?: boolean;
+  children: React.ReactNode;
+}
+
+const SortableTh = ({ col, active, dir, onClick, right, children }: SortableThProps) => (
+  <th
+    className={`px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px] cursor-pointer hover:text-foreground select-none ${right ? "text-right" : "text-left"}`}
+    onClick={() => onClick(col)}
+  >
+    <span className="inline-flex items-center gap-1 justify-end w-full">
+      {children}
+      {active === col
+        ? (dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+        : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+    </span>
+  </th>
+);
+
+interface KPICardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub: string;
+  highlight?: boolean;
+}
+const KPICard = ({ icon, label, value, sub, highlight }: KPICardProps) => (
+  <Card className={highlight ? "border-orange-300" : ""}>
+    <CardContent className="p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
+        {icon}
+      </div>
+      <p className={`text-3xl font-bold ${highlight ? "text-orange-500" : ""}`}>{value}</p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
+    </CardContent>
+  </Card>
+);
+
+const SectionHeader = ({ icon, title, badge, sub }: {
+  icon: React.ReactNode; title: string; badge?: React.ReactNode; sub?: string;
+}) => (
+  <div className="flex items-center gap-2 mb-3">
+    <span className="text-muted-foreground">{icon}</span>
+    <p className="text-sm font-bold">{title}</p>
+    {badge}
+    {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+  </div>
+);
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+const AdminStatsTab = ({ highlightSection, onSectionHighlighted }: AdminStatsTabProps) => {
+  const [period, setPeriod]             = useState<Period>("month");
+  const [loading, setLoading]           = useState(true);
+  const [sessions, setSessions]         = useState<SessionRow[]>([]);
+  const [teacherMap, setTeacherMap]     = useState<Map<string, string>>(new Map());
+  const [allActive, setAllActive]       = useState<ActiveStudent[]>([]);
+  const [engRows, setEngRows]           = useState<EngagementRow[]>([]);
+  const [studentSort, setStudentSort]   = useState<StudentSort>("sessions");
+  const [sortDir, setSortDir]           = useState<"asc" | "desc">("desc");
 
   useEffect(() => { loadData(); }, [period]);
+
+  // Scroll + sort hint when parent navigates here
+  useEffect(() => {
+    if (!highlightSection || loading) return;
+    const sectionKey = highlightSection.split("-")[0];
+    const el = document.getElementById(`stats-${sectionKey}`);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      onSectionHighlighted?.();
+    }
+    if (highlightSection === "students-xp")     { setStudentSort("xp");      setSortDir("desc"); }
+    if (highlightSection === "students-streak") { setStudentSort("streak");  setSortDir("desc"); }
+  }, [highlightSection, loading]);
 
   const loadData = async () => {
     setLoading(true);
     const { start, end } = getPeriodRange(period);
+    const now = new Date();
+    const todayStr = format(now, "yyyy-MM-dd");
+    const sevenDaysAgo = subDays(now, 7).toISOString();
 
-    const { data: sesData } = await (supabase as any)
-      .from("class_sessions")
-      .select("id, teacher_id, student_id, status, scheduled_at, is_trial")
-      .in("status", ["attended", "completed", "rescheduled"])
-      .gte("scheduled_at", start.toISOString())
-      .lte("scheduled_at", end.toISOString());
-
-    const rows: SessionRow[] = sesData || [];
-    setSessions(rows);
-
-    // Resolve teacher names (teacher_id = profile id)
-    const teacherProfileIds = [...new Set(rows.map(r => r.teacher_id).filter(Boolean) as string[])];
-    const studentIds = [...new Set(rows.map(r => r.student_id).filter(Boolean) as string[])];
-
-    const [teacherProfs, tsRows, gamiRows] = await Promise.all([
-      teacherProfileIds.length
-        ? supabase.from("profiles").select("id, name").in("id", teacherProfileIds)
-        : Promise.resolve({ data: [] }),
-      studentIds.length
-        ? (supabase as any).from("students").select("id, user_id, is_demo").in("id", studentIds)
-        : Promise.resolve({ data: [] }),
-      studentIds.length
-        ? (supabase as any).from("student_gamification").select("student_id, xp_total, streak_current").in("student_id", studentIds)
-        : Promise.resolve({ data: [] }),
+    // ── Batch 1: period sessions + global student/engagement data ──────────
+    const [sesRes, allStudRes, missionRes, exerciseRes, ses7dRes] = await Promise.all([
+      (supabase as any)
+        .from("class_sessions")
+        .select("id, teacher_id, student_id, status, scheduled_at, is_trial")
+        .in("status", ["attended", "completed", "rescheduled"])
+        .gte("scheduled_at", start.toISOString())
+        .lte("scheduled_at", end.toISOString()),
+      (supabase as any)
+        .from("students")
+        .select("id, user_id, levels!students_level_id_fkey(name, code), languages!students_language_id_fkey(name)")
+        .eq("status", "active")
+        .eq("is_demo", false),
+      (supabase as any)
+        .from("daily_missions")
+        .select("student_id, completed, exercises_done, xp_earned")
+        .eq("date", todayStr)
+        .eq("completed", true),
+      (supabase as any)
+        .from("xp_events")
+        .select("student_id, xp")
+        .in("event_type", ["lesson_exercise", "stepbystep"])
+        .gte("created_at", sevenDaysAgo),
+      (supabase as any)
+        .from("class_sessions")
+        .select("student_id, scheduled_at")
+        .in("status", ["attended", "completed"])
+        .gte("scheduled_at", sevenDaysAgo),
     ]);
 
-    const tMap = new Map(((teacherProfs.data || []) as any[]).map(p => [p.id, p.name]));
-    setTeacherMap(tMap);
+    const rows: SessionRow[] = sesRes.data || [];
+    setSessions(rows);
 
-    const studUserIds = ((tsRows.data || []) as any[]).map(s => s.user_id);
-    const { data: studProfs } = studUserIds.length
-      ? await supabase.from("profiles").select("id, name").in("id", studUserIds)
-      : { data: [] };
+    const allStudsRaw: any[] = allStudRes.data || [];
+    const missionsRaw: any[] = missionRes.data || [];
+    const exercisesRaw: any[] = exerciseRes.data || [];
+    const ses7d: any[] = ses7dRes.data || [];
 
-    const demoStudentIds = new Set(((tsRows.data || []) as any[]).filter(s => s.is_demo).map(s => s.id));
-    const studUserMap = new Map(((tsRows.data || []) as any[]).map(s => [s.id, s.user_id]));
-    const studNameMap = new Map(((studProfs || []) as any[]).map(p => [p.id, p.name]));
-    const gamiMap     = new Map(((gamiRows.data || []) as any[]).map(g => [g.student_id, g]));
+    const allStudentIds = allStudsRaw.map((s: any) => s.id);
+    const allUserIds    = allStudsRaw.map((s: any) => s.user_id).filter(Boolean);
 
-    // Also get teacher_students to map student → teacher profile id
-    const { data: tsAllRows } = await supabase
-      .from("teacher_students")
-      .select("student_id, teachers!teacher_students_teacher_id_fkey(user_id)")
-      .in("student_id", studentIds);
-    const studToTeacherProfileId = new Map<string, string>(
-      ((tsAllRows || []) as any[])
-        .filter(r => r.teachers?.user_id)
-        .map(r => [r.student_id, r.teachers.user_id])
+    // ── Batch 2: profiles + gamification + teacher mappings ────────────────
+    const [profRes, gamiRes, tsRes, tProfRes] = await Promise.all([
+      allUserIds.length
+        ? supabase.from("profiles").select("id, name").in("id", allUserIds)
+        : Promise.resolve({ data: [] }),
+      allStudentIds.length
+        ? (supabase as any).from("student_gamification").select("student_id, xp_total, streak_current").in("student_id", allStudentIds)
+        : Promise.resolve({ data: [] }),
+      allStudentIds.length
+        ? supabase.from("teacher_students").select("student_id, teachers!teacher_students_teacher_id_fkey(user_id)").in("student_id", allStudentIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from("profiles").select("id, name").eq("role", "teacher"),
+    ]);
+
+    const profNameMap = new Map(((profRes.data || []) as any[]).map((p: any) => [p.id, p.name as string]));
+    const gamiMap     = new Map(((gamiRes.data || []) as any[]).map((g: any) => [g.student_id as string, g]));
+    const studToTPId  = new Map<string, string>(
+      ((tsRes.data || []) as any[])
+        .filter((r: any) => r.teachers?.user_id)
+        .map((r: any) => [r.student_id as string, r.teachers.user_id as string])
     );
+    const tProfMap = new Map(((tProfRes.data || []) as any[]).map((t: any) => [t.id as string, t.name as string]));
+    setTeacherMap(tProfMap);
 
-    const sMap = new Map<string, { name: string; teacherProfileId: string | null; xp: number; streak: number }>();
-    for (const sid of studentIds) {
-      const userId = studUserMap.get(sid);
-      const name   = userId ? (studNameMap.get(userId) ?? "—") : "—";
-      const gami   = gamiMap.get(sid);
-      const teacherProfileId = studToTeacherProfileId.get(sid) ?? null;
-      const isDemo = demoStudentIds.has(sid);
-      sMap.set(sid, { name, teacherProfileId, xp: gami?.xp_total || 0, streak: gami?.streak_current || 0, isDemo });
+    // ── Last session per student ───────────────────────────────────────────
+    const last7dMap = new Map<string, string>();
+    for (const s of ses7d) {
+      if (!s.student_id) continue;
+      const ex = last7dMap.get(s.student_id);
+      if (!ex || s.scheduled_at > ex) last7dMap.set(s.student_id, s.scheduled_at);
     }
-    setStudentMap(sMap);
+
+    // For inactive students, fetch their last session ever
+    const inactiveIds = allStudsRaw.filter((s: any) => !last7dMap.has(s.id)).map((s: any) => s.id as string);
+    const lastEverMap = new Map<string, string>();
+    if (inactiveIds.length > 0) {
+      const { data: lastSes } = await (supabase as any)
+        .from("class_sessions")
+        .select("student_id, scheduled_at")
+        .in("status", ["attended", "completed"])
+        .in("student_id", inactiveIds)
+        .order("scheduled_at", { ascending: false });
+      const seen = new Set<string>();
+      for (const s of (lastSes || [])) {
+        if (!seen.has(s.student_id)) {
+          seen.add(s.student_id);
+          lastEverMap.set(s.student_id, s.scheduled_at);
+        }
+      }
+    }
+
+    // ── Period session count per student ──────────────────────────────────
+    const periodCount = new Map<string, number>();
+    for (const s of rows) {
+      if (s.student_id && (s.status === "attended" || s.status === "completed")) {
+        periodCount.set(s.student_id, (periodCount.get(s.student_id) ?? 0) + 1);
+      }
+    }
+
+    // ── Mission + exercise maps ────────────────────────────────────────────
+    const missionMap = new Map<string, number>();
+    for (const m of missionsRaw) {
+      if (m.student_id) missionMap.set(m.student_id, (missionMap.get(m.student_id) ?? 0) + 1);
+    }
+    const exMap = new Map<string, { count: number; xp: number }>();
+    for (const e of exercisesRaw) {
+      if (!e.student_id) continue;
+      const ex = exMap.get(e.student_id) ?? { count: 0, xp: 0 };
+      ex.count++;
+      ex.xp += e.xp ?? 0;
+      exMap.set(e.student_id, ex);
+    }
+
+    // ── Build allActive ────────────────────────────────────────────────────
+    const active: ActiveStudent[] = allStudsRaw.map((s: any) => {
+      const gami         = gamiMap.get(s.id);
+      const teacherPId   = studToTPId.get(s.id);
+      const teacherName  = teacherPId ? (tProfMap.get(teacherPId) ?? "—") : "—";
+      const lastSes      = last7dMap.get(s.id) ?? lastEverMap.get(s.id) ?? null;
+      const daysSince    = lastSes ? differenceInDays(now, new Date(lastSes)) : null;
+      return {
+        studentId:          s.id,
+        name:               profNameMap.get(s.user_id) ?? "—",
+        teacherName,
+        language:           s.languages?.name ?? "—",
+        level:              s.levels?.code ?? "—",
+        xp:                 gami?.xp_total ?? 0,
+        streak:             gami?.streak_current ?? 0,
+        lastSessionDate:    lastSes,
+        daysSinceLastClass: daysSince,
+        sessionsInPeriod:   periodCount.get(s.id) ?? 0,
+      };
+    });
+    setAllActive(active);
+
+    // ── Engagement rows (students with activity today/this week) ──────────
+    const eng: EngagementRow[] = active
+      .map(s => ({
+        studentId:       s.studentId,
+        name:            s.name,
+        missionsToday:   missionMap.get(s.studentId) ?? 0,
+        exercisesWeek:   exMap.get(s.studentId)?.count ?? 0,
+        xpFromExercises: exMap.get(s.studentId)?.xp ?? 0,
+      }))
+      .filter(r => r.missionsToday > 0 || r.exercisesWeek > 0)
+      .sort((a, b) => (b.exercisesWeek + b.missionsToday) - (a.exercisesWeek + a.missionsToday));
+    setEngRows(eng);
+
     setLoading(false);
   };
 
-  const demoIds = useMemo(() => {
-    const ids = new Set<string>();
-    studentMap.forEach((v, k) => { if (v.isDemo) ids.add(k); });
-    return ids;
-  }, [studentMap]);
+  // ── Derived ───────────────────────────────────────────────────────────────
 
   const completedSessions = useMemo(
-    () => sessions.filter(s => (s.status === "attended" || s.status === "completed") && !demoIds.has(s.student_id ?? "")),
-    [sessions, demoIds]
+    () => sessions.filter(s => s.status === "attended" || s.status === "completed"),
+    [sessions]
   );
 
-  // KPIs
   const kpis = useMemo(() => {
-    const totalSessions = completedSessions.reduce((sum, s) => sum + (s.is_trial ? 0.5 : 1), 0);
-    const activeStudentIds = new Set(completedSessions.map(s => s.student_id).filter(Boolean));
-    const xpTotal = [...studentMap.values()].reduce((sum, s) => sum + s.xp, 0);
-    const streakArr = [...studentMap.values()].map(s => s.streak);
-    const avgStreak = streakArr.length > 0 ? Math.round(streakArr.reduce((a, b) => a + b, 0) / streakArr.length) : 0;
-    return { totalSessions, activeStudents: activeStudentIds.size, xpTotal, avgStreak };
-  }, [completedSessions, studentMap]);
+    const totalSessions  = completedSessions.reduce((sum, s) => sum + (s.is_trial ? 0.5 : 1), 0);
+    const withClassIds   = new Set(completedSessions.map(s => s.student_id).filter(Boolean));
+    const xpTotal        = allActive.reduce((sum, s) => sum + s.xp, 0);
+    const streaks        = allActive.map(s => s.streak);
+    const avgStreak      = streaks.length ? Math.round(streaks.reduce((a, b) => a + b, 0) / streaks.length) : 0;
+    const inactiveCount  = allActive.filter(s => s.daysSinceLastClass === null || s.daysSinceLastClass >= 7).length;
+    return { totalSessions, withClass: withClassIds.size, xpTotal, avgStreak, inactiveCount };
+  }, [completedSessions, allActive]);
 
-  // Per-teacher stats
   const teacherStats = useMemo<TeacherStats[]>(() => {
     const map = new Map<string, TeacherStats>();
     for (const s of completedSessions) {
@@ -168,42 +362,45 @@ const AdminStatsTab = () => {
         });
       }
       const t = map.get(s.teacher_id)!;
-      const weight = s.is_trial ? 0.5 : 1;
-      if (s.is_trial)               t.trial      += 1;
-      else if (s.student_id === null) t.group     += 1;
-      else                            t.individual += 1;
-      t.total += weight;
+      const w = s.is_trial ? 0.5 : 1;
+      if (s.is_trial)                t.trial      += 1;
+      else if (!s.student_id)        t.group      += 1;
+      else                           t.individual += 1;
+      t.total += w;
     }
     return [...map.values()].sort((a, b) => b.total - a.total);
   }, [completedSessions, teacherMap]);
 
-  // Per-student stats
-  const studentStats = useMemo<StudentStats[]>(() => {
-    const map = new Map<string, StudentStats>();
-    for (const s of completedSessions) {
-      if (!s.student_id) continue;
-      if (!map.has(s.student_id)) {
-        const info = studentMap.get(s.student_id);
-        const teacherProfileId = info?.teacherProfileId ?? s.teacher_id;
-        map.set(s.student_id, {
-          studentId: s.student_id,
-          name: info?.name ?? "—",
-          teacherName: teacherProfileId ? (teacherMap.get(teacherProfileId) ?? "—") : "—",
-          sessions: 0,
-          xpTotal: info?.xp ?? 0,
-          streak: info?.streak ?? 0,
-          lastSession: null,
-        });
+  const sortedStudents = useMemo(() => {
+    const arr = [...allActive];
+    const d = sortDir === "desc" ? -1 : 1;
+    arr.sort((a, b) => {
+      switch (studentSort) {
+        case "xp":        return d * (a.xp - b.xp);
+        case "streak":    return d * (a.streak - b.streak);
+        case "lastClass": return d * ((a.lastSessionDate ?? "").localeCompare(b.lastSessionDate ?? ""));
+        default:          return d * (a.sessionsInPeriod - b.sessionsInPeriod);
       }
-      const st = map.get(s.student_id)!;
-      st.sessions += 1;
-      if (!st.lastSession || s.scheduled_at > st.lastSession) st.lastSession = s.scheduled_at;
-    }
-    return [...map.values()].sort((a, b) => b.sessions - a.sessions);
-  }, [completedSessions, studentMap, teacherMap]);
+    });
+    return arr;
+  }, [allActive, studentSort, sortDir]);
+
+  const inactiveStudents = useMemo(
+    () => allActive
+      .filter(s => s.daysSinceLastClass === null || s.daysSinceLastClass >= 7)
+      .sort((a, b) => (b.daysSinceLastClass ?? 9999) - (a.daysSinceLastClass ?? 9999)),
+    [allActive]
+  );
+
+  const handleSort = (col: StudentSort) => {
+    if (studentSort === col) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setStudentSort(col); setSortDir("desc"); }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -220,66 +417,31 @@ const AdminStatsTab = () => {
         </Select>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
-        ) : (
-          <>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Aulas realizadas</span>
-                  <CalendarCheck className="h-4 w-4 text-green-600" />
-                </div>
-                <p className="text-3xl font-bold">{kpis.totalSessions.toLocaleString("pt-BR")}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">trial conta como 0,5</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Alunos ativos</span>
-                  <Users className="h-4 w-4 text-primary" />
-                </div>
-                <p className="text-3xl font-bold">{kpis.activeStudents}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">com aula no período</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">XP total alunos</span>
-                  <Zap className="h-4 w-4 text-yellow-500" />
-                </div>
-                <p className="text-3xl font-bold">{kpis.xpTotal.toLocaleString("pt-BR")}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">acumulado</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Média streak</span>
-                  <Flame className="h-4 w-4 text-orange-500" />
-                </div>
-                <p className="text-3xl font-bold">{kpis.avgStreak}d</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">dias seguidos (média)</p>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
-
-      {/* Teacher payroll table */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <GraduationCap className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm font-bold">Por professor</p>
-          <span className="text-xs text-muted-foreground">(base para folha de pagamento)</span>
+      {/* ── 1. Resumo ──────────────────────────────────────────────────────── */}
+      <section id="stats-summary">
+        <SectionHeader icon={<TrendingUp className="h-4 w-4" />} title="Resumo geral" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          {loading ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />) : (
+            <>
+              <KPICard icon={<CalendarCheck className="h-4 w-4 text-green-600" />}   label="Aulas realizadas"   value={kpis.totalSessions.toLocaleString("pt-BR")} sub={`trial = 0,5 · ${PERIOD_LABELS[period]}`} />
+              <KPICard icon={<Users className="h-4 w-4 text-primary" />}             label="Com aula no período" value={kpis.withClass.toString()}  sub="alunos que tiveram aula" />
+              <KPICard icon={<Zap className="h-4 w-4 text-yellow-500" />}            label="XP total"            value={kpis.xpTotal.toLocaleString("pt-BR")} sub="acumulado por todos" />
+              <KPICard icon={<Flame className="h-4 w-4 text-orange-500" />}          label="Média streak"        value={`${kpis.avgStreak}d`} sub="dias seguidos (média)" />
+              <KPICard icon={<AlertCircle className="h-4 w-4 text-orange-500" />}    label="Sem aula (7d)"       value={kpis.inactiveCount.toString()} sub="alunos inativos agora" highlight={kpis.inactiveCount > 0} />
+            </>
+          )}
         </div>
-        {loading ? (
-          <Skeleton className="h-32 rounded-xl" />
-        ) : teacherStats.length === 0 ? (
+      </section>
+
+      {/* ── 2. Por professor (payroll) ──────────────────────────────────────── */}
+      <section id="stats-sessions">
+        <SectionHeader
+          icon={<GraduationCap className="h-4 w-4" />}
+          title="Por professor"
+          badge={<Badge variant="outline" className="text-[9px] py-0 px-1.5">{PERIOD_LABELS[period]}</Badge>}
+          sub="base para folha de pagamento"
+        />
+        {loading ? <Skeleton className="h-32 rounded-xl" /> : teacherStats.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhuma aula registrada no período.</p>
         ) : (
           <Card>
@@ -287,11 +449,11 @@ const AdminStatsTab = () => {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Professor</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Individual</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Grupo</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Trial (×0,5)</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Total pond.</th>
+                    <Th>Professor</Th>
+                    <Th right>Individual</Th>
+                    <Th right>Grupo</Th>
+                    <Th right>Trial (×0,5)</Th>
+                    <Th right>Total pond.</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -301,61 +463,76 @@ const AdminStatsTab = () => {
                       <td className="px-4 py-3 text-right tabular-nums">{t.individual}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{t.group}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{t.trial}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold">{t.total.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold">
+                        {t.total.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      </td>
                     </tr>
                   ))}
-                  <tr className="bg-muted/50">
-                    <td className="px-4 py-2.5 font-bold text-xs">Total</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-bold">{teacherStats.reduce((s, t) => s + t.individual, 0)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-bold">{teacherStats.reduce((s, t) => s + t.group, 0)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-muted-foreground">{teacherStats.reduce((s, t) => s + t.trial, 0)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-bold">{teacherStats.reduce((s, t) => s + t.total, 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                  <tr className="bg-muted/50 font-bold text-xs">
+                    <td className="px-4 py-2.5">Total</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{teacherStats.reduce((s, t) => s + t.individual, 0)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{teacherStats.reduce((s, t) => s + t.group, 0)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{teacherStats.reduce((s, t) => s + t.trial, 0)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">
+                      {teacherStats.reduce((s, t) => s + t.total, 0).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </Card>
         )}
-      </div>
+      </section>
 
-      {/* Student activity table */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm font-bold">Por aluno</p>
-        </div>
-        {loading ? (
-          <Skeleton className="h-48 rounded-xl" />
-        ) : studentStats.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum aluno com aula no período.</p>
+      {/* ── 3. Todos os alunos ─────────────────────────────────────────────── */}
+      <section id="stats-students">
+        <SectionHeader
+          icon={<Users className="h-4 w-4" />}
+          title="Todos os alunos"
+          badge={!loading ? <Badge variant="secondary" className="text-[10px] py-0">{allActive.length} ativos</Badge> : undefined}
+          sub="clique nas colunas para ordenar"
+        />
+        {loading ? <Skeleton className="h-48 rounded-xl" /> : sortedStudents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum aluno ativo.</p>
         ) : (
           <Card>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Aluno</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Professor</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Aulas</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">XP total</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Streak</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Última aula</th>
+                    <Th>Aluno</Th>
+                    <Th>Professor</Th>
+                    <Th>Nível</Th>
+                    <SortableTh col="sessions" active={studentSort} dir={sortDir} onClick={handleSort} right>
+                      Aulas <span className="text-[9px] font-normal opacity-60">({PERIOD_LABELS[period]})</span>
+                    </SortableTh>
+                    <SortableTh col="xp"        active={studentSort} dir={sortDir} onClick={handleSort} right>XP total</SortableTh>
+                    <SortableTh col="streak"    active={studentSort} dir={sortDir} onClick={handleSort} right>Streak</SortableTh>
+                    <SortableTh col="lastClass" active={studentSort} dir={sortDir} onClick={handleSort} right>Última aula</SortableTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {studentStats.map(s => (
+                  {sortedStudents.map(s => (
                     <tr key={s.studentId} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{s.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.teacherName}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold">{s.sessions}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{s.xpTotal.toLocaleString("pt-BR")}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">
+                      <td className="px-4 py-2.5 font-medium">{s.name}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName}</td>
+                      <td className="px-4 py-2.5">
+                        <Badge variant="outline" className="text-[10px] py-0">{s.level}</Badge>
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-bold">
+                        {s.sessionsInPeriod > 0 ? s.sessionsInPeriod : <span className="text-muted-foreground font-normal">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{s.xp.toLocaleString("pt-BR")}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
                         <span className={s.streak > 0 ? "text-orange-500 font-semibold" : "text-muted-foreground"}>
                           {s.streak > 0 ? `🔥 ${s.streak}d` : "—"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        {s.lastSession ? ptDate(s.lastSession) : "—"}
+                      <td className="px-4 py-2.5 text-right text-muted-foreground">
+                        {s.lastSessionDate
+                          ? <span className={s.daysSinceLastClass !== null && s.daysSinceLastClass >= 7 ? "text-orange-500" : ""}>{ptDate(s.lastSessionDate)}</span>
+                          : <span className="text-red-500 font-medium">Nunca</span>
+                        }
                       </td>
                     </tr>
                   ))}
@@ -364,7 +541,108 @@ const AdminStatsTab = () => {
             </div>
           </Card>
         )}
-      </div>
+      </section>
+
+      {/* ── 4. Sem aula (7d) ───────────────────────────────────────────────── */}
+      <section id="stats-inactive">
+        <SectionHeader
+          icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
+          title="Sem aula nos últimos 7 dias"
+          badge={!loading ? (
+            <Badge variant={inactiveStudents.length > 0 ? "destructive" : "secondary"} className="text-[10px]">
+              {inactiveStudents.length}
+            </Badge>
+          ) : undefined}
+        />
+        {loading ? <Skeleton className="h-32 rounded-xl" /> : inactiveStudents.length === 0 ? (
+          <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950/20 rounded-xl px-4 py-3 border border-green-200 dark:border-green-800">
+            <span>✓</span>
+            <span>Todos os alunos tiveram aula nos últimos 7 dias.</span>
+          </div>
+        ) : (
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    <Th>Aluno</Th>
+                    <Th>Professor</Th>
+                    <Th>Idioma / Nível</Th>
+                    <Th right>Última aula</Th>
+                    <Th right>Dias sem aula</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inactiveStudents.map(s => {
+                    const days = s.daysSinceLastClass;
+                    const severity = days === null ? "text-red-500" : days >= 14 ? "text-red-500" : "text-orange-500";
+                    return (
+                      <tr key={s.studentId} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="px-4 py-2.5 font-medium">{s.name}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">
+                          {s.language} · <Badge variant="outline" className="text-[10px] py-0">{s.level}</Badge>
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-muted-foreground">
+                          {s.lastSessionDate ? ptDate(s.lastSessionDate) : <span className="text-red-500 font-semibold">Nunca</span>}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${severity}`}>
+                          {days !== null ? `${days}d` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </section>
+
+      {/* ── 5. Engajamento ─────────────────────────────────────────────────── */}
+      <section id="stats-missions">
+        <SectionHeader
+          icon={<BookCheck className="h-4 w-4" />}
+          title="Engajamento"
+          sub="missões concluídas hoje · exercícios nos últimos 7 dias"
+        />
+        {loading ? <Skeleton className="h-32 rounded-xl" /> : engRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma missão ou exercício concluído hoje / esta semana.</p>
+        ) : (
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    <Th>Aluno</Th>
+                    <Th right>Missão hoje</Th>
+                    <Th right>Exercícios (7d)</Th>
+                    <Th right>XP de exercícios</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {engRows.map(r => (
+                    <tr key={r.studentId} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="px-4 py-2.5 font-medium">{r.name}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {r.missionsToday > 0
+                          ? <span className="font-semibold text-green-600">✓ concluída</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-bold">
+                        {r.exercisesWeek > 0 ? r.exercisesWeek : <span className="text-muted-foreground font-normal">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-yellow-600 font-medium">
+                        {r.xpFromExercises > 0 ? `+${r.xpFromExercises.toLocaleString("pt-BR")} XP` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </section>
 
     </div>
   );

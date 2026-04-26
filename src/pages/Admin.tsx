@@ -357,6 +357,7 @@ const Admin = () => {
 
   // ── Active tab (controlled, needed for desktop sidebar)
   const [activeTab, setActiveTab] = useState("overview");
+  const [statsSection, setStatsSection] = useState<string | undefined>();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // ── Suggestions drawer
@@ -1698,7 +1699,8 @@ const Admin = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {dashLoading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />) : (
                 <>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-[var(--theme-brand-on-bg)]/30 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("students"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <Users className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
@@ -1707,7 +1709,8 @@ const Admin = () => {
                       <p className="text-3xl font-bold text-[var(--theme-brand-on-bg)]">{metrics?.activeStudents ?? 0}</p>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-[var(--theme-brand-on-bg)]/30 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("sessions"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <GraduationCap className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
@@ -1716,7 +1719,8 @@ const Admin = () => {
                       <p className="text-3xl font-bold text-[var(--theme-brand-on-bg)]">{metrics?.totalTeachers ?? 0}</p>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-[var(--theme-brand-on-bg)]/30 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("sessions"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <CalendarCheck className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
@@ -1725,7 +1729,9 @@ const Admin = () => {
                       <p className="text-3xl font-bold text-[var(--theme-brand-on-bg)]">{metrics?.classesThisMonth ?? 0}</p>
                     </CardContent>
                   </Card>
-                  <Card className={metrics?.studentsInactive7d ? "border-orange-300" : ""}>
+                  <Card
+                    className={`cursor-pointer hover:ring-2 transition-all ${metrics?.studentsInactive7d ? "border-orange-300 hover:ring-orange-300/50" : "hover:ring-[var(--theme-brand-on-bg)]/30"}`}
+                    onClick={() => { setActiveTab("stats"); setStatsSection("inactive"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <AlertCircle className="h-4 w-4 text-orange-500" />
@@ -1744,7 +1750,8 @@ const Admin = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {dashLoading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />) : (
                 <>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-[var(--theme-brand-on-bg)]/30 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("missions"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <BookCheck className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
@@ -1753,7 +1760,8 @@ const Admin = () => {
                       <p className="text-2xl font-bold">{engagement?.missionsToday ?? 0}</p>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-yellow-400/40 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("students-xp"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <Zap className="h-4 w-4 text-yellow-500" />
@@ -1762,7 +1770,8 @@ const Admin = () => {
                       <p className="text-2xl font-bold">{(engagement?.xpTotal ?? 0).toLocaleString("pt-BR")}</p>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-orange-400/40 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("students-streak"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <Flame className="h-4 w-4 text-orange-500" />
@@ -1771,7 +1780,8 @@ const Admin = () => {
                       <p className="text-2xl font-bold">{engagement?.avgStreak ?? 0}d</p>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="cursor-pointer hover:ring-2 hover:ring-[var(--theme-brand-on-bg)]/30 transition-all"
+                    onClick={() => { setActiveTab("stats"); setStatsSection("missions"); }}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <BookOpen className="h-4 w-4 text-[var(--theme-brand-on-bg)]" />
@@ -2782,7 +2792,10 @@ const Admin = () => {
 
           {/* ── Tab: Estatísticas ─────────────────────────────────────────────── */}
           <TabsContent value="stats" className="space-y-4">
-            <AdminStatsTab />
+            <AdminStatsTab
+              highlightSection={statsSection}
+              onSectionHighlighted={() => setStatsSection(undefined)}
+            />
           </TabsContent>
 
           {/* ── Tab: Conteúdo ─────────────────────────────────────────────────── */}
