@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { MessageSquarePlus, Check, RotateCcw } from "lucide-react";
+import { MessageSquarePlus, Check, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -81,7 +81,7 @@ const AdminSuggestionsDrawer = ({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col p-0 overflow-hidden">
+      <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col p-0 overflow-hidden [&>button:first-child]:hidden">
 
         {/* Header */}
         <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
@@ -95,14 +95,23 @@ const AdminSuggestionsDrawer = ({
                 </Badge>
               )}
             </SheetTitle>
-            <button
-              onClick={load}
-              disabled={loading}
-              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
-              aria-label="Recarregar"
-            >
-              <RotateCcw className={cn("h-4 w-4", loading && "animate-spin")} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={load}
+                disabled={loading}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded"
+                aria-label="Recarregar"
+              >
+                <RotateCcw className={cn("h-4 w-4", loading && "animate-spin")} />
+              </button>
+              <button
+                onClick={() => onOpenChange(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Status filter */}

@@ -157,11 +157,11 @@ Deno.serve(async (req) => {
           }
         }
 
-        let sessionData: Record<string, any>
+        const isPast = new Date(scheduledAt) < new Date()
 
         if (matched.length === 1) {
           // ── Individual ─────────────────────────────────────────────────────
-          sessionData = {
+          await supabase.from('class_sessions').upsert({
             google_event_id: e.id,
             student_id:  matched[0].studentId,
             teacher_id:  teacher.id,
@@ -169,22 +169,21 @@ Deno.serve(async (req) => {
             ends_at:     endsAt,
             meet_link:   meetLink,
             language_id: languageId,
-            status:      'scheduled',
-          }
-          await supabase.from('class_sessions').upsert(sessionData, {
+            status:      isPast ? 'completed' : 'scheduled',
+          }, {
             onConflict: 'google_event_id,student_id',
             ignoreDuplicates: true,
           })
-          await supabase.from('class_sessions')
-            .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
-            .eq('google_event_id', e.id)
-            .eq('student_id', matched[0].studentId)
-            .eq('status', 'scheduled')
+          if (!isPast) {
+            await supabase.from('class_sessions')
+              .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
+              .eq('google_event_id', e.id)
+              .eq('student_id', matched[0].studentId)
+              .eq('status', 'scheduled')
+          }
 
         } else {
           // ── Dupla ou Grupo (student_id IS NULL) ────────────────────────────
-          // ON CONFLICT can't reference partial indexes via Supabase JS, so we
-          // do an explicit existence check instead of upsert.
           let title: string
           if (matched.length === 2) {
             const [a, b] = matched.sort((x, y) => x.name.localeCompare(y.name))
@@ -200,8 +199,10 @@ Deno.serve(async (req) => {
             .is('student_id', null)
             .maybeSingle()
 
+          let sessionId: string | null = existing?.id ?? null
+
           if (!existing) {
-            await supabase.from('class_sessions').insert({
+            const { data: inserted } = await supabase.from('class_sessions').insert({
               google_event_id: e.id,
               student_id:  null,
               teacher_id:  teacher.id,
@@ -210,13 +211,22 @@ Deno.serve(async (req) => {
               meet_link:   meetLink,
               language_id: languageId,
               title,
-              status:      'scheduled',
-            })
-          } else {
+              status:      isPast ? 'completed' : 'scheduled',
+            }).select('id').maybeSingle()
+            sessionId = inserted?.id ?? null
+          } else if (!isPast) {
             await supabase.from('class_sessions')
               .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
               .eq('id', existing.id)
               .eq('status', 'scheduled')
+          }
+
+          // Populate session_attendees for duo/group sessions
+          if (sessionId && matched.length > 0) {
+            await supabase.from('session_attendees').upsert(
+              matched.map(m => ({ session_id: sessionId, student_id: m.studentId, status: 'pending' })),
+              { onConflict: 'session_id,student_id', ignoreDuplicates: true }
+            )
           }
         }
 

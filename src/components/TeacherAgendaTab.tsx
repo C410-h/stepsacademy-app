@@ -974,9 +974,14 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             const cfg = STATUS_CONFIG[selected.status] ?? { label: selected.status, badge: "bg-muted text-muted-foreground" };
             const sessionDateStr     = start.substring(0, 10);
             const sessionHoliday     = holidays.get(sessionDateStr);
-            const canConfirmMissed   = !sessionHoliday && (selected.status === "missed_pending" || selected.status === "attended");
-            const canMarkAttended    = !sessionHoliday && (selected.status === "scheduled" || selected.status === "missed_pending");
-            const canMarkCompleted   = !sessionHoliday && (selected.status === "scheduled" || selected.status === "attended");
+            const isGroup            = selected.student_id === null;
+            const canConfirmMissed   = !sessionHoliday && !isGroup && (selected.status === "missed_pending" || selected.status === "attended");
+            const canMarkAttended    = !sessionHoliday && !isGroup && (selected.status === "scheduled" || selected.status === "missed_pending");
+            const canMarkCompleted   = !sessionHoliday && (
+              selected.status === "scheduled" ||
+              selected.status === "attended" ||
+              (isGroup && selected.status === "missed_pending")
+            );
             const hasStep            = !!(selected.step_id || pendingStepId);
             // Group step options by unit for the picker
             const unitGroups = stepOptions.reduce<{ unit_id: string; unit_number: number; unit_title: string | null; steps: StepOption[] }[]>((acc, s) => {
@@ -1121,7 +1126,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   </span>
 
                   {/* Attendance list — only for group/duo sessions */}
-                  {selected.student_id === null && (
+                  {isGroup && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5" />
@@ -1225,7 +1230,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   )}
 
                   {/* Step da aula — individual sessions only */}
-                  {selected.student_id !== null && <div className="space-y-2">
+                  {!isGroup && <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5" />
                       Passo da aula
@@ -1314,7 +1319,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
 
                   {/* Actions */}
                   <div className="space-y-2">
-                    {selected.student_id === null ? (
+                    {isGroup ? (
                       // ── Group / duo session actions ──
                       canMarkCompleted && (
                         <Button
