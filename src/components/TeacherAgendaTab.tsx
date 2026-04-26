@@ -50,6 +50,7 @@ interface SessionWithStudent {
   missed_confirmed_by: string | null;
   student_cancel_requested_at: string | null;
   reschedule_count: number | null;
+  is_trial: boolean | null;
   student_name: string;
   student_avatar: string | null;
   language_name: string;
@@ -189,13 +190,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const [primaryRes, rescheduledRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count, is_trial")
         .eq("teacher_id", profileId)
         .gte("scheduled_at", ws.toISOString())
         .lt("scheduled_at", we.toISOString()),
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count")
+        .select("id, student_id, language_id, scheduled_at, ends_at, rescheduled_at, rescheduled_ends_at, status, meet_link, google_event_id, step_id, title, notes, missed_confirmed_at, missed_confirmed_by, student_cancel_requested_at, reschedule_count, is_trial")
         .eq("teacher_id", profileId)
         .eq("status", "rescheduled")
         .gte("rescheduled_at", ws.toISOString())
@@ -654,6 +655,14 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const cfg            = STATUS_CONFIG[s.status] ?? { label: s.status, badge: "bg-muted text-muted-foreground" };
     const soon           = !holidayName && s.status === "scheduled" && isStartingSoon(start);
     const isRescheduled = s.status === "rescheduled" || (s.reschedule_count ?? 0) > 0;
+    const isTrial = s.is_trial === true;
+    const cardStyle = isTrial ? {
+      background: 'color-mix(in srgb, var(--theme-brand-on-bg) 12%, var(--card))',
+      borderColor: 'color-mix(in srgb, var(--theme-brand-on-bg) 40%, transparent)',
+    } : isRescheduled ? {
+      background: 'color-mix(in srgb, var(--theme-accent) 15%, var(--card))',
+      borderColor: 'color-mix(in srgb, var(--theme-accent) 50%, transparent)',
+    } : undefined;
     return (
       <button className="w-full text-left" onClick={() => openDrawer(s)}>
         <Card
@@ -662,10 +671,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
             holidayName ? "opacity-60" : s.status === "missed_pending" && "border-amber-300/60",
             soon && "border-primary/40"
           )}
-          style={isRescheduled ? {
-            background: 'color-mix(in srgb, var(--theme-accent) 15%, var(--card))',
-            borderColor: 'color-mix(in srgb, var(--theme-accent) 50%, transparent)',
-          } : undefined}
+          style={cardStyle}
         >
           <CardContent className="p-2.5 space-y-1.5">
             {/* Time */}
@@ -695,6 +701,12 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                 <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", cfg.badge)}>
                   {cfg.label}
                 </span>
+                {isTrial && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ background: 'color-mix(in srgb, var(--theme-brand-on-bg) 15%, transparent)', color: 'var(--theme-brand-on-bg)' }}>
+                    Experimental
+                  </span>
+                )}
                 {s.status === "missed_pending" && (
                   <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
                 )}

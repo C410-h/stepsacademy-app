@@ -186,6 +186,14 @@ Deno.serve(async (req) => {
             ? (isPast ? 'attended' : 'rescheduled')
             : (isPast ? 'attended' : 'scheduled')
 
+          // Check if this is the student's very first session (trial)
+          const { count: existingCount } = await supabase
+            .from('class_sessions')
+            .select('id', { count: 'exact', head: true })
+            .eq('student_id', matched[0].studentId)
+            .not('google_event_id', 'eq', e.id)
+          const isTrial = (existingCount ?? 0) === 0
+
           await supabase.from('class_sessions').upsert({
             google_event_id: e.id,
             student_id:   matched[0].studentId,
@@ -196,6 +204,7 @@ Deno.serve(async (req) => {
             language_id:  languageId,
             reschedule_count: isRescheduled ? 1 : 0,
             ...(isRescheduled ? { rescheduled_at: scheduledAt, rescheduled_ends_at: endsAt } : {}),
+            is_trial: isTrial,
             status: indivStatus,
           }, {
             onConflict: 'google_event_id,student_id',

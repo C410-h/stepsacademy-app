@@ -20,7 +20,10 @@ interface SessionRow {
   student_id: string;
   status: string;
   scheduled_at: string;
+  is_trial: boolean;
 }
+
+const sessionWeight = (s: SessionRow) => s.is_trial ? 0.5 : 1;
 
 interface StudentInfo {
   studentId: string;
@@ -125,9 +128,9 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
     const [sessRes, tsRes] = await Promise.all([
       (supabase as any)
         .from("class_sessions")
-        .select("id, student_id, status, scheduled_at")
+        .select("id, student_id, status, scheduled_at, is_trial")
         .eq("teacher_id", profileId)
-        .in("status", ["completed","rescheduled","missed","missed_pending","missed_recovered"]),
+        .in("status", ["attended","completed","rescheduled","missed","missed_pending","missed_recovered"]),
       supabase
         .from("teacher_students")
         .select("students!inner(id, user_id, levels!students_level_id_fkey(name), steps!students_current_step_id_fkey(number))")
@@ -180,9 +183,10 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
   }, [allSessions, period]);
 
   const metrics = useMemo(() => {
-    const completed   = filtered.filter(s => s.status === "completed").length;
-    const rescheduled = filtered.filter(s => s.status === "rescheduled").length;
-    const missed      = filtered.filter(isMissed).length;
+    const isCompleted = (s: SessionRow) => s.status === "completed" || s.status === "attended";
+    const completed   = filtered.filter(isCompleted).reduce((sum, s) => sum + sessionWeight(s), 0);
+    const rescheduled = filtered.filter(s => s.status === "rescheduled").reduce((sum, s) => sum + sessionWeight(s), 0);
+    const missed      = filtered.filter(isMissed).reduce((sum, s) => sum + sessionWeight(s), 0);
     const presenceDen = completed + missed;
     const commitDen   = completed + rescheduled + missed;
     return {
@@ -243,9 +247,10 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
       const key   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const entry = map.get(key);
       if (!entry) return;
-      if (s.status === "completed")   entry.completed++;
-      else if (s.status === "rescheduled") entry.rescheduled++;
-      else if (isMissed(s))           entry.missed++;
+      const w = sessionWeight(s);
+      if (s.status === "completed" || s.status === "attended") entry.completed += w;
+      else if (s.status === "rescheduled") entry.rescheduled += w;
+      else if (isMissed(s))                entry.missed += w;
     });
 
     return Array.from(map.values());
@@ -256,18 +261,19 @@ const TeacherStatsTab = ({ profileId, teacherId }: { profileId: string; teacherI
 
     return Array.from(studentInfoMap.values())
       .map(info => {
-        const curr      = filtered.filter(s => s.student_id === info.studentId);
-        const completed = curr.filter(s => s.status === "completed").length;
-        const rescheduled = curr.filter(s => s.status === "rescheduled").length;
-        const missed    = curr.filter(isMissed).length;
-        const denom     = completed + missed;
-        const rate      = denom > 0 ? Math.round(completed / denom * 100) : null;
+        const isCompleted = (s: SessionRow) => s.status === "completed" || s.status === "attended";
+        const curr        = filtered.filter(s => s.student_id === info.studentId);
+        const completed   = curr.filter(isCompleted).reduce((sum, s) => sum + sessionWeight(s), 0);
+        const rescheduled = curr.filter(s => s.status === "rescheduled").reduce((sum, s) => sum + sessionWeight(s), 0);
+        const missed      = curr.filter(isMissed).reduce((sum, s) => sum + sessionWeight(s), 0);
+        const denom       = completed + missed;
+        const rate        = denom > 0 ? Math.round(completed / denom * 100) : null;
 
         let trend: "up" | "down" | "flat" | "none" = "none";
         if (prevSess && rate !== null) {
           const prev        = prevSess.filter(s => s.student_id === info.studentId);
-          const prevComp    = prev.filter(s => s.status === "completed").length;
-          const prevMissed  = prev.filter(isMissed).length;
+          const prevComp    = prev.filter(isCompleted).reduce((sum, s) => sum + sessionWeight(s), 0);
+          const prevMissed  = prev.filter(isMissed).reduce((sum, s) => sum + sessionWeight(s), 0);
           const prevDen     = prevComp + prevMissed;
           if (prevDen > 0) {
             const prevRate = Math.round(prevComp / prevDen * 100);

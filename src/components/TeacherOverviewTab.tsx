@@ -193,7 +193,7 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         supabase.from("profiles").select("id, name, avatar_url, email").in("id", userIds),
         (supabase as any)
           .from("class_sessions")
-          .select("id, student_id, scheduled_at, status")
+          .select("id, student_id, scheduled_at, status, is_trial")
           .eq("teacher_id", profileId)
           .in("student_id", studentIds)
           .order("scheduled_at"),
@@ -252,11 +252,13 @@ const TeacherOverviewTab = ({ profileId, teacherId, onSchedule, onSwitchToStuden
         .filter((s) => s.status === "scheduled" && s.scheduled_at > nowIso)
         .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))[0];
 
+      const completedThisMonth = allSessions
+        .filter((s) => (s.status === "completed" || s.status === "attended") && isThisMonth(s.scheduled_at))
+        .reduce((sum: number, s: any) => sum + (s.is_trial ? 0.5 : 1), 0);
+
       setMetrics({
         active: tsRows.filter((r: any) => r.students.status === "active").length,
-        completedThisMonth: allSessions.filter(
-          (s) => s.status === "completed" && isThisMonth(s.scheduled_at)
-        ).length,
+        completedThisMonth,
         nextSession: nextGlobal?.scheduled_at ?? null,
         missedPending: missedPendingAll.length,
       });
