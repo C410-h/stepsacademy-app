@@ -656,22 +656,22 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const soon           = !holidayName && s.status === "scheduled" && isStartingSoon(start);
     const isRescheduled = s.status === "rescheduled" || (s.reschedule_count ?? 0) > 0;
     const isTrial = s.is_trial === true;
-    const cardStyle = isTrial ? {
-      background: 'color-mix(in srgb, var(--theme-brand-on-bg) 12%, var(--card))',
-      borderColor: 'color-mix(in srgb, var(--theme-brand-on-bg) 40%, transparent)',
-    } : isRescheduled ? {
-      background: 'color-mix(in srgb, var(--theme-accent) 15%, var(--card))',
-      borderColor: 'color-mix(in srgb, var(--theme-accent) 50%, transparent)',
-    } : undefined;
     return (
       <button className="w-full text-left" onClick={() => openDrawer(s)}>
         <Card
           className={cn(
             "hover:shadow-sm transition-all cursor-pointer",
-            holidayName ? "opacity-60" : s.status === "missed_pending" && "border-amber-300/60",
+            holidayName
+              ? "opacity-60"
+              : isTrial
+                ? "border-amber-400 bg-amber-50/50 dark:bg-amber-950/20"
+                : isRescheduled
+                  ? "border-yellow-400 bg-yellow-50/40 dark:bg-yellow-950/20"
+                  : s.status === "missed_pending"
+                    ? "border-amber-300/60"
+                    : "",
             soon && "border-primary/40"
           )}
-          style={cardStyle}
         >
           <CardContent className="p-2.5 space-y-1.5">
             {/* Time */}
@@ -702,9 +702,13 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   {cfg.label}
                 </span>
                 {isTrial && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                    style={{ background: 'color-mix(in srgb, var(--theme-brand-on-bg) 15%, transparent)', color: 'var(--theme-brand-on-bg)' }}>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700">
                     Experimental
+                  </span>
+                )}
+                {isRescheduled && !isTrial && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-700">
+                    Remarcada
                   </span>
                 )}
                 {s.status === "missed_pending" && (
