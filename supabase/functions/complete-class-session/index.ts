@@ -40,7 +40,7 @@ serve(async (req) => {
     // ── 1. Busca a sessão alvo ─────────────────────────────────────────────────
     const { data: targetSession, error: sessErr } = await supabase
       .from('class_sessions')
-      .select('id, student_id, google_event_id, teacher_id, scheduled_at, group_id')
+      .select('id, student_id, google_event_id, teacher_id, scheduled_at, group_id, is_trial')
       .eq('id', session_id)
       .single()
     if (sessErr || !targetSession) return err('Sessão não encontrada')
@@ -66,14 +66,18 @@ serve(async (req) => {
       const sessionIds = allSessions.map(s => s.id)
       await supabase.from('class_sessions').update({ status: 'completed' }).in('id', sessionIds)
 
-      // Avança progresso de cada aluno
+      // Avança progresso de cada aluno (não avança em aulas experimentais)
       const studentIds = [...new Set(allSessions.map(s => s.student_id).filter(Boolean))]
       const progressResults: Record<string, string> = {}
-      for (const studentId of studentIds) {
-        progressResults[studentId] = await advanceStudentProgress(supabase, studentId, session_id)
+      if (targetSession.is_trial) {
+        for (const studentId of studentIds) progressResults[studentId] = 'experimental — progresso não avançado'
+      } else {
+        for (const studentId of studentIds) {
+          progressResults[studentId] = await advanceStudentProgress(supabase, studentId, session_id)
+        }
       }
 
-      console.log('[complete-class-session] individual done', { sessionIds, progressResults })
+      console.log('[complete-class-session] individual done', { sessionIds, isTrial: targetSession.is_trial, progressResults })
       return ok({ success: true, sessions_completed: sessionIds.length, progress: progressResults })
     }
 

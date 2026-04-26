@@ -12,10 +12,11 @@ import {
   Select, SelectContent, SelectGroup, SelectItem,
   SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users, FlaskConical,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -175,6 +176,7 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [absentIds, setAbsentIds]               = useState<string[]>([]);
   const [markingGroupCompleted, setMarkingGroupCompleted] = useState(false);
+  const [togglingTrial, setTogglingTrial]               = useState(false);
 
   const todayColRef    = useRef<HTMLDivElement>(null);
   const scrollContRef  = useRef<HTMLDivElement>(null);
@@ -585,6 +587,14 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
       toast({ title: "Erro ao marcar aula", variant: "destructive" });
     }
     setMarkingCompleted(false);
+  };
+
+  const handleToggleTrial = async (value: boolean) => {
+    if (!selected) return;
+    setTogglingTrial(true);
+    await supabase.from("class_sessions").update({ is_trial: value }).eq("id", selected.id);
+    patchSession(selected.id, { is_trial: value });
+    setTogglingTrial(false);
   };
 
   const handleReschedule = (s: SessionWithStudent) => {
@@ -1148,6 +1158,29 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                   <span className={cn("inline-block text-xs px-2.5 py-1 rounded-full font-medium", cfg.badge)}>
                     {cfg.label}
                   </span>
+
+                  {/* Experimental toggle — only for individual sessions */}
+                  {!isGroup && (
+                    <div className={cn(
+                      "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors",
+                      selected.is_trial
+                        ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
+                        : "border-border"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <FlaskConical className={cn("h-4 w-4 shrink-0", selected.is_trial ? "text-amber-500" : "text-muted-foreground")} />
+                        <div>
+                          <p className="text-sm font-medium">Aula experimental?</p>
+                          <p className="text-[11px] text-muted-foreground font-light">Não avança step · conta como 0,5 aula</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={selected.is_trial ?? false}
+                        onCheckedChange={handleToggleTrial}
+                        disabled={togglingTrial}
+                      />
+                    </div>
+                  )}
 
                   {/* Attendance list — only for group/duo sessions */}
                   {isGroup && (
