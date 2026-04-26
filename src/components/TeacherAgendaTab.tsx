@@ -652,13 +652,20 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
     const { start, end } = getEffectiveTimes(s);
     const cfg            = STATUS_CONFIG[s.status] ?? { label: s.status, badge: "bg-muted text-muted-foreground" };
     const soon           = !holidayName && s.status === "scheduled" && isStartingSoon(start);
+    const isRescheduled = s.status === "rescheduled";
     return (
       <button className="w-full text-left" onClick={() => openDrawer(s)}>
-        <Card className={cn(
-          "hover:shadow-sm transition-all cursor-pointer",
-          holidayName ? "opacity-60" : s.status === "missed_pending" && "border-amber-300/60",
-          soon && "border-primary/40"
-        )}>
+        <Card
+          className={cn(
+            "hover:shadow-sm transition-all cursor-pointer",
+            holidayName ? "opacity-60" : s.status === "missed_pending" && "border-amber-300/60",
+            soon && "border-primary/40"
+          )}
+          style={isRescheduled ? {
+            background: 'color-mix(in srgb, var(--theme-accent) 15%, var(--card))',
+            borderColor: 'color-mix(in srgb, var(--theme-accent) 50%, transparent)',
+          } : undefined}
+        >
           <CardContent className="p-2.5 space-y-1.5">
             {/* Time */}
             <p className="text-xs font-bold tabular-nums text-foreground">

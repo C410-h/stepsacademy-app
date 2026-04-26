@@ -178,26 +178,34 @@ Deno.serve(async (req) => {
 
         if (matched.length === 1) {
           // ── Individual ─────────────────────────────────────────────────────
+          const indivStatus = isRescheduled
+            ? (isPast ? 'attended' : 'rescheduled')
+            : (isPast ? 'attended' : 'scheduled')
+
           await supabase.from('class_sessions').upsert({
             google_event_id: e.id,
-            student_id:  matched[0].studentId,
-            teacher_id:  teacher.id,
+            student_id:   matched[0].studentId,
+            teacher_id:   teacher.id,
             scheduled_at: scheduledAt,
-            ends_at:     endsAt,
-            meet_link:   meetLink,
-            language_id: languageId,
-            is_rescheduled: isRescheduled,
-            status:      isPast ? 'attended' : 'scheduled',
+            ends_at:      endsAt,
+            meet_link:    meetLink,
+            language_id:  languageId,
+            reschedule_count: isRescheduled ? 1 : 0,
+            ...(isRescheduled ? { rescheduled_at: scheduledAt, rescheduled_ends_at: endsAt } : {}),
+            status: indivStatus,
           }, {
             onConflict: 'google_event_id,student_id',
             ignoreDuplicates: true,
           })
           if (!isPast) {
+            const timeUpdate = isRescheduled
+              ? { rescheduled_at: scheduledAt, rescheduled_ends_at: endsAt, meet_link: meetLink }
+              : { scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink }
             await supabase.from('class_sessions')
-              .update({ scheduled_at: scheduledAt, ends_at: endsAt, meet_link: meetLink })
+              .update(timeUpdate)
               .eq('google_event_id', e.id)
               .eq('student_id', matched[0].studentId)
-              .eq('status', 'scheduled')
+              .eq('status', indivStatus)
           }
 
         } else {
@@ -220,6 +228,10 @@ Deno.serve(async (req) => {
           let sessionId: string | null = existing?.id ?? null
 
           if (!existing) {
+            const groupStatus = isRescheduled
+              ? (isPast ? 'completed' : 'rescheduled')
+              : (isPast ? 'completed' : 'scheduled')
+
             const { data: inserted } = await supabase.from('class_sessions').insert({
               google_event_id: e.id,
               student_id:  null,
@@ -228,9 +240,10 @@ Deno.serve(async (req) => {
               ends_at:     endsAt,
               meet_link:   meetLink,
               language_id: languageId,
-              is_rescheduled: isRescheduled,
+              reschedule_count: isRescheduled ? 1 : 0,
+              ...(isRescheduled ? { rescheduled_at: scheduledAt, rescheduled_ends_at: endsAt } : {}),
               title,
-              status:      isPast ? 'completed' : 'scheduled',
+              status: groupStatus,
             }).select('id').maybeSingle()
             sessionId = inserted?.id ?? null
           } else if (!isPast) {
