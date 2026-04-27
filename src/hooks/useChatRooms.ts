@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ChatRoom, ChatMember, ChatMessage } from "@/components/chat/types";
@@ -127,11 +127,15 @@ export function useChatRooms() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Realtime: any new message → reload (cheap because it's already cached)
+  // Realtime: any new message → reload (cheap because it's already cached).
+  // Channel name MUST be unique per hook instance — Supabase returns the same
+  // channel object for repeated calls with the same name, and adding callbacks
+  // after another instance already called .subscribe() throws.
+  const instanceIdRef = useRef<string>(Math.random().toString(36).slice(2));
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel("chat_rooms_global")
+      .channel(`chat_rooms:${profile.id}:${instanceIdRef.current}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => {
         load();
       })
