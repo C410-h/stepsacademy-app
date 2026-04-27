@@ -29,7 +29,7 @@ const TeacherLayout = ({ children, onMenuClick }: TeacherLayoutProps) => {
               <Menu className="h-5 w-5" />
             </button>
           )}
-          <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32 -my-10" /></Link>
+          <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-20 -my-4 lg:h-32 lg:-my-10" /></Link>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild className="text-xs">
