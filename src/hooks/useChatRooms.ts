@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatTeacherName } from "@/lib/utils";
 import type { ChatRoom, ChatMember, ChatMessage } from "@/components/chat/types";
 
 /**
@@ -109,22 +110,25 @@ export function useChatRooms() {
         displayRole = undefined as any;
       } else {
         // student_teacher direct room
+        const fmtMember = (m: ChatMember) =>
+          m.role === "teacher" ? formatTeacherName(m.name) : m.name;
+
         if (myMember) {
           // Member view (student or teacher): show the OTHER member
           const other = memberList.find(m => m.user_id !== profile.id);
           if (other) {
-            displayName = other.name;
+            displayName = fmtMember(other);
             displayAvatar = other.avatar_url;
             displayRole = other.role as any;
           }
         } else {
-          // Admin observer view: show "Aluno · Professor"
+          // Admin observer view: show "Aluno · Prof. Professor"
           const student = memberList.find(m => m.role === "student");
           const teacher = memberList.find(m => m.role === "teacher");
           if (student && teacher) {
-            displayName = `${student.name.split(" ")[0]} · ${teacher.name.split(" ")[0]}`;
+            displayName = `${student.name.split(" ")[0]} · ${formatTeacherName(teacher.name.split(" ")[0])}`;
           } else {
-            displayName = memberList.map(m => m.name.split(" ")[0]).join(" · ") || "Conversa";
+            displayName = memberList.map(fmtMember).join(" · ") || "Conversa";
           }
           displayAvatar = null;
           displayRole = undefined as any;
