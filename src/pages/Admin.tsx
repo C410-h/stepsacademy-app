@@ -2792,7 +2792,19 @@ const Admin = () => {
                               {g.languages?.name} · {g.levels?.code} · {g.group_students?.length || 0} aluno{g.group_students?.length !== 1 ? "s" : ""}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              title="Chat da turma"
+                              onClick={async () => {
+                                const { data } = await (supabase as any).rpc("get_or_create_group_room", { p_group_id: g.id });
+                                if (data) navigate(`/admin?tab=chat`);
+                              }}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </Button>
                             <Badge variant={g.active ? "default" : "secondary"} className={g.active ? "bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px]" : "text-[10px]"}>
                               {g.active ? "ativa" : "inativa"}
                             </Badge>

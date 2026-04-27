@@ -34,13 +34,15 @@ interface Props {
   /** When provided, makes the room title (avatar + name) clickable — used by
    *  teacher/admin to open the other party's profile drawer. */
   onTitleClick?: () => void;
+  /** Admin-only: delete the entire chat room (messages + members cascade) */
+  onDeleteRoom?: () => void;
 }
 
 export function ChatRoom({
   room, messages, currentUserId, typingUsers = [],
   onSend, onReact, onDelete, onTyping,
   onTogglePin, onToggleMute, onToggleArchive,
-  onBack, onJumpToMessage, onTitleClick,
+  onBack, onJumpToMessage, onTitleClick, onDeleteRoom,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -107,7 +109,11 @@ export function ChatRoom({
                   ? `${typingNames[0]} está digitando…`
                   : room.kind === "support"
                     ? "Steps · Suporte"
-                    : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
+                    : room.kind === "group"
+                      ? `${room.members.length} membros · Turma`
+                      : room.kind === "duo"
+                        ? `${room.members.length} membros · Dupla`
+                        : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
               </p>
             </div>
           </button>
@@ -126,7 +132,11 @@ export function ChatRoom({
                   ? `${typingNames[0]} está digitando…`
                   : room.kind === "support"
                     ? "Steps · Suporte"
-                    : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
+                    : room.kind === "group"
+                      ? `${room.members.length} membros · Turma`
+                      : room.kind === "duo"
+                        ? `${room.members.length} membros · Dupla`
+                        : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
               </p>
             </div>
           </>
@@ -151,6 +161,18 @@ export function ChatRoom({
               <Archive className="h-3.5 w-3.5" />
               {room.is_archived ? "Desarquivar" : "Arquivar"}
             </button>
+            {onDeleteRoom && (
+              <>
+                <div className="border-t my-1" />
+                <button
+                  onClick={onDeleteRoom}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-destructive/10 text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Apagar conversa
+                </button>
+              </>
+            )}
           </PopoverContent>
         </Popover>
       </div>

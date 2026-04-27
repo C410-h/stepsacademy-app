@@ -17,10 +17,10 @@ export function useChatRooms() {
     if (!profile?.id) return;
     setLoading(true);
 
-    // 1. Fetch all rooms (RLS filters down)
+    // 1. Fetch all rooms (RLS filters down) — pull group name when kind=group
     const { data: roomRows } = await (supabase as any)
       .from("chat_rooms")
-      .select("id, kind, created_at, last_message_at")
+      .select("id, kind, created_at, last_message_at, group_id, groups(name)")
       .order("last_message_at", { ascending: false });
 
     if (!roomRows || roomRows.length === 0) {
@@ -95,6 +95,18 @@ export function useChatRooms() {
           displayAvatar = owner?.avatar_url ?? null;
           displayRole = owner?.role as any;
         }
+      } else if (r.kind === "group") {
+        // Group: name from joined groups table; avatar derived from initials
+        displayName = r.groups?.name ?? "Turma";
+        displayAvatar = null;
+        displayRole = undefined as any;
+      } else if (r.kind === "duo") {
+        // Duo: show "Aluno A & Aluno B" — exclude the caller (teacher)
+        const others = memberList.filter(m => m.user_id !== profile.id);
+        const names = others.map(m => m.name.split(" ")[0]);
+        displayName = names.length > 0 ? names.join(" & ") : "Dupla";
+        displayAvatar = null;
+        displayRole = undefined as any;
       } else {
         const other = memberList.find(m => m.user_id !== profile.id);
         if (other) {

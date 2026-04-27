@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft, ChevronRight, CalendarPlus, ExternalLink,
-  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users, FlaskConical, Trash2,
+  AlertTriangle, CheckCircle2, Calendar, CalendarClock, UserX, WifiOff, BookOpen, Pencil, Users, FlaskConical, Trash2, MessageCircle,
 } from "lucide-react";
 import RescheduleSheet, { type RescheduleSessionData } from "./RescheduleSheet";
 import { format } from "date-fns";
@@ -1300,6 +1300,35 @@ const TeacherAgendaTab = ({ profileId, onSchedule, scheduleDisabled }: Props) =>
                     >
                       <ExternalLink className="h-4 w-4" />
                       Entrar na aula
+                    </Button>
+                  )}
+
+                  {/* Chat — group or duo session */}
+                  {isGroup && (selected.group_id || attendees.length === 2) && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={async () => {
+                        if (selected.group_id) {
+                          await (supabase as any).rpc("get_or_create_group_room", { p_group_id: selected.group_id });
+                          navigate("/teacher?tab=chat");
+                        } else if (attendees.length === 2) {
+                          // Translate students.id → user_id for the duo RPC
+                          const { data: studs } = await (supabase as any)
+                            .from("students").select("id, user_id")
+                            .in("id", attendees.map(a => a.student_id));
+                          if (studs && studs.length === 2) {
+                            await (supabase as any).rpc("get_or_create_duo_room", {
+                              p_student_a_user_id: studs[0].user_id,
+                              p_student_b_user_id: studs[1].user_id,
+                            });
+                            navigate("/teacher?tab=chat");
+                          }
+                        }
+                      }}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      {selected.group_id ? "Chat da turma" : "Chat da dupla"}
                     </Button>
                   )}
 

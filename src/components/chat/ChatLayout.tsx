@@ -92,6 +92,19 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
   const handleDelete = (msg: ChatMessage) => deleteMessage(msg.id);
   const handleReact = (msg: ChatMessage, emoji: string) => toggleReaction(msg.id, emoji);
 
+  const handleDeleteRoom = async () => {
+    if (!activeRoom) return;
+    const ok = window.confirm(`Apagar a conversa com ${activeRoom.display_name}?\n\nTodas as mensagens serão removidas permanentemente.`);
+    if (!ok) return;
+    const { error } = await (supabase as any).from("chat_rooms").delete().eq("id", activeRoom.id);
+    if (error) {
+      alert("Erro ao apagar conversa: " + error.message);
+      return;
+    }
+    setActiveId(null);
+    reload();
+  };
+
   // Title-click handler — only for teacher/admin viewing direct rooms.
   // Navigates to the matching panel with a deep link so the existing drawer
   // (with full data, RLS-aware) opens via that page's effects.
@@ -113,11 +126,12 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
     }
   };
 
-  // Only show the title-click affordance when navigation will actually open
-  // a profile — admin can open any student or teacher; teacher can open
-  // student profiles (their own students).
+  // Only show the title-click affordance for 1:1 rooms where navigation will
+  // actually open a profile. Group / duo rooms have multiple counterparts so
+  // a single-click target doesn't make sense — skip.
   const canOpenProfile = (() => {
     if (!activeRoom || !profile?.id) return false;
+    if (activeRoom.kind === "group" || activeRoom.kind === "duo") return false;
     const other = activeRoom.members.find(m => m.user_id !== profile.id);
     if (!other) return false;
     if (profile.role === "admin") return other.role === "student" || other.role === "teacher";
@@ -159,6 +173,7 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
             onToggleArchive={toggleArchive}
             onBack={() => { userBackedOutRef.current = true; setActiveId(null); }}
             onTitleClick={canOpenProfile ? handleTitleClick : undefined}
+            onDeleteRoom={profile?.role === "admin" ? handleDeleteRoom : undefined}
           />
         ) : (
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm">

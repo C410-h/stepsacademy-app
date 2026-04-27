@@ -1,4 +1,4 @@
-export type RoomKind = "student_teacher" | "support";
+export type RoomKind = "student_teacher" | "support" | "group" | "duo";
 
 export type ChatRoom = {
   id: string;
