@@ -167,21 +167,31 @@ const TeacherAvailabilityTab = () => {
     setDeleting(prev => { const s = new Set(prev); s.delete(row.id); return s; });
   };
 
-  // ── Novas linhas ──────────────────────────────────────────────────────────
+  // ── Novas linhas — insert imediato no DB para evitar perda de dados ──────
 
-  const addNewRow = (day: number) => {
+  const addNewRow = async (day: number) => {
+    if (!profile) return;
     const existing = availability.filter(r => r.day_of_week === day);
-    const pending  = newRows[day] ?? [];
     // Sugerir início após o último intervalo do dia
-    const lastEnd = [...existing.map(r => hhmm(r.end_time)), ...pending.map(r => r.end)]
-      .sort()
-      .at(-1) ?? "09:00";
+    const lastEnd = [...existing.map(r => hhmm(r.end_time))].sort().at(-1) ?? "09:00";
     const start = lastEnd;
     const end   = addMinutes(start, 60);
-    setNewRows(prev => ({
-      ...prev,
-      [day]: [...(prev[day] ?? []), { tempId: makeTempId(), start, end, saving: false }],
-    }));
+
+    const { error } = await (supabase as any)
+      .from("teacher_availability")
+      .insert({
+        teacher_id: profile.id,
+        day_of_week: day,
+        start_time: `${start}:00`,
+        end_time: `${end}:00`,
+        language_id: teacherLangId,
+        active: true,
+      });
+    if (error) {
+      toast({ title: "Erro ao adicionar horário.", description: error.message, variant: "destructive" });
+      return;
+    }
+    await fetchAvailability();
   };
 
   const patchNewRow = (day: number, tempId: string, patch: Partial<NewRow>) =>
@@ -323,7 +333,16 @@ const TeacherAvailabilityTab = () => {
                 const busy       = isSaving || isDeleting;
 
                 return (
-                  <div key={row.id} className="flex items-center gap-2 flex-wrap">
+                  <div
+                    key={row.id}
+                    className="flex items-center gap-2 flex-wrap"
+                    onBlur={(ev) => {
+                      // Auto-save when focus leaves the row entirely AND there are unsaved edits
+                      if (!ev.currentTarget.contains(ev.relatedTarget as Node) && edits[row.id] && !edits[row.id].saving) {
+                        saveEdit(row);
+                      }
+                    }}
+                  >
                     <TimeInput
                       value={start}
                       onChange={v => { startEdit(row); patchEdit(row.id, { start: v }); }}

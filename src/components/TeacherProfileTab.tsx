@@ -27,8 +27,9 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { HELP_CONTENT } from "@/data/helpContent";
-import { Camera, Info, Pencil, Lock, LogOut, Search, HelpCircle, MessageCircle, Headphones } from "lucide-react";
+import { Camera, Info, Pencil, Lock, LogOut, Search, HelpCircle, MessageCircle, Headphones, Bell, BellOff } from "lucide-react";
 import { Link } from "react-router-dom";
+import { isPushSupported, isPushSubscribed, subscribeToPush, unsubscribeFromPush } from "@/lib/pushNotifications";
 import { cn } from "@/lib/utils";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -122,6 +123,40 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
   const [savingPw,  setSavingPw]  = useState(false);
 
   const [helpSearch, setHelpSearch] = useState("");
+
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushDenied, setPushDenied]   = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const pushSupported = isPushSupported();
+
+  useEffect(() => {
+    if (!pushSupported) return;
+    isPushSubscribed().then(setPushEnabled);
+    if (typeof Notification !== "undefined" && Notification.permission === "denied") setPushDenied(true);
+  }, [pushSupported]);
+
+  const handlePushToggle = async () => {
+    if (pushLoading) return;
+    setPushLoading(true);
+    if (!pushEnabled) {
+      const ok = await subscribeToPush(null, profileId);
+      if (ok) {
+        setPushEnabled(true);
+        toast({ title: "Notificações ativadas!", description: "Você receberá pushes deste dispositivo." });
+      } else {
+        const denied = typeof Notification !== "undefined" && Notification.permission === "denied";
+        setPushDenied(denied);
+        if (!denied) toast({ title: "Não foi possível ativar", variant: "destructive" });
+      }
+    } else {
+      const ok = await unsubscribeFromPush();
+      if (ok) {
+        setPushEnabled(false);
+        toast({ title: "Notificações desativadas." });
+      }
+    }
+    setPushLoading(false);
+  };
 
   useEffect(() => { loadAll(); }, [profileId]);
 
@@ -489,7 +524,20 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
             </div>
 
             <div className="border-t pt-3 space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Segurança</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Notificações e segurança</span>
+              {pushSupported && (
+                <Button
+                  size="sm"
+                  variant={pushEnabled ? "default" : "outline"}
+                  className="w-full gap-2"
+                  onClick={handlePushToggle}
+                  disabled={pushLoading || pushDenied}
+                  title={pushDenied ? "Permissão bloqueada nas configurações do navegador" : undefined}
+                >
+                  {pushEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+                  {pushLoading ? "…" : pushEnabled ? "Notificações ativas" : pushDenied ? "Bloqueadas no navegador" : "Ativar notificações"}
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => setPwOpen(true)}>
                 <Lock className="h-3.5 w-3.5" />
                 Alterar senha

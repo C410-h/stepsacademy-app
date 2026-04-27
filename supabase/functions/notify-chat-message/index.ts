@@ -73,13 +73,40 @@ serve(async (req) => {
       return new Response(JSON.stringify({ sent: 0, message: 'no recipients' }), { headers: corsHeaders })
     }
 
-    // Fetch push subscriptions for those profiles
-    const { data: subs } = await supabase
-      .from('push_subscriptions')
-      .select('endpoint, p256dh, auth, profile_id')
-      .in('profile_id', Array.from(recipientProfileIds))
+    // push_subscriptions can be keyed by EITHER profile_id (newer subs) OR
+    // student_id (legacy subs from PushNotificationModal). Translate the
+    // recipient profile_ids → student_ids and query both columns.
+    const profileIds = Array.from(recipientProfileIds)
+    const { data: studentRows } = await supabase
+      .from('students')
+      .select('id, user_id')
+      .in('user_id', profileIds)
+    const studentIds = (studentRows ?? []).map((s: any) => s.id)
 
-    if (!subs?.length) {
+    const [{ data: subsByProfile }, { data: subsByStudent }] = await Promise.all([
+      supabase
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth')
+        .in('profile_id', profileIds),
+      studentIds.length > 0
+        ? supabase
+            .from('push_subscriptions')
+            .select('endpoint, p256dh, auth')
+            .in('student_id', studentIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ])
+
+    // Dedupe by endpoint
+    const seen = new Set<string>()
+    const subs: any[] = []
+    for (const s of [...(subsByProfile ?? []), ...(subsByStudent ?? [])]) {
+      if (s?.endpoint && !seen.has(s.endpoint)) {
+        seen.add(s.endpoint)
+        subs.push(s)
+      }
+    }
+
+    if (!subs.length) {
       return new Response(JSON.stringify({ sent: 0, message: 'no subs' }), { headers: corsHeaders })
     }
 
