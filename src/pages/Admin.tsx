@@ -2954,6 +2954,27 @@ const Admin = () => {
                         <div>
                           <Label>Arquivo *</Label>
                           <Input type="file" onChange={e => setMatFile(e.target.files?.[0] || null)} />
+                          {matFile && (
+                            <div className="mt-2 flex items-center gap-2.5 p-2.5 rounded-md border bg-muted/40">
+                              <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium truncate">{matFile.name}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {matFile.size < 1024 * 1024
+                                    ? `${(matFile.size / 1024).toFixed(0)} KB`
+                                    : `${(matFile.size / (1024 * 1024)).toFixed(1)} MB`}
+                                  {" · "}{matFile.name.split(".").pop()?.toUpperCase()}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setMatFile(null)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <Button onClick={handleUploadMaterial} disabled={uploading} className="w-full bg-primary text-white">
                           {uploading ? "Enviando..." : "Enviar"}
