@@ -108,11 +108,26 @@ export function useChatRooms() {
         displayAvatar = null;
         displayRole = undefined as any;
       } else {
-        const other = memberList.find(m => m.user_id !== profile.id);
-        if (other) {
-          displayName = other.name;
-          displayAvatar = other.avatar_url;
-          displayRole = other.role as any;
+        // student_teacher direct room
+        if (myMember) {
+          // Member view (student or teacher): show the OTHER member
+          const other = memberList.find(m => m.user_id !== profile.id);
+          if (other) {
+            displayName = other.name;
+            displayAvatar = other.avatar_url;
+            displayRole = other.role as any;
+          }
+        } else {
+          // Admin observer view: show "Aluno · Professor"
+          const student = memberList.find(m => m.role === "student");
+          const teacher = memberList.find(m => m.role === "teacher");
+          if (student && teacher) {
+            displayName = `${student.name.split(" ")[0]} · ${teacher.name.split(" ")[0]}`;
+          } else {
+            displayName = memberList.map(m => m.name.split(" ")[0]).join(" · ") || "Conversa";
+          }
+          displayAvatar = null;
+          displayRole = undefined as any;
         }
       }
 

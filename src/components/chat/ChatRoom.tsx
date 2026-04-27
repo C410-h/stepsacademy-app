@@ -113,7 +113,9 @@ export function ChatRoom({
                       ? `${room.members.length} membros · Turma`
                       : room.kind === "duo"
                         ? `${room.members.length} membros · Dupla`
-                        : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
+                        : room.display_role === "teacher" ? "Professor(a)"
+                        : room.display_role === "student" ? "Aluno(a)"
+                        : "Aluno ↔ Professor"}
               </p>
             </div>
           </button>
@@ -136,7 +138,9 @@ export function ChatRoom({
                       ? `${room.members.length} membros · Turma`
                       : room.kind === "duo"
                         ? `${room.members.length} membros · Dupla`
-                        : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
+                        : room.display_role === "teacher" ? "Professor(a)"
+                        : room.display_role === "student" ? "Aluno(a)"
+                        : "Aluno ↔ Professor"}
               </p>
             </div>
           </>
