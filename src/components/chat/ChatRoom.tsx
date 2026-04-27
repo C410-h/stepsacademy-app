@@ -31,13 +31,16 @@ interface Props {
   onToggleArchive?: () => void;
   onBack?: () => void;
   onJumpToMessage?: (id: string) => void;
+  /** When provided, makes the room title (avatar + name) clickable — used by
+   *  teacher/admin to open the other party's profile drawer. */
+  onTitleClick?: () => void;
 }
 
 export function ChatRoom({
   room, messages, currentUserId, typingUsers = [],
   onSend, onReact, onDelete, onTyping,
   onTogglePin, onToggleMute, onToggleArchive,
-  onBack, onJumpToMessage,
+  onBack, onJumpToMessage, onTitleClick,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -85,22 +88,49 @@ export function ChatRoom({
             <ArrowLeft className="h-5 w-5" />
           </button>
         )}
-        <Avatar className="h-9 w-9">
-          {room.display_avatar && <AvatarImage src={room.display_avatar} />}
-          <AvatarFallback className="text-xs bg-[var(--theme-accent)]/30 text-[var(--theme-brand-on-bg)] font-medium">
-            {initials(room.display_name)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate">{room.display_name}</p>
-          <p className="text-[11px] text-muted-foreground truncate">
-            {typingNames.length > 0
-              ? `${typingNames[0]} está digitando…`
-              : room.kind === "support"
-                ? "Steps · Suporte"
-                : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
-          </p>
-        </div>
+        {onTitleClick ? (
+          <button
+            onClick={onTitleClick}
+            className="flex items-center gap-3 flex-1 min-w-0 text-left rounded-md hover:bg-muted/50 transition-colors -mx-1 px-1 py-1"
+            title="Ver perfil"
+          >
+            <Avatar className="h-9 w-9">
+              {room.display_avatar && <AvatarImage src={room.display_avatar} />}
+              <AvatarFallback className="text-xs bg-[var(--theme-accent)]/30 text-[var(--theme-brand-on-bg)] font-medium">
+                {initials(room.display_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate hover:underline">{room.display_name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">
+                {typingNames.length > 0
+                  ? `${typingNames[0]} está digitando…`
+                  : room.kind === "support"
+                    ? "Steps · Suporte"
+                    : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
+              </p>
+            </div>
+          </button>
+        ) : (
+          <>
+            <Avatar className="h-9 w-9">
+              {room.display_avatar && <AvatarImage src={room.display_avatar} />}
+              <AvatarFallback className="text-xs bg-[var(--theme-accent)]/30 text-[var(--theme-brand-on-bg)] font-medium">
+                {initials(room.display_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate">{room.display_name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">
+                {typingNames.length > 0
+                  ? `${typingNames[0]} está digitando…`
+                  : room.kind === "support"
+                    ? "Steps · Suporte"
+                    : room.display_role === "teacher" ? "Professor(a)" : room.display_role === "student" ? "Aluno(a)" : ""}
+              </p>
+            </div>
+          </>
+        )}
 
         <Popover>
           <PopoverTrigger asChild>

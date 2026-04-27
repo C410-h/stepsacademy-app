@@ -38,7 +38,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { AdminChatPane } from "@/components/chat/AdminChatPane";
-import { Navigate, useNavigate, Link } from "react-router-dom";
+import { Navigate, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { updateStudentStep } from "@/lib/studentProgress";
@@ -363,6 +363,8 @@ const Admin = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [statsSection, setStatsSection] = useState<string | undefined>();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pendingOpenUserId, setPendingOpenUserId] = useState<string | null>(null);
 
   // ── Suggestions drawer
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -477,6 +479,22 @@ const Admin = () => {
       toast({ title: "Erro ao remover feriado", variant: "destructive" });
     }
   };
+
+  // Deep-link from chat: ?tab=students&openUser=<userId>
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const openUser = searchParams.get("openUser");
+    if (tab) setActiveTab(tab);
+    if (openUser) setPendingOpenUserId(openUser);
+    if (tab || openUser) setSearchParams({}, { replace: true });
+  }, []);
+
+  // Once students list is loaded, fulfill any pending openUser request
+  useEffect(() => {
+    if (!pendingOpenUserId) return;
+    openStudentByUserId(pendingOpenUserId);
+    setPendingOpenUserId(null);
+  }, [pendingOpenUserId, students.length]);
 
   useEffect(() => {
     loadReference();
@@ -670,6 +688,18 @@ const Admin = () => {
     setDrawerProfileData(profileRow || null);
     setDrawerLoading(false);
     await loadDrawerCerts(student.id);
+  };
+
+  const openStudentByUserId = async (userId: string) => {
+    const found = students.find(s => s.userId === userId);
+    if (found) { openStudentDrawer(found); return; }
+    // Students not loaded yet — translate user_id → student.id and fetch
+    const { data: stud } = await supabase
+      .from("students")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (stud?.id) await openStudentById(stud.id);
   };
 
   const openStudentById = async (studentId: string) => {

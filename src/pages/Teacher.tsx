@@ -36,13 +36,14 @@ const Teacher = () => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+  const [pendingOpenStudentUserId, setPendingOpenStudentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const tab = searchParams.get("tab") as ActiveTab | null;
-    if (tab) {
-      setActiveTab(tab);
-      setSearchParams({}, { replace: true });
-    }
+    const openUser = searchParams.get("openUser");
+    if (tab) setActiveTab(tab);
+    if (openUser) setPendingOpenStudentUserId(openUser);
+    if (tab || openUser) setSearchParams({}, { replace: true });
   }, []);
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [simpleStudents, setSimpleStudents] = useState<ScheduleStudent[]>([]);
@@ -254,6 +255,8 @@ const Teacher = () => {
               profileId={profile!.id}
               teacherId={teacherId}
               onSchedule={handleSchedule}
+              openStudentUserId={pendingOpenStudentUserId}
+              onStudentOpened={() => setPendingOpenStudentUserId(null)}
             />
           )}
 

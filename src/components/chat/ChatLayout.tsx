@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatRooms } from "@/hooks/useChatRooms";
@@ -21,6 +22,7 @@ interface Props {
 
 export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initialRoomId }: Props) {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const { rooms, loading, reload } = useChatRooms();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
@@ -90,6 +92,39 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
   const handleDelete = (msg: ChatMessage) => deleteMessage(msg.id);
   const handleReact = (msg: ChatMessage, emoji: string) => toggleReaction(msg.id, emoji);
 
+  // Title-click handler — only for teacher/admin viewing direct rooms.
+  // Navigates to the matching panel with a deep link so the existing drawer
+  // (with full data, RLS-aware) opens via that page's effects.
+  const handleTitleClick = async () => {
+    if (!activeRoom || !profile?.id) return;
+    if (profile.role !== "teacher" && profile.role !== "admin") return;
+    const other = activeRoom.members.find(m => m.user_id !== profile.id);
+    if (!other) return;
+
+    if (profile.role === "admin") {
+      if (other.role === "student") {
+        navigate(`/admin?tab=students&openUser=${other.user_id}`);
+      } else if (other.role === "teacher") {
+        const { data } = await (supabase as any).from("teachers").select("id").eq("user_id", other.user_id).maybeSingle();
+        if (data?.id) navigate(`/admin/professor/${data.id}`);
+      }
+    } else if (profile.role === "teacher" && other.role === "student") {
+      navigate(`/teacher?tab=students&openUser=${other.user_id}`);
+    }
+  };
+
+  // Only show the title-click affordance when navigation will actually open
+  // a profile — admin can open any student or teacher; teacher can open
+  // student profiles (their own students).
+  const canOpenProfile = (() => {
+    if (!activeRoom || !profile?.id) return false;
+    const other = activeRoom.members.find(m => m.user_id !== profile.id);
+    if (!other) return false;
+    if (profile.role === "admin") return other.role === "student" || other.role === "teacher";
+    if (profile.role === "teacher") return other.role === "student";
+    return false;
+  })();
+
   // Mobile: show list when no room selected, show room (full-screen) when one is.
   // Desktop (lg+): show both side-by-side.
   const showRoomOnMobile = !!activeRoom;
@@ -123,6 +158,7 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
             onToggleMute={toggleMute}
             onToggleArchive={toggleArchive}
             onBack={() => { userBackedOutRef.current = true; setActiveId(null); }}
+            onTitleClick={canOpenProfile ? handleTitleClick : undefined}
           />
         ) : (
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm">

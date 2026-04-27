@@ -79,6 +79,9 @@ interface Props {
   profileId: string;
   teacherId: string;
   onSchedule: (s?: ScheduleStudent) => void;
+  /** When provided, auto-opens the drawer for the student matching this user_id once the list loads */
+  openStudentUserId?: string | null;
+  onStudentOpened?: () => void;
 }
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
@@ -126,7 +129,7 @@ const HEALTH_MAP: Record<HealthStatus, { label: string; className: string }> = {
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
+const TeacherStudentsTab = ({ profileId, teacherId, onSchedule, openStudentUserId, onStudentOpened }: Props) => {
   const { toast } = useToast();
 
   const [students, setStudents] = useState<StudentsTabStudent[]>([]);
@@ -356,6 +359,16 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
     }
     setConfirmingAbsence(null);
   };
+
+  // ── External "open by user_id" trigger (deep link from chat) ──────────────
+  useEffect(() => {
+    if (!openStudentUserId || students.length === 0) return;
+    const match = students.find(s => s.userId === openStudentUserId);
+    if (match) {
+      openDrawer(match);
+      onStudentOpened?.();
+    }
+  }, [openStudentUserId, students]);
 
   // ── Step update cascade ───────────────────────────────────────────────────
 
