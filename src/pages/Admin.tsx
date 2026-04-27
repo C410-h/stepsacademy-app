@@ -23,6 +23,7 @@ import AdminContentByStepTab from "@/components/AdminContentByStepTab";
 import AdminPaymentsTab from "@/components/AdminPaymentsTab";
 import AdminStoreTab from "@/components/AdminStoreTab";
 import AdminStatsTab from "@/components/AdminStatsTab";
+import { ModalViewersCard } from "@/components/ModalViewersCard";
 import AdminSuggestionsDrawer from "@/components/AdminSuggestionsDrawer";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -3501,7 +3502,7 @@ const Admin = () => {
                 {adminNotifs.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">Nenhuma atividade ainda.</p>
                 ) : (
-                  <div className="divide-y">
+                  <div className="divide-y max-h-[560px] overflow-y-auto">
                     {adminNotifs.map((n: any) => (
                       <div
                         key={n.id}
@@ -3538,78 +3539,12 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* ── Profile completion tracker ── */}
-            {profileCompletionStats.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <UserCheck className="h-4 w-4" />
-                    Perfil completo — Alunos que viram o modal
-                    <span className="text-xs font-normal text-muted-foreground ml-1">
-                      {profileCompletionStats.filter(s => s.completed).length}/{profileCompletionStats.length} completaram
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="divide-y text-sm">
-                    {profileCompletionStats.map(s => (
-                      <div key={s.profile_id} className="flex items-center gap-3 py-2.5">
-                        <div className={cn(
-                          "h-2 w-2 rounded-full shrink-0",
-                          s.completed ? "bg-green-500" : "bg-amber-400"
-                        )} />
-                        <span className="flex-1 font-medium truncate">{s.name}</span>
-                        {s.completed ? (
-                          <span className="text-xs text-green-600 font-medium shrink-0">
-                            Concluído {s.completedAt ? new Date(s.completedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : ""}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            Viu {s.shown}× · aguardando
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ── Push subscription tracker ── */}
-            {pushPromptStats.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    Push — Alunos que viram o modal
-                    <span className="text-xs font-normal text-muted-foreground ml-1">
-                      {pushPromptStats.filter(s => s.subscribed).length}/{pushPromptStats.length} ativaram
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="divide-y text-sm">
-                    {pushPromptStats.map(s => (
-                      <div key={s.student_id} className="flex items-center gap-3 py-2.5">
-                        <div className={cn(
-                          "h-2 w-2 rounded-full shrink-0",
-                          s.subscribed ? "bg-green-500" : "bg-amber-400"
-                        )} />
-                        <span className="flex-1 font-medium truncate">{s.name}</span>
-                        {s.subscribed ? (
-                          <span className="text-xs text-green-600 font-medium shrink-0">Ativo</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {s.dismissed > 0
-                              ? `Recusou ${s.dismissed}× · ${s.lastDismissed ? new Date(s.lastDismissed).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : ""}`
-                              : `Viu ${s.shown}× · sem resposta`}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+            {/* ── Modal viewers ── */}
+            {(profileCompletionStats.length > 0 || pushPromptStats.length > 0) && (
+              <ModalViewersCard
+                profileStats={profileCompletionStats}
+                pushStats={pushPromptStats}
+              />
             )}
 
             <div className="flex items-center justify-between">

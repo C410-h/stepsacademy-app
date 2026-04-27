@@ -433,17 +433,17 @@ const ExercisesEngine = ({
     }
 
     if (actualXp > 0) {
-      await (supabase as any).from("student_gamification").update({
-        xp_total: gamification.xp_total + actualXp,
-        coins: gamification.coins + actualCoins,
-        updated_at: new Date().toISOString(),
-      }).eq("student_id", sid);
       const ex = exercises[currentIndex];
-      await (supabase as any).from("xp_events").insert({
-        student_id: sid, event_type: "lesson_exercise",
-        xp: actualXp, coins: actualCoins,
-        description: correct ? `Correto: ${ex?.question?.slice(0, 50)}` : `Tentativa: ${ex?.question?.slice(0, 50)}`,
+      const { error: xpError } = await (supabase as any).rpc("award_xp", {
+        p_student_id:  sid,
+        p_xp:          actualXp,
+        p_coins:       actualCoins,
+        p_event_type:  "lesson_exercise",
+        p_description: correct
+          ? `Correto: ${ex?.question?.slice(0, 50)}`
+          : `Tentativa: ${ex?.question?.slice(0, 50)}`,
       });
+      if (xpError) console.error("award_xp failed:", xpError);
       setSessionXp(prev => prev + actualXp);
       setSessionCoins(prev => prev + actualCoins);
       onXpEarned?.(actualXp, actualCoins);
