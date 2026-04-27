@@ -14,7 +14,7 @@ import {
   Loader2, AlertTriangle, ChevronRight, BanIcon, CalendarClock, MessageCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn, formatTeacherName } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import RescheduleSheet, { type RescheduleSessionData } from "@/components/RescheduleSheet";
@@ -606,7 +606,7 @@ const UpcomingClasses = () => {
                     <p className="text-xs text-muted-foreground font-light">
                       {formatTime(ev.start)} – {formatTime(ev.end)}
                     </p>
-                    <p className="text-xs text-muted-foreground font-light">{teacherName}</p>
+                    <p className="text-xs text-muted-foreground font-light">{formatTeacherName(teacherName)}</p>
 
                     {ev.is_holiday ? (
                       <div className="pt-0.5 space-y-0.5">
@@ -701,7 +701,7 @@ const UpcomingClasses = () => {
                         </p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground font-light pl-6">{teacherName}</p>
+                    <p className="text-xs text-muted-foreground font-light pl-6">{formatTeacherName(teacherName)}</p>
                     <div className="flex flex-wrap gap-1.5 pl-6 pt-0.5">
                       {ev.is_rescheduled && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-yellow-400 text-yellow-600 bg-yellow-50 dark:bg-yellow-950 dark:text-yellow-400">

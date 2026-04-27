@@ -7,7 +7,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatTeacherName } from "@/lib/utils";
 
 interface Student {
   id: string;
@@ -131,7 +131,7 @@ function ResultSection({
           >
             <span className="flex-1 min-w-0">
               <span className="block truncate text-sm font-medium leading-tight">
-                {item.name}
+                {item.kind === "teacher" ? formatTeacherName(item.name) : item.name}
               </span>
               {item.subtitle && (
                 <span className="block truncate text-xs text-muted-foreground mt-0.5">

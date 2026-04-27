@@ -11,7 +11,7 @@ import {
   CheckCircle2, XCircle, FileText, Headphones, BookOpen,
   PenLine, Clock, ChevronDown, ChevronUp, Loader2, ExternalLink,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatTeacherName } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -359,7 +359,7 @@ const AdminApprovalsTab = () => {
                 <Clock className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold truncate">
-                    {sub.teacherName} — Passo {sub.stepNumber}
+                    {formatTeacherName(sub.teacherName)} — Passo {sub.stepNumber}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {sub.languageName} · {sub.levelCode}

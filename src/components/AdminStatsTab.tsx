@@ -11,6 +11,7 @@ import {
 import {
   startOfMonth, startOfYear, subMonths, subDays, differenceInDays, format,
 } from "date-fns";
+import { formatTeacherName } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -553,8 +554,8 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick,
                     <tr key={t.teacherId} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium">
                         {onTeacherClick
-                          ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onTeacherClick(t.teacherId)}>{t.name}</button>
-                          : t.name}
+                          ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onTeacherClick(t.teacherId)}>{formatTeacherName(t.name)}</button>
+                          : formatTeacherName(t.name)}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">{t.individual}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{t.group}</td>
@@ -615,7 +616,7 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick,
                           ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onStudentClick(s.studentId)}>{s.name}</button>
                           : s.name}
                       </td>
-                      <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName === "—" ? "—" : formatTeacherName(s.teacherName)}</td>
                       <td className="px-4 py-2.5">
                         <Badge variant="outline" className="text-[10px] py-0">{s.level}</Badge>
                       </td>
@@ -683,7 +684,7 @@ const AdminStatsTab = ({ highlightSection, onSectionHighlighted, onStudentClick,
                             ? <button className="hover:underline text-left text-[var(--theme-brand-on-bg)]" onClick={() => onStudentClick(s.studentId)}>{s.name}</button>
                             : s.name}
                         </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{s.teacherName === "—" ? "—" : formatTeacherName(s.teacherName)}</td>
                         <td className="px-4 py-2.5 text-muted-foreground">
                           {s.language} · <Badge variant="outline" className="text-[10px] py-0">{s.level}</Badge>
                         </td>

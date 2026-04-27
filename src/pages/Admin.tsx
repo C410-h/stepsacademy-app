@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { AdminChatPane } from "@/components/chat/AdminChatPane";
 import { Navigate, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn, formatTeacherName } from "@/lib/utils";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { updateStudentStep } from "@/lib/studentProgress";
 import {
@@ -1999,7 +1999,7 @@ const Admin = () => {
                         <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
                           <div>
                             <span className="font-medium">{c.studentName}</span>
-                            <span className="text-muted-foreground"> · {c.teacherName}</span>
+                            <span className="text-muted-foreground"> · {formatTeacherName(c.teacherName)}</span>
                           </div>
                           <span className="text-muted-foreground">{formatDate(c.completedAt)}</span>
                         </div>
@@ -2148,7 +2148,7 @@ const Admin = () => {
                           <p className="text-xs text-muted-foreground">
                             {s.language?.name} · {s.level?.code} · Passo {s.currentStepNumber}
                           </p>
-                          {s.teacherName && <p className="text-xs text-muted-foreground">Prof: {s.teacherName}</p>}
+                          {s.teacherName && <p className="text-xs text-muted-foreground">{formatTeacherName(s.teacherName)}</p>}
                         </div>
                         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                           <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px]" : "text-[10px]"}>
@@ -2209,10 +2209,10 @@ const Admin = () => {
                                 className="text-[var(--theme-brand-on-bg)] underline underline-offset-2 hover:opacity-70 transition-opacity"
                                 onClick={() => { setStudentDrawerOpen(false); navigate(`/admin/professor/${selectedStudent.teacherId}`); }}
                               >
-                                {selectedStudent.teacherName}
+                                {formatTeacherName(selectedStudent.teacherName)}
                               </button>
                             ) : (
-                              <span>{selectedStudent.teacherName}</span>
+                              <span>{formatTeacherName(selectedStudent.teacherName)}</span>
                             )}
                           </div>
                         )}
@@ -2670,7 +2670,7 @@ const Admin = () => {
                     <CardContent className="p-3">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="text-sm font-medium">{t.name}</p>
+                          <p className="text-sm font-medium">{formatTeacherName(t.name)}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {t.languages.join(", ") || "Sem idiomas"} · {t.studentCount} aluno{t.studentCount !== 1 ? "s" : ""}
                           </p>

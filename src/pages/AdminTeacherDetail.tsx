@@ -19,7 +19,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn, formatTeacherName } from "@/lib/utils";
 
 // ────────────────────────────────────────────
 // Types
@@ -314,7 +314,7 @@ export default function AdminTeacherDetail() {
                 ) : (
                   <>
                     <h2 className="text-xl font-bold text-foreground">
-                      {teacherName}
+                      {formatTeacherName(teacherName)}
                     </h2>
                     <p className="text-sm text-muted-foreground font-medium">
                       Professor
