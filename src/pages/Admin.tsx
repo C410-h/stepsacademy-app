@@ -38,7 +38,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { AdminChatPane } from "@/components/chat/AdminChatPane";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { updateStudentStep } from "@/lib/studentProgress";
@@ -2120,11 +2120,18 @@ const Admin = () => {
                           </p>
                           {s.teacherName && <p className="text-xs text-muted-foreground">Prof: {s.teacherName}</p>}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                           <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-[var(--theme-accent)] text-[var(--theme-text-on-accent)] text-[10px]" : "text-[10px]"}>
                             {s.status === "active" ? "ativo" : s.status}
                           </Badge>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          {s.userId && (
+                            <Button asChild variant="ghost" size="sm" className="h-7 w-7 p-0" title="Falar com aluno">
+                              <Link to={`/chat?teacher=${s.userId}`}>
+                                <MessageCircle className="h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          )}
+                          <ChevronRight className="h-4 w-4 text-muted-foreground cursor-pointer" onClick={() => openStudentDrawer(s)} />
                         </div>
                       </div>
                     </CardContent>
@@ -2137,7 +2144,17 @@ const Admin = () => {
             <Sheet open={studentDrawerOpen} onOpenChange={v => { setStudentDrawerOpen(v); if (!v) { setShowAddEnrollment(false); setEnrollLangId(""); setEnrollLevelId(""); setShowAddAltEmail(false); setNewAltEmail(""); setNewAltLabel(""); } }}>
               <SheetContent className="w-full sm:max-w-lg lg:max-w-2xl overflow-y-auto">
                 <SheetHeader>
-                  <SheetTitle>{selectedStudent?.profile?.name || "Aluno"}</SheetTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <SheetTitle>{selectedStudent?.profile?.name || "Aluno"}</SheetTitle>
+                    {selectedStudent?.userId && (
+                      <Button asChild size="sm" variant="outline" className="gap-1.5 text-xs h-8 shrink-0">
+                        <Link to={`/chat?teacher=${selectedStudent.userId}`}>
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          Falar
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
                 </SheetHeader>
                 {drawerLoading ? (
                   <div className="space-y-3 mt-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
@@ -2629,6 +2646,13 @@ const Admin = () => {
                           </p>
                         </div>
                         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                          {t.userId && (
+                            <Button asChild variant="outline" size="sm" title="Falar com professor">
+                              <Link to={`/chat?teacher=${t.userId}`}>
+                                <MessageCircle className="h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
                           <Button variant="outline" size="sm" onClick={() => navigate(`/admin/professor/${t.id}`)}>
                             <Eye className="h-3 w-3 mr-1" />Ver
                           </Button>

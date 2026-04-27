@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { HELP_CONTENT } from "@/data/helpContent";
-import { Camera, Info, Pencil, Lock, LogOut, Search, HelpCircle } from "lucide-react";
+import { Camera, Info, Pencil, Lock, LogOut, Search, HelpCircle, MessageCircle, Headphones } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -530,7 +531,15 @@ const TeacherProfileTab = ({ profileId, onSwitchToAvailability }: Props) => {
         {/* ── Ajuda (4 colunas) ── */}
         <Card className="bento-ajuda">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold">Central de Ajuda</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-bold">Central de Ajuda</CardTitle>
+              <Button asChild size="sm" variant="outline" className="gap-1.5 text-xs h-7">
+                <Link to="/chat?support=1">
+                  <Headphones className="h-3.5 w-3.5" />
+                  Falar com suporte
+                </Link>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="relative">

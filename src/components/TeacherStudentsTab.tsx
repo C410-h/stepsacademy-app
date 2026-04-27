@@ -25,8 +25,9 @@ import { updateStudentStep } from "@/lib/studentProgress";
 import {
   Search, CalendarPlus, BookOpen, AlertTriangle,
   Phone, Mail, CalendarCheck, Flame, TrendingUp,
-  CheckCircle2, XCircle, Clock, RefreshCw,
+  CheckCircle2, XCircle, Clock, RefreshCw, MessageCircle,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { ScheduleStudent } from "@/components/ScheduleClassSheet";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -562,6 +563,17 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
                     Agendar aula
                   </Button>
                   <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-xs px-2"
+                    title="Falar com aluno"
+                  >
+                    <Link to={`/chat?teacher=${student.userId}`}>
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                  <Button
                     size="sm"
                     className="flex-1 gap-1.5 text-xs"
                     onClick={() => openDrawer(student)}
@@ -624,6 +636,14 @@ const TeacherStudentsTab = ({ profileId, teacherId, onSchedule }: Props) => {
                         <Phone className="h-3.5 w-3.5 shrink-0" />
                         {drawerData.phone}
                       </p>
+                    )}
+                    {drawerStudent?.userId && (
+                      <Button asChild size="sm" variant="outline" className="mt-2 w-full gap-1.5 text-xs h-7">
+                        <Link to={`/chat?teacher=${drawerStudent.userId}`}>
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          Falar com aluno
+                        </Link>
+                      </Button>
                     )}
                   </div>
                 </div>

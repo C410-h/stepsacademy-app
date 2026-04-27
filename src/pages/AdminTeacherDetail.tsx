@@ -16,7 +16,9 @@ import {
   Phone,
   Flame,
   LogOut,
+  MessageCircle,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 // ────────────────────────────────────────────
@@ -341,6 +343,15 @@ export default function AdminTeacherDetail() {
                           </Badge>
                         ))}
                       </div>
+                    )}
+
+                    {teacher?.user_id && (
+                      <Button asChild size="sm" variant="outline" className="mt-3 gap-1.5">
+                        <Link to={`/chat?teacher=${teacher.user_id}`}>
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          Falar com este professor
+                        </Link>
+                      </Button>
                     )}
                   </>
                 )}
