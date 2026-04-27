@@ -35,7 +35,7 @@ serve(async (req) => {
     // Load the message + sender + room kind
     const { data: msg } = await supabase
       .from('chat_messages')
-      .select('id, room_id, sender_id, content, file_name, profiles!chat_messages_sender_id_fkey(name)')
+      .select('id, room_id, sender_id, content, file_name, profiles!chat_messages_sender_id_fkey(name, role)')
       .eq('id', message_id)
       .maybeSingle()
 
@@ -43,7 +43,13 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers: corsHeaders })
     }
 
-    const senderName = (msg as any).profiles?.name ?? 'Alguém'
+    const rawName = (msg as any).profiles?.name ?? 'Alguém'
+    const senderRole = (msg as any).profiles?.role
+    // Mirror src/lib/utils.ts → formatTeacherName: strip any existing
+    // Prof./Professor/Profa. prefix, then re-apply "Prof. " consistently.
+    const senderName = senderRole === 'teacher'
+      ? `Prof. ${rawName.replace(/^(Profa?\.?\s+|Professora?\s+)/i, '').trim()}`
+      : rawName
     const preview = (msg.content ?? '').slice(0, 100) || (msg.file_name ? `📎 ${msg.file_name}` : 'Nova mensagem')
 
     // Recipients: all members of the room EXCEPT the sender, EXCEPT muted
