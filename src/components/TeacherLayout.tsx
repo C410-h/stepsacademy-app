@@ -2,10 +2,16 @@ import { ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, ClipboardList } from "lucide-react";
+import { LogOut, ClipboardList, Menu } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
-const TeacherLayout = ({ children }: { children: ReactNode }) => {
+interface TeacherLayoutProps {
+  children: ReactNode;
+  /** When provided, renders a hamburger button (mobile only) that calls this on click */
+  onMenuClick?: () => void;
+}
+
+const TeacherLayout = ({ children, onMenuClick }: TeacherLayoutProps) => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
@@ -13,7 +19,18 @@ const TeacherLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-background border-b">
-        <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32 -my-10" /></Link>
+        <div className="flex items-center gap-2">
+          {onMenuClick && (
+            <button
+              onClick={onMenuClick}
+              className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+              aria-label="Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )}
+          <Link to="/"><img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-32 -my-10" /></Link>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild className="text-xs">
             <Link to="/nivelamento">

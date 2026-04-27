@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard, Users, FileText, CalendarDays, Clock, CalendarPlus,
@@ -32,6 +33,7 @@ const Teacher = () => {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { totalUnread } = useChatRooms();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
 
@@ -118,7 +120,7 @@ const Teacher = () => {
 
   if (loading) {
     return (
-      <TeacherLayout>
+      <TeacherLayout onMenuClick={() => setMobileNavOpen(true)}>
         <div className="space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-24 w-full rounded-xl" />
@@ -130,7 +132,7 @@ const Teacher = () => {
 
   if (!teacherId) {
     return (
-      <TeacherLayout>
+      <TeacherLayout onMenuClick={() => setMobileNavOpen(true)}>
         <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
           <Users className="h-12 w-12 text-muted-foreground" />
           <h2 className="text-lg font-bold">Perfil de professor não encontrado</h2>
@@ -145,7 +147,7 @@ const Teacher = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <TeacherLayout>
+    <TeacherLayout onMenuClick={() => setMobileNavOpen(true)}>
       <div className="lg:grid lg:grid-cols-[240px,1fr] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
 
         {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
@@ -211,24 +213,11 @@ const Teacher = () => {
         {/* ── Conteúdo principal ───────────────────────────────────────────── */}
         <div className="min-w-0 space-y-5">
 
-          {/* Mobile tab bar — scrollável */}
-          <div className="flex overflow-x-auto scrollbar-none bg-muted rounded-lg p-1 gap-1 lg:hidden">
-            {navItems.map(({ value, icon: Icon, label }) => (
-              <button
-                key={value}
-                onClick={() => setActiveTab(value)}
-                title={label}
-                className={cn(
-                  "shrink-0 flex flex-col items-center justify-center py-2.5 px-3 rounded-md transition-all gap-0.5 min-w-[56px]",
-                  activeTab === value
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-[9px] font-medium leading-none">{label}</span>
-              </button>
-            ))}
+          {/* Mobile: section label (drawer triggered from header burger) */}
+          <div className="lg:hidden flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">
+              {navItems.find(i => i.value === activeTab)?.label ?? ""}
+            </p>
           </div>
 
           {/* Botão agendar mobile — visível na aba overview e students */}
@@ -322,6 +311,39 @@ const Teacher = () => {
         students={simpleStudents}
         preSelectedStudent={preSelectedStudent}
       />
+
+      {/* ── Mobile nav drawer (hamburger) ─────────────────────────────────── */}
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent side="left" className="w-64 p-0">
+          <SheetHeader className="px-5 py-4 border-b">
+            <SheetTitle className="text-left">
+              <img src="/brand/logo-reto-darkpurple.webp" alt="steps academy" className="h-10 w-auto object-contain" />
+            </SheetTitle>
+          </SheetHeader>
+          <nav className="p-3 space-y-0.5">
+            {navItems.map(({ value, icon: Icon, label }) => (
+              <button
+                key={value}
+                onClick={() => { setActiveTab(value); setMobileNavOpen(false); }}
+                className={cn(
+                  "flex items-center gap-3 text-sm px-3 py-2.5 rounded-md w-full text-left transition-colors",
+                  activeTab === value
+                    ? "bg-[var(--theme-accent)]/15 text-[var(--theme-brand-on-bg)] font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{label}</span>
+                {value === "chat" && totalUnread > 0 && (
+                  <span className="text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--theme-brand-on-bg)] text-[var(--theme-text-on-brand)] flex items-center justify-center">
+                    {totalUnread > 99 ? "99+" : totalUnread}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </SheetContent>
+      </Sheet>
     </TeacherLayout>
   );
 };
