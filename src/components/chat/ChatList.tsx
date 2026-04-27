@@ -113,19 +113,26 @@ export function ChatList({ rooms, activeRoomId, onSelectRoom, onBroadcast, showA
 
 function RoomRow({ room, active, onClick, dimmed }: { room: ChatRoom; active: boolean; onClick: () => void; dimmed?: boolean }) {
   const isSupport = room.kind === "support";
+  // Owner view of support: emphasize with accent border + tinted background.
+  // Admin view of support rooms (display_role !== "support") looks normal.
+  const isSupportOwner = isSupport && room.display_role === "support";
   return (
     <button
       onClick={onClick}
       className={cn(
         "w-full flex items-start gap-2.5 px-3 py-2.5 text-left transition-colors border-b border-border/40",
-        active
-          ? "bg-[var(--theme-accent)]/30"
-          : "hover:bg-muted/50",
+        isSupportOwner && !active && "bg-[var(--theme-accent)]/15 border-l-4 border-l-[var(--theme-brand-on-bg)] pl-[8px] hover:bg-[var(--theme-accent)]/25",
+        isSupportOwner && active && "bg-[var(--theme-accent)]/40 border-l-4 border-l-[var(--theme-brand-on-bg)] pl-[8px]",
+        !isSupportOwner && active && "bg-[var(--theme-accent)]/30",
+        !isSupportOwner && !active && "hover:bg-muted/50",
         dimmed && "opacity-60"
       )}
     >
-      <Avatar className="h-10 w-10 shrink-0">
-        {room.display_avatar && <AvatarImage src={room.display_avatar} />}
+      <Avatar className={cn(
+        "h-10 w-10 shrink-0",
+        isSupportOwner && "ring-2 ring-[var(--theme-brand-on-bg)]/40 ring-offset-1 ring-offset-background"
+      )}>
+        {room.display_avatar && <AvatarImage src={room.display_avatar} className={cn(isSupportOwner && "object-cover bg-[var(--theme-accent)]/30")} />}
         <AvatarFallback className={cn(
           "text-xs font-medium",
           isSupport
@@ -139,7 +146,10 @@ function RoomRow({ room, active, onClick, dimmed }: { room: ChatRoom; active: bo
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           {room.is_pinned && <Pin className="h-3 w-3 text-muted-foreground shrink-0" />}
-          <p className="font-medium text-sm truncate flex-1">{room.display_name}</p>
+          <p className={cn(
+            "font-medium text-sm truncate flex-1",
+            isSupportOwner && "text-[var(--theme-brand-on-bg)] font-semibold"
+          )}>{room.display_name}</p>
           <span className="text-[10px] text-muted-foreground shrink-0">
             {fmtPreviewTime(room.last_message_at)}
           </span>

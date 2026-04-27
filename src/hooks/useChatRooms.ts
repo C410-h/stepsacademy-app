@@ -88,6 +88,7 @@ export function useChatRooms() {
         // The room "owner" is the only member; admin sees their name, owner sees "Suporte"
         if (myMember) {
           displayName = "Steps Suporte";
+          displayAvatar = "/steppie/steppie-alegre.webp";
           displayRole = "support";
         } else {
           // Admin view of support room — show the requester

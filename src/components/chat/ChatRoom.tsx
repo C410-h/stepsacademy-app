@@ -81,10 +81,20 @@ export function ChatRoom({
     .map(uid => room.members.find(m => m.user_id === uid)?.name)
     .filter(Boolean) as string[];
 
+  // Owner view of support: visual emphasis (accent band + tinted header)
+  const isSupportOwner = room.kind === "support" && room.display_role === "support";
+
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* Top accent band — only on support owner view */}
+      {isSupportOwner && (
+        <div className="h-1 w-full bg-gradient-to-r from-[var(--theme-brand-on-bg)] via-[var(--theme-accent)] to-[var(--theme-brand-on-bg)]" />
+      )}
       {/* Header */}
-      <div className="flex items-center gap-3 px-3 py-2.5 border-b bg-background">
+      <div className={cn(
+        "flex items-center gap-3 px-3 py-2.5 border-b",
+        isSupportOwner ? "bg-[var(--theme-accent)]/10" : "bg-background"
+      )}>
         {onBack && (
           <button onClick={onBack} className="lg:hidden p-1 rounded hover:bg-muted text-muted-foreground" aria-label="Voltar">
             <ArrowLeft className="h-5 w-5" />
@@ -121,14 +131,20 @@ export function ChatRoom({
           </button>
         ) : (
           <>
-            <Avatar className="h-9 w-9">
-              {room.display_avatar && <AvatarImage src={room.display_avatar} />}
+            <Avatar className={cn(
+              "h-9 w-9",
+              isSupportOwner && "h-11 w-11 ring-2 ring-[var(--theme-brand-on-bg)]/50 ring-offset-2 ring-offset-background"
+            )}>
+              {room.display_avatar && <AvatarImage src={room.display_avatar} className={cn(isSupportOwner && "object-cover bg-[var(--theme-accent)]/30")} />}
               <AvatarFallback className="text-xs bg-[var(--theme-accent)]/30 text-[var(--theme-brand-on-bg)] font-medium">
                 {initials(room.display_name)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate">{room.display_name}</p>
+              <p className={cn(
+                "font-semibold text-sm truncate",
+                isSupportOwner && "text-[var(--theme-brand-on-bg)]"
+              )}>{room.display_name}</p>
               <p className="text-[11px] text-muted-foreground truncate">
                 {typingNames.length > 0
                   ? `${typingNames[0]} está digitando…`
