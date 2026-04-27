@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatRooms } from "@/hooks/useChatRooms";
@@ -28,15 +28,27 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
   const visibleRooms = roomsFilter ? rooms.filter(roomsFilter) : rooms;
   const activeRoom = visibleRooms.find(r => r.id === activeId) ?? null;
   const { messages, typingUsers, sendMessage, deleteMessage, toggleReaction, sendTyping } = useChatRoom(activeId);
+  const consumedInitialRef = useRef<string | null>(null);
+  const userBackedOutRef = useRef(false);
 
-  // Auto-select: prefer the deep-linked room when available, else the first one
+  // Deep-link auto-select — only fires once per initialRoomId value, so the
+  // back button on mobile can clear `activeId` without immediately re-triggering.
   useEffect(() => {
-    if (initialRoomId && visibleRooms.find(r => r.id === initialRoomId)) {
+    if (initialRoomId && consumedInitialRef.current !== initialRoomId
+        && visibleRooms.find(r => r.id === initialRoomId)) {
       setActiveId(initialRoomId);
-    } else if (!activeId && visibleRooms.length > 0) {
+      consumedInitialRef.current = initialRoomId;
+    }
+  }, [visibleRooms, initialRoomId]);
+
+  // Desktop convenience: pick the first room when nothing is selected. Skipped
+  // on mobile when the user explicitly went back to the list.
+  useEffect(() => {
+    if (!activeId && !userBackedOutRef.current && visibleRooms.length > 0
+        && window.matchMedia("(min-width: 1024px)").matches) {
       setActiveId(visibleRooms[0].id);
     }
-  }, [visibleRooms, activeId, initialRoomId]);
+  }, [visibleRooms, activeId]);
 
   const togglePin = async () => {
     if (!activeRoom || !profile?.id) return;
@@ -78,19 +90,25 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
   const handleDelete = (msg: ChatMessage) => deleteMessage(msg.id);
   const handleReact = (msg: ChatMessage, emoji: string) => toggleReaction(msg.id, emoji);
 
+  // Mobile: show list when no room selected, show room (full-screen) when one is.
+  // Desktop (lg+): show both side-by-side.
+  const showRoomOnMobile = !!activeRoom;
+
   return (
     <div className="flex h-full bg-background border rounded-lg overflow-hidden">
-      <div className="w-72 lg:w-80 shrink-0">
+      {/* Chat list — hidden on mobile when a room is open */}
+      <div className={`${showRoomOnMobile ? "hidden lg:block" : "block"} w-full lg:w-80 shrink-0`}>
         <ChatList
           rooms={visibleRooms}
           activeRoomId={activeId}
-          onSelectRoom={setActiveId}
+          onSelectRoom={(id) => { userBackedOutRef.current = false; setActiveId(id); }}
           onBroadcast={broadcastRecipients ? () => setBroadcastOpen(true) : undefined}
           showArchived
           emptyHint={emptyHint}
         />
       </div>
-      <div className="flex-1 min-w-0">
+      {/* Chat room — hidden on mobile when no room selected */}
+      <div className={`${showRoomOnMobile ? "block" : "hidden lg:block"} flex-1 min-w-0`}>
         {activeRoom && profile?.id ? (
           <ChatRoom
             room={activeRoom}
@@ -104,6 +122,7 @@ export function ChatLayout({ roomsFilter, broadcastRecipients, emptyHint, initia
             onTogglePin={togglePin}
             onToggleMute={toggleMute}
             onToggleArchive={toggleArchive}
+            onBack={() => { userBackedOutRef.current = true; setActiveId(null); }}
           />
         ) : (
           <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
