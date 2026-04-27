@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle, History } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { Navigate } from "react-router-dom";
+import { BookOpen, Headphones, FileText, PenLine, ExternalLink, GraduationCap, ChevronRight, AlertTriangle, Trophy, HelpCircle, History, MessageCircle } from "lucide-react";
+import { Link, useNavigate, Navigate } from "react-router-dom";
 import UpcomingClasses from "@/components/UpcomingClasses";
 import RescheduleSheet, { type RescheduleSessionData } from "@/components/RescheduleSheet";
 
@@ -342,17 +341,27 @@ const Dashboard = () => {
                   : `Você tem ${missedSessions.length} aulas com falta pendente.`}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40"
-              onClick={() => {
-                setRescheduleSession(missedSessions[0]);
-                setRescheduleOpen(true);
-              }}
-            >
-              Remarcar
-            </Button>
+            <div className="flex gap-1.5 shrink-0">
+              {missedSessions[0]?.teacher_id && (
+                <Button asChild size="sm" variant="ghost" className="text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40 gap-1.5">
+                  <Link to={`/chat?teacher=${missedSessions[0].teacher_id}`}>
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Avisar
+                  </Link>
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                onClick={() => {
+                  setRescheduleSession(missedSessions[0]);
+                  setRescheduleOpen(true);
+                }}
+              >
+                Remarcar
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

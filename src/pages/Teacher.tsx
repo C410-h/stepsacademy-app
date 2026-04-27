@@ -18,16 +18,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard, Users, FileText, CalendarDays, Clock, CalendarPlus,
-  BarChart2, User,
+  BarChart2, User, MessageCircle,
 } from "lucide-react";
+import { useChatRooms } from "@/hooks/useChatRooms";
+import { ChatLayout } from "@/components/chat/ChatLayout";
+import type { BroadcastRecipient } from "@/components/chat/BroadcastDialog";
 import { cn } from "@/lib/utils";
 
-type ActiveTab = "overview" | "students" | "stats" | "agenda" | "content" | "availability" | "profile";
+type ActiveTab = "overview" | "students" | "stats" | "agenda" | "content" | "chat" | "availability" | "profile";
 
 const Teacher = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { totalUnread } = useChatRooms();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
 
@@ -105,6 +109,7 @@ const Teacher = () => {
     { value: "stats",         icon: BarChart2,       label: "Estatísticas" },
     { value: "agenda",        icon: CalendarDays,    label: "Agenda" },
     { value: "content",       icon: FileText,        label: "Conteúdo" },
+    { value: "chat",          icon: MessageCircle,   label: "Mensagens" },
     { value: "availability",  icon: Clock,           label: "Horários" },
     { value: "profile",       icon: User,            label: "Perfil" },
   ];
@@ -175,7 +180,12 @@ const Teacher = () => {
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    <span>{label}</span>
+                    <span className="flex-1 text-left">{label}</span>
+                    {value === "chat" && totalUnread > 0 && (
+                      <span className="text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--theme-brand-on-bg)] text-[var(--theme-text-on-brand)] flex items-center justify-center">
+                        {totalUnread > 99 ? "99+" : totalUnread}
+                      </span>
+                    )}
                   </button>
                 ))}
               </nav>
@@ -274,6 +284,20 @@ const Teacher = () => {
 
           {/* ══ Conteúdo ══════════════════════════════════════════════════════ */}
           {activeTab === "content" && <TeacherContentTab teacherId={teacherId} profileId={profile!.id} />}
+
+          {/* ══ Mensagens ═════════════════════════════════════════════════════ */}
+          {activeTab === "chat" && (
+            <div className="h-[calc(100vh-180px)] min-h-[500px]">
+              <ChatLayout
+                broadcastRecipients={simpleStudents.map(s => ({
+                  user_id: s.userId,
+                  name: s.name,
+                  subtitle: s.languageName,
+                }))}
+                emptyHint="Conversas com seus alunos aparecerão aqui."
+              />
+            </div>
+          )}
 
           {/* ══ Disponibilidade ═══════════════════════════════════════════════ */}
           {activeTab === "availability" && <TeacherAvailabilityTab />}

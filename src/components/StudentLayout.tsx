@@ -5,7 +5,8 @@ import { useGamification } from "@/contexts/GamificationContext";
 import { usePaymentAlert } from "@/contexts/PaymentAlertContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp, Coins, Gift } from "lucide-react";
+import { Zap, Home, GraduationCap, BarChart3, User, X, CircleHelp, Coins, Gift, MessageCircle } from "lucide-react";
+import { useChatRooms } from "@/hooks/useChatRooms";
 import { Link, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -19,6 +20,7 @@ const navItems = [
   { to: "/aula", icon: GraduationCap, label: "Aula" },
   { to: "/step-by-step", icon: Zap, label: "Step by Step" },
   { to: "/progresso", icon: BarChart3, label: "Progresso" },
+  { to: "/chat", icon: MessageCircle, label: "Mensagens", showBadge: true },
   { to: "/recompensas", icon: Gift, label: "Recompensas" },
   { to: "/perfil", icon: User, label: "Perfil" },
 ];
@@ -30,6 +32,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
   const { showPaymentAlert, diasOverdue, isCorporate } = usePaymentAlert();
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
+  const { totalUnread } = useChatRooms();
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
   const logoSrc = theme === "bonjour" ? "/brand/logo-reto-cream.webp" : "/brand/logo-reto-darkpurple.webp";
 
@@ -79,7 +82,7 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
 
         {/* Nav links */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {navItems.map(({ to, icon: Icon, label, showBadge }) => (
             <NavLink
               key={to}
               to={to}
@@ -94,7 +97,12 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
               }
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {showBadge && totalUnread > 0 && (
+                <span className="text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--theme-brand-on-bg)] text-[var(--theme-text-on-brand)] flex items-center justify-center">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -149,6 +157,18 @@ const StudentLayout = ({ children }: { children: ReactNode }) => {
               </div>
             </>
           )}
+          <Link
+            to="/chat"
+            aria-label="Mensagens"
+            className="relative flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <MessageCircle className="h-5 w-5" />
+            {totalUnread > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold min-w-[16px] h-[16px] px-1 rounded-full bg-[var(--theme-brand-on-bg)] text-[var(--theme-text-on-brand)] flex items-center justify-center">
+                {totalUnread > 9 ? "9+" : totalUnread}
+              </span>
+            )}
+          </Link>
           <Link
             to="/ajuda"
             aria-label="Ajuda"

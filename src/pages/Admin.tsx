@@ -35,7 +35,9 @@ import {
   ChevronRight, Trash2, PenLine, Eye, FileText, LayoutGrid,
   UserPlus, Globe, CreditCard, RefreshCw, UserCheck, Clock,
   Library, X, MessageSquarePlus, ShoppingBag, Menu, TrendingUp,
+  MessageCircle,
 } from "lucide-react";
+import { AdminChatPane } from "@/components/chat/AdminChatPane";
 import { Navigate, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
@@ -1699,6 +1701,7 @@ const Admin = () => {
                 { value: "groups", label: "Turmas" },
                 { value: "stats", label: "Estatísticas" },
                 { value: "content", label: "Conteúdo" },
+                { value: "chat", label: "Mensagens" },
                 { value: "notifications", label: "Notificações" },
                 { value: "payments", label: "Pagamentos" },
                 { value: "cadastros", label: "Cadastros" },
@@ -1720,6 +1723,7 @@ const Admin = () => {
                   { value: "groups", label: "Turmas", icon: BookOpen },
                   { value: "stats", label: "Estatísticas", icon: TrendingUp },
                   { value: "content", label: "Conteúdo", icon: FileText },
+                  { value: "chat", label: "Mensagens", icon: MessageCircle },
                   { value: "notifications", label: "Notificações", icon: Bell },
                   { value: "payments", label: "Pagamentos", icon: CreditCard },
                   { value: "cadastros", label: "Cadastros", icon: UserCheck },
@@ -3526,6 +3530,11 @@ const Admin = () => {
                 <AdminContentByStepTab />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          {/* ── Tab: Mensagens ────────────────────────────────────────────────── */}
+          <TabsContent value="chat" className="space-y-2">
+            <AdminChatPane students={students} teachers={teachers} />
           </TabsContent>
 
           {/* ── Tab: Notificações ─────────────────────────────────────────────── */}

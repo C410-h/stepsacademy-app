@@ -11,8 +11,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CalendarDays, ExternalLink, RefreshCw, Calendar,
-  Loader2, AlertTriangle, ChevronRight, BanIcon, CalendarClock,
+  Loader2, AlertTriangle, ChevronRight, BanIcon, CalendarClock, MessageCircle,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -747,6 +748,16 @@ const UpcomingClasses = () => {
                       >
                         <ExternalLink className="h-4 w-4" />
                         Entrar na aula
+                      </Button>
+                    )}
+
+                    {/* Falar com o(a) professor(a) */}
+                    {session?.teacher_id && (
+                      <Button asChild variant="outline" className="w-full gap-2">
+                        <Link to={`/chat?teacher=${session.teacher_id}`}>
+                          <MessageCircle className="h-4 w-4" />
+                          Falar com o(a) professor(a)
+                        </Link>
                       </Button>
                     )}
 

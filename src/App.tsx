@@ -10,6 +10,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import AdminTeacherDetail from "./pages/AdminTeacherDetail";
 import AdminUITest from "./pages/AdminUITest";
+import ChatTest from "./pages/ChatTest";
+import Chat from "./pages/Chat";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -95,6 +97,8 @@ const App = () => (
               <Route path="/privacidade" element={<PrivacyPolicy />} />
               <Route path="/termos" element={<TermsOfService />} />
               <Route path="/admin-ui-test" element={<AdminUITest />} />
+              <Route path="/chat-test" element={<ChatTest />} />
+              <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
               </Routes>
             </GamificationProvider>
