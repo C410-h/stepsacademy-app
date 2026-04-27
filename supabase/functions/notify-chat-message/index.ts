@@ -124,6 +124,9 @@ serve(async (req) => {
       url: '/chat',
       tag: `chat-${msg.room_id}`,
     })
+    // FCM topic constraint: max 32 chars, URL-safe Base64. Use the UUID
+    // without dashes (32 hex chars) so the push isn't silently rejected.
+    const topic = msg.room_id.replace(/-/g, '').slice(0, 32)
 
     let sent = 0
     let failed = 0
@@ -133,7 +136,7 @@ serve(async (req) => {
         await webPush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload,
-          { TTL: 86400, topic: `chat-${msg.room_id}` }
+          { TTL: 86400, topic }
         )
         sent++
       } catch (err: any) {
