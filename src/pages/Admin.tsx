@@ -346,6 +346,7 @@ const Admin = () => {
   const [adminNotifs, setAdminNotifs] = useState<any[]>([]);
   const [pushPromptStats, setPushPromptStats] = useState<any[]>([]);
   const [profileCompletionStats, setProfileCompletionStats] = useState<any[]>([]);
+  const [onboardingStats, setOnboardingStats] = useState<any[]>([]);
 
   // ── Manual push notification modal
   const [pushModalOpen, setPushModalOpen] = useState(false);
@@ -489,6 +490,7 @@ const Admin = () => {
     loadAdminNotifs();
     loadPushPromptStats();
     loadProfileCompletionStats();
+    loadOnboardingStats();
     loadMaterials();
     loadAllSteps();
     loadAdmins();
@@ -1160,10 +1162,10 @@ const Admin = () => {
         .order("created_at", { ascending: false }),
       (supabase as any)
         .from("push_subscriptions")
-        .select("student_id"),
+        .select("student_id, students!push_subscriptions_student_id_fkey(profiles!students_user_id_fkey(name))"),
     ]);
     const subscribedIds = new Set((subs || []).map((s: any) => s.student_id));
-    // Group by student
+    // Group by student from logs
     const map = new Map<string, any>();
     for (const row of (logs || [])) {
       const sid = row.student_id;
@@ -1182,7 +1184,18 @@ const Admin = () => {
         if (!entry.lastDismissed || row.created_at > entry.lastDismissed) entry.lastDismissed = row.created_at;
       }
     }
-    // Sort: not subscribed first, then by most recent dismissal
+    // Also add subscribed students who never appeared in the log
+    for (const sub of (subs || [])) {
+      if (!map.has(sub.student_id)) {
+        map.set(sub.student_id, {
+          student_id: sub.student_id,
+          name: sub.students?.profiles?.name ?? "—",
+          subscribed: true,
+          shown: 0, dismissed: 0, lastDismissed: null,
+        });
+      }
+    }
+    // Sort: subscribed last (they're done), then pending by most recent dismissal
     setPushPromptStats(
       [...map.values()].sort((a, b) => {
         if (a.subscribed !== b.subscribed) return a.subscribed ? 1 : -1;
@@ -1221,6 +1234,25 @@ const Admin = () => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
         return (b.completedAt ?? "") > (a.completedAt ?? "") ? 1 : -1;
       })
+    );
+  };
+
+  const loadOnboardingStats = async () => {
+    const { data } = await (supabase as any)
+      .from("students")
+      .select("id, onboarding_completed, profiles!students_user_id_fkey(name)")
+      .eq("status", "active");
+    setOnboardingStats(
+      (data || [])
+        .map((s: any) => ({
+          student_id: s.id,
+          name: s.profiles?.name ?? "—",
+          completed: s.onboarding_completed ?? false,
+        }))
+        .sort((a: any, b: any) => {
+          if (a.completed !== b.completed) return a.completed ? 1 : -1;
+          return a.name.localeCompare(b.name);
+        })
     );
   };
 
@@ -3540,10 +3572,11 @@ const Admin = () => {
             </Card>
 
             {/* ── Modal viewers ── */}
-            {(profileCompletionStats.length > 0 || pushPromptStats.length > 0) && (
+            {(profileCompletionStats.length > 0 || pushPromptStats.length > 0 || onboardingStats.length > 0) && (
               <ModalViewersCard
                 profileStats={profileCompletionStats}
                 pushStats={pushPromptStats}
+                onboardingStats={onboardingStats}
               />
             )}
 

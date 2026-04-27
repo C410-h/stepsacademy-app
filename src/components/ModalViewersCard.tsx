@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserCheck, Bell } from "lucide-react";
+import { UserCheck, Bell, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -20,14 +20,22 @@ interface PushStat {
   shown: number;
 }
 
+interface OnboardingStat {
+  student_id: string;
+  name: string;
+  completed: boolean;
+}
+
 interface Props {
   profileStats: ProfileStat[];
   pushStats: PushStat[];
+  onboardingStats: OnboardingStat[];
 }
 
 const MODALS = [
-  { key: "profile", label: "Perfil completo", icon: UserCheck },
-  { key: "push",    label: "Push",            icon: Bell },
+  { key: "profile",    label: "Perfil",     icon: UserCheck },
+  { key: "push",       label: "Push",       icon: Bell },
+  { key: "onboarding", label: "Onboarding", icon: Sparkles },
 ] as const;
 
 type ModalKey = typeof MODALS[number]["key"];
@@ -35,15 +43,17 @@ type ModalKey = typeof MODALS[number]["key"];
 const fmt = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "";
 
-export function ModalViewersCard({ profileStats, pushStats }: Props) {
-  const [active, setActive] = useState<ModalKey>("profile");
+export function ModalViewersCard({ profileStats, pushStats, onboardingStats }: Props) {
+  const [active, setActive] = useState<ModalKey>("push");
 
-  const profileDone  = profileStats.filter(s => s.completed).length;
-  const pushActive   = pushStats.filter(s => s.subscribed).length;
+  const profileDone    = profileStats.filter(s => s.completed).length;
+  const pushActive     = pushStats.filter(s => s.subscribed).length;
+  const onboardingDone = onboardingStats.filter(s => s.completed).length;
 
   const counts: Record<ModalKey, string> = {
-    profile: `${profileDone}/${profileStats.length} completaram`,
-    push:    `${pushActive}/${pushStats.length} ativaram`,
+    profile:    `${profileDone}/${profileStats.length} completaram`,
+    push:       `${pushActive}/${pushStats.length} com notificações ativas`,
+    onboarding: `${onboardingDone}/${onboardingStats.length} concluíram`,
   };
 
   return (
@@ -51,7 +61,7 @@ export function ModalViewersCard({ profileStats, pushStats }: Props) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-sm font-bold">Modais — visualizações</CardTitle>
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             {MODALS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -105,8 +115,28 @@ export function ModalViewersCard({ profileStats, pushStats }: Props) {
                   <span className="text-xs text-muted-foreground shrink-0">
                     {s.dismissed > 0
                       ? `Recusou ${s.dismissed}× · ${fmt(s.lastDismissed)}`
-                      : `Viu ${s.shown}× · sem resposta`}
+                      : s.shown > 0
+                        ? `Viu ${s.shown}× · sem resposta`
+                        : "Nunca viu o modal"}
                   </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {active === "onboarding" && (
+          <div className="divide-y text-sm">
+            {onboardingStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Nenhum dado ainda.</p>
+            ) : onboardingStats.map(s => (
+              <div key={s.student_id} className="flex items-center gap-3 py-2.5">
+                <div className={cn("h-2 w-2 rounded-full shrink-0", s.completed ? "bg-green-500" : "bg-amber-400")} />
+                <span className="flex-1 font-medium truncate">{s.name}</span>
+                {s.completed ? (
+                  <span className="text-xs text-green-600 font-medium shrink-0">Concluído</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground shrink-0">Pendente</span>
                 )}
               </div>
             ))}
